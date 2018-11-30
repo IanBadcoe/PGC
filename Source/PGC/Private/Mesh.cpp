@@ -33,7 +33,9 @@ int Mesh::AddFindEdge(int idx1, int idx2)
 	int edge_idx = FindEdge(idx1, idx2);
 
 	if (edge_idx != -1)
+	{
 		return edge_idx;
+	}
 
 	MeshEdge ne{ ne.StartVertIdx = idx1, ne.EndVertIdx = idx2 };
 
@@ -87,9 +89,10 @@ void Mesh::CheckConsistent(bool closed)
 		check(e.EndVertIdx >= 0 && e.EndVertIdx < Vertices.Num());
 		check(e.ForwardsFaceIdx < Faces.Num());
 		check(e.BackwardsFaceIdx < Faces.Num());
+		// we should have both edges if we're closed
+		// (redundant edges should have been removed...)
 		check(!closed || e.ForwardsFaceIdx != -1);
 		check(!closed || e.BackwardsFaceIdx != -1);
-
 		check(Vertices[e.StartVertIdx].EdgeIdxs.Contains(edge_idx));
 		check(Vertices[e.EndVertIdx].EdgeIdxs.Contains(edge_idx));
 		check(e.ForwardsFaceIdx == -1 || Faces[e.ForwardsFaceIdx].EdgeIdxs.Contains(edge_idx));
@@ -120,6 +123,8 @@ void Mesh::CheckConsistent(bool closed)
 	{
 		auto& face = Faces[face_idx];
 
+		check(face.VertsAreRegular());
+
 		auto prev_vert_idx = face.VertIdxs.Last();
 
 		for (auto vert_idx : face.VertIdxs)
@@ -148,9 +153,138 @@ void Mesh::CheckConsistent(bool closed)
 
 }
 
+#ifndef UE_BUILD_RELEASE
+
+TArray<TArray<FVector>> working_configs{
+	{							// one cube
+		{0, 0, 0}
+	},
+	{							// face contact
+		{0, 0, 0},
+		{0, 0, 1},
+	},
+	// requires duplicate edge handling
+	//{							// edge contact
+	//	{0, 0, 0},
+	//	{0, 1, 1},
+	//},
+	{							// corner contact
+		{0, 0, 0},
+		{1, 1, 1},
+	},
+	{							// three in a row
+		{0, 0, 0},
+		{0, 0, 1},
+		{0, 0, 2},
+	},
+	{							// L shape
+		{0, 0, 0},
+		{0, 0, 1},
+		{0, 1, 1},
+	},
+	{							// square
+		{0, 0, 0},
+		{0, 0, 1},
+		{0, 1, 1},
+		{0, 1, 0},
+	},
+	{							// 3x3 supplying cubes in an easy order
+		{0, 0, 0},
+		{0, 0, 1},
+		{0, 0, 2},
+		{0, 1, 0},
+		{0, 1, 1},
+		{0, 1, 2},
+		{0, 2, 0},
+		{0, 2, 1},
+		{0, 2, 2},
+		{1, 0, 0},
+		{1, 0, 1},
+		{1, 0, 2},
+		{1, 1, 0},
+		{1, 1, 1},
+		{1, 1, 2},
+		{1, 2, 0},
+		{1, 2, 1},
+		{1, 2, 2},
+		{2, 0, 0},
+		{2, 0, 1},
+		{2, 0, 2},
+		{2, 1, 0},
+		{2, 1, 1},
+		{2, 1, 2},
+		{2, 2, 0},
+		{2, 2, 1},
+		{2, 2, 2},
+	},
+	// requires duplicate edge handling
+	//{							// 3x3 supplying midding cube last
+	//	{0, 0, 0},
+	//	{0, 0, 1},
+	//	{0, 0, 2},
+	//	{0, 1, 0},
+	//	{0, 1, 1},
+	//	{0, 1, 2},
+	//	{0, 2, 0},
+	//	{0, 2, 1},
+	//	{0, 2, 2},
+	//	{1, 0, 0},
+	//	{1, 0, 1},
+	//	{1, 0, 2},
+	//	{1, 1, 0},
+	//	{1, 1, 2},
+	//	{1, 2, 0},
+	//	{1, 2, 1},
+	//	{1, 2, 2},
+	//	{2, 0, 0},
+	//	{2, 0, 1},
+	//	{2, 0, 2},
+	//	{2, 1, 0},
+	//	{2, 1, 1},
+	//	{2, 1, 2},
+	//	{2, 2, 0},
+	//	{2, 2, 1},
+	//	{2, 2, 2},
+	//	{1, 1, 1},
+	//},
+};
+
+static void TestOne(TArray<FVector> config, int x_from, int y_from, int z_from, bool mirror)
+{
+	Mesh mesh;
+
+	int neg = mirror ? -1 : 1;
+
+	for (auto cell : config)
+	{
+		mesh.AddCube(cell[x_from] * neg, cell[y_from] * neg, cell[z_from] * neg);
+	}
+
+	auto div1 = mesh.Subdivide();
+	auto div2 = div1->Subdivide();
+}
+
 void Mesh::UnitTest()
 {
+	for(auto config : working_configs)
+	{
+		TestOne(config, 0, 1, 2, false);
+		TestOne(config, 0, 2, 1, false);
+		TestOne(config, 1, 0, 2, false);
+		TestOne(config, 1, 2, 0, false);
+		TestOne(config, 2, 0, 1, false);
+		TestOne(config, 2, 1, 0, false);
+
+		TestOne(config, 0, 2, 1, true);
+		TestOne(config, 0, 1, 2, true);
+		TestOne(config, 1, 0, 2, true);
+		TestOne(config, 1, 2, 0, true);
+		TestOne(config, 2, 0, 1, true);
+		TestOne(config, 2, 1, 0, true);
+	}
 }
+
+#endif
 
 int Mesh::AddVert(MeshVertRaw vert, int UVGRoup)
 {
@@ -246,6 +380,123 @@ void Mesh::RemoveFace(int face_idx)
 	}
 
 	Faces.RemoveAt(face_idx);
+
+	CleanUpRedundantEdges();
+}
+
+void Mesh::RemoveEdge(int edge_idx)
+{
+	auto e = Edges[edge_idx];
+
+	check(e.ForwardsFaceIdx == -1 && e.BackwardsFaceIdx == -1);
+
+	for (auto& v : Vertices)
+	{
+		v.EdgeIdxs.Remove(edge_idx);
+
+		for (auto& idx : v.EdgeIdxs)
+		{
+			if (idx > edge_idx)
+			{
+				idx--;
+			}
+		}
+	}
+
+	for (auto& f : Faces)
+	{
+		check(!f.EdgeIdxs.Contains(edge_idx));
+
+		for (auto& idx : f.EdgeIdxs)
+		{
+			if (idx > edge_idx)
+			{
+				idx--;
+			}
+		}
+	}
+
+	Edges.RemoveAt(edge_idx);
+}
+
+void Mesh::RemoveVert(int vert_idx)
+{
+	auto v = Vertices[vert_idx];
+
+	check(v.EdgeIdxs.Num() == 0);
+	check(v.FaceIdxs.Num() == 0);
+
+	for (auto& e : Edges)
+	{
+		check(e.StartVertIdx != vert_idx);
+		check(e.EndVertIdx != vert_idx);
+
+		if (e.StartVertIdx > vert_idx)
+		{
+			e.StartVertIdx--;
+		}
+		if (e.EndVertIdx > vert_idx)
+		{
+			e.EndVertIdx--;
+		}
+	}
+
+	for (auto& f : Faces)
+	{
+		check(!f.VertIdxs.Contains(vert_idx));
+
+		for (auto& idx : f.VertIdxs)
+		{
+			if (idx > vert_idx)
+			{
+				idx--;
+			}
+		}
+	}
+
+	Vertices.RemoveAt(vert_idx);
+}
+
+void Mesh::CleanUpRedundantEdges()
+{
+	bool any = false;
+
+	for (int i = 0; i < Edges.Num();)
+	{
+		const auto& e = Edges[i];
+
+		if (e.ForwardsFaceIdx == -1 && e.BackwardsFaceIdx == -1)
+		{
+			any = true;
+			RemoveEdge(i);
+		}
+		else
+		{
+			i++;
+		}
+	}
+
+	if (any)
+	{
+		CleanUpRedundantVerts();
+	}
+}
+
+void Mesh::CleanUpRedundantVerts()
+{
+	for (int i = 0; i < Vertices.Num();)
+	{
+		const auto& v = Vertices[i];
+
+		if (v.EdgeIdxs.Num() == 0)
+		{
+			RemoveVert(i);
+		}
+		else
+		{
+			i++;
+		}
+	}
 }
 
 int Mesh::AddFaceFromRawVerts(const TArray<MeshVertRaw>& vertices, int UVGroup)
@@ -299,16 +550,18 @@ bool Mesh::CancelExistingFace(const TArray<FVector>& vertices)
 
 int Mesh::AddFaceFromVects(const TArray<FVector>& vertices, const TArray<FVector2D>& uvs, int UVGroup)
 {
-	MeshFace fm;
+	MeshFace mf;
 
 	for (int i = 0; i < vertices.Num(); i++)
 	{
-		fm.VertIdxs.Push(AddVert(MeshVertRaw(vertices[i], uvs[i]), UVGroup));
+		mf.VertIdxs.Push(AddVert(MeshVertRaw(vertices[i], uvs[i]), UVGroup));
 	}
 
-	fm.UVGroup = UVGroup;
+	RegularizeVertIdxs(mf.VertIdxs);
 
-	return AddFace(fm);
+	mf.UVGroup = UVGroup;
+
+	return AddFace(mf);
 }
 
 int Mesh::BakeVertex(const MeshVertRaw& mvr)
@@ -548,6 +801,8 @@ void Mesh::AddCube(int X, int Y, int Z)
 			CheckConsistent(false);
 		}
 	}
+
+	CheckConsistent(true);
 }
 
 void Mesh::Bake(FPGCMeshResult& mesh)

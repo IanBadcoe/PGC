@@ -186,6 +186,16 @@ struct MeshFace {
 
 	int UVGroup = -1;		///< allow us to respect different UVs at shared vertices
 
+	bool VertsAreRegular() const {
+		for (int i = 1; i < VertIdxs.Num(); i++)
+		{
+			if (VertIdxs[i] < VertIdxs[0])
+				return false;
+		}
+
+		return true;
+	}
+
 	MeshVertMultiUV WorkingFaceVertex;
 };
 
@@ -229,6 +239,10 @@ class Mesh : public TSharedFromThis<Mesh>
 	int AddVert(FVector pos);
 	int FindFaceByVertIdxs(const TArray<int>& vert_idxs) const;
 	void RemoveFace(int face_idx);
+	void RemoveEdge(int edge_idx);		///< it must not be in use by any faces
+	void RemoveVert(int vert_idx);		///< it must not be in use by any edges (or faces)
+	void CleanUpRedundantEdges();
+	void CleanUpRedundantVerts();
 
 	int AddFaceFromRawVerts(const TArray<MeshVertRaw>& vertices, int UVGroup);
 	bool CancelExistingFace(const TArray<FVector>& vertices);
@@ -263,8 +277,8 @@ public:
 		NextUVGroup = 0;
 	}
 
-#if !UE_BUILD_RELEASE
-	void UnitTest();
+#ifndef UE_BUILD_RELEASE
+	static void UnitTest();
 #endif
 };
 

@@ -10,7 +10,7 @@ void FPGCModule::StartupModule()
 {
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
 
-#if !UE_BUILD_RELEASE
+#ifndef UE_BUILD_RELEASE
 	Mesh::UnitTest();
 #endif
 }
