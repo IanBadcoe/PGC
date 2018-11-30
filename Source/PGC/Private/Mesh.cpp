@@ -7,14 +7,17 @@
 
 PRAGMA_DISABLE_OPTIMIZATION
 
+template <typename T>
+const Idx<T> Idx<T>::None{ -1 };
+
 inline bool Mesh::FaceUnique(MeshFace face) const
 {
 	return FindFaceByVertIdxs(face.VertIdxs) == -1;
 }
 
-int Mesh::FindEdge(int idx1, int idx2) const
+Idx<MeshEdge> Mesh::FindEdge(int idx1, int idx2) const
 {
-	for (int i = 0; i < Edges.Num(); i++)
+	for (Idx<MeshEdge> i{ 0 }; i < Edges.IdxNum(); i++)
 	{
 		auto& edge = Edges[i];
 
@@ -25,26 +28,26 @@ int Mesh::FindEdge(int idx1, int idx2) const
 		}
 	}
 
-	return -1;
+	return Idx<MeshEdge>::None;
 }
 
-int Mesh::AddFindEdge(int idx1, int idx2)
+Idx<MeshEdge> Mesh::AddFindEdge(int idx1, int idx2)
 {
-	int edge_idx = FindEdge(idx1, idx2);
+	auto edge_idx = FindEdge(idx1, idx2);
 
-	if (edge_idx != -1)
+	if (edge_idx != Idx<MeshEdge>::None)
 	{
 		return edge_idx;
 	}
 
 	MeshEdge ne{ ne.StartVertIdx = idx1, ne.EndVertIdx = idx2 };
 
-	Vertices[idx1].EdgeIdxs.Push(Edges.Num());
-	Vertices[idx2].EdgeIdxs.Push(Edges.Num());
-
 	Edges.Push(ne);
 
-	return Edges.Num() - 1;
+	Vertices[idx1].EdgeIdxs.Push(Idx<MeshEdge>(Edges.IdxLast()));
+	Vertices[idx2].EdgeIdxs.Push(Idx<MeshEdge>(Edges.IdxLast()));
+
+	return Edges.IdxLast();
 }
 
 int Mesh::FindVert(const FVector & pos) const
@@ -81,7 +84,7 @@ int Mesh::FindVert(const MeshVertRaw& mvr, int UVGroup) const
 // a closed mesh has no holes, an unclosed on may have faces not added yet...
 void Mesh::CheckConsistent(bool closed)
 {
-	for (int edge_idx = 0; edge_idx < Edges.Num(); edge_idx++)
+	for (Idx<MeshEdge> edge_idx{ 0 }; edge_idx < Edges.IdxNum(); edge_idx++)
 	{
 		auto e = Edges[edge_idx];
 
@@ -131,8 +134,8 @@ void Mesh::CheckConsistent(bool closed)
 		{
 			check(vert_idx >= 0 && vert_idx < Vertices.Num());
 
-			int edge_idx = FindEdge(prev_vert_idx, vert_idx);
-			check(edge_idx != -1);
+			auto edge_idx = FindEdge(prev_vert_idx, vert_idx);
+			check(edge_idx != Idx<MeshEdge>::None);
 
 			auto& edge = Edges[edge_idx];
 
@@ -368,7 +371,6 @@ void Mesh::RemoveFace(int face_idx)
 			e.ForwardsFaceIdx--;
 		}
 
-
 		if (e.BackwardsFaceIdx== face_idx)
 		{
 			e.BackwardsFaceIdx = -1;
@@ -384,7 +386,7 @@ void Mesh::RemoveFace(int face_idx)
 	CleanUpRedundantEdges();
 }
 
-void Mesh::RemoveEdge(int edge_idx)
+void Mesh::RemoveEdge(Idx<MeshEdge> edge_idx)
 {
 	auto e = Edges[edge_idx];
 
@@ -461,7 +463,7 @@ void Mesh::CleanUpRedundantEdges()
 {
 	bool any = false;
 
-	for (int i = 0; i < Edges.Num();)
+	for (Idx<MeshEdge> i{ 0 }; i < Edges.IdxNum();)
 	{
 		const auto& e = Edges[i];
 
@@ -564,27 +566,27 @@ int Mesh::AddFaceFromVects(const TArray<FVector>& vertices, const TArray<FVector
 	return AddFace(mf);
 }
 
-int Mesh::BakeVertex(const MeshVertRaw& mvr)
+Idx<MeshVertRaw> Mesh::BakeVertex(const MeshVertRaw& mvr)
 {
-	int baked_vert_idx = FindBakedVert(mvr);
+	auto baked_vert_idx = FindBakedVert(mvr);
 
-	if (baked_vert_idx != -1)
+	if (baked_vert_idx.Valid())
 		return baked_vert_idx;
 
 	BakedVerts.Push(mvr);
 
-	return BakedVerts.Num() - 1;
+	return Idx<MeshVertRaw>(BakedVerts.Num() - 1);
 }
 
-int Mesh::FindBakedVert(const MeshVertRaw& mvr) const
+Idx<MeshVertRaw> Mesh::FindBakedVert(const MeshVertRaw& mvr) const
 {
 	for (int i = 0; i < BakedVerts.Num(); i++)
 	{
 		if (BakedVerts[i] == mvr)
-			return i;
+			return Idx<MeshVertRaw>(i);
 	}
 
-	return -1;
+	return Idx<MeshVertRaw>::None;
 }
 
 void Mesh::RegularizeVertIdxs(TArray<int>& vert_idxs)
@@ -629,7 +631,7 @@ int Mesh::AddFace(MeshFace face)
 	{
 		Vertices[vert_idx].FaceIdxs.Push(Faces.Num());
 
-		int edge_idx = AddFindEdge(prev_vert, vert_idx);
+		auto edge_idx = AddFindEdge(prev_vert, vert_idx);
 
 		face.EdgeIdxs.Push(edge_idx);
 
@@ -714,10 +716,10 @@ TSharedPtr<Mesh> Mesh::Subdivide()
 			auto next_vert_idx = f.VertIdxs[(i + 1) % n];
 
 			auto prev_edge_idx = FindEdge(prev_vert_idx, vert_idx);
-			check(prev_edge_idx != -1);
+			check(prev_edge_idx.Valid());
 
 			auto next_edge_idx = FindEdge(vert_idx, next_vert_idx);
-			check(next_edge_idx != -1);
+			check(next_edge_idx.Valid());
 
 			auto& v1 = Vertices[vert_idx].WorkingNewPos;
 			auto& v2 = Edges[next_edge_idx].WorkingEdgeVertex;
@@ -835,9 +837,9 @@ void Mesh::Bake(FPGCMeshResult& mesh)
 		{
 			auto this_vert = f.VertIdxs[i];
 
-			mesh.Triangles.Push(common_vert);
-			mesh.Triangles.Push(prev_vert);
-			mesh.Triangles.Push(this_vert);
+			mesh.Triangles.Push(common_vert.AsInt());
+			mesh.Triangles.Push(prev_vert.AsInt());
+			mesh.Triangles.Push(this_vert.AsInt());
 
 			prev_vert = this_vert;
 		}
