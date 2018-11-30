@@ -15,9 +15,9 @@ inline bool Mesh::FaceUnique(MeshFace face) const
 	return FindFaceByVertIdxs(face.VertIdxs) == Idx<MeshFace>::None;
 }
 
-Idx<MeshEdge> Mesh::FindEdge(int idx1, int idx2) const
+Idx<MeshEdge> Mesh::FindEdge(Idx<MeshVert> idx1, Idx<MeshVert> idx2) const
 {
-	for (Idx<MeshEdge> i{ 0 }; i < Edges.IdxNum(); i++)
+	for (Idx<MeshEdge> i{ 0 }; i < Edges.Num(); i++)
 	{
 		auto& edge = Edges[i];
 
@@ -31,7 +31,7 @@ Idx<MeshEdge> Mesh::FindEdge(int idx1, int idx2) const
 	return Idx<MeshEdge>::None;
 }
 
-Idx<MeshEdge> Mesh::AddFindEdge(int idx1, int idx2)
+Idx<MeshEdge> Mesh::AddFindEdge(Idx<MeshVert> idx1, Idx<MeshVert> idx2)
 {
 	auto edge_idx = FindEdge(idx1, idx2);
 
@@ -44,15 +44,15 @@ Idx<MeshEdge> Mesh::AddFindEdge(int idx1, int idx2)
 
 	Edges.Push(ne);
 
-	Vertices[idx1].EdgeIdxs.Push(Idx<MeshEdge>(Edges.IdxLast()));
-	Vertices[idx2].EdgeIdxs.Push(Idx<MeshEdge>(Edges.IdxLast()));
+	Vertices[idx1].EdgeIdxs.Push(Idx<MeshEdge>(Edges.LastIdx()));
+	Vertices[idx2].EdgeIdxs.Push(Idx<MeshEdge>(Edges.LastIdx()));
 
-	return Edges.IdxLast();
+	return Edges.LastIdx();
 }
 
-int Mesh::FindVert(const FVector & pos) const
+Idx<MeshVert> Mesh::FindVert(const FVector & pos) const
 {
-	for (int i = 0; i < Vertices.Num(); i++)
+	for (Idx<MeshVert> i{ 0 }; i < Vertices.Num(); i++)
 	{
 		auto& vert = Vertices[i];
 
@@ -62,12 +62,12 @@ int Mesh::FindVert(const FVector & pos) const
 		}
 	}
 
-	return -1;
+	return Idx<MeshVert>::None;
 }
 
-int Mesh::FindVert(const MeshVertRaw& mvr, int UVGroup) const
+Idx<MeshVert> Mesh::FindVert(const MeshVertRaw& mvr, int UVGroup) const
 {
-	for (int i = 0; i < Vertices.Num(); i++)
+	for (Idx<MeshVert> i{ 0 }; i < Vertices.Num(); i++)
 	{
 		auto& vert = Vertices[i];
 
@@ -78,20 +78,20 @@ int Mesh::FindVert(const MeshVertRaw& mvr, int UVGroup) const
 		}
 	}
 
-	return -1;
+	return Idx<MeshVert>::None;
 }
 
 // a closed mesh has no holes, an unclosed on may have faces not added yet...
 void Mesh::CheckConsistent(bool closed)
 {
-	for (Idx<MeshEdge> edge_idx{ 0 }; edge_idx < Edges.IdxNum(); edge_idx++)
+	for (Idx<MeshEdge> edge_idx{ 0 }; edge_idx < Edges.Num(); edge_idx++)
 	{
 		auto e = Edges[edge_idx];
 
-		check(e.StartVertIdx >= 0 && e.StartVertIdx < Vertices.Num());
-		check(e.EndVertIdx >= 0 && e.EndVertIdx < Vertices.Num());
-		check(e.ForwardsFaceIdx < Faces.IdxNum());
-		check(e.BackwardsFaceIdx < Faces.IdxNum());
+		check(e.StartVertIdx.Valid() && e.StartVertIdx < Vertices.Num());
+		check(e.EndVertIdx.Valid() && e.EndVertIdx < Vertices.Num());
+		check(e.ForwardsFaceIdx < Faces.Num());
+		check(e.BackwardsFaceIdx < Faces.Num());
 		// we should have both edges if we're closed
 		// (redundant edges should have been removed...)
 		check(!closed || e.ForwardsFaceIdx.Valid());
@@ -102,7 +102,7 @@ void Mesh::CheckConsistent(bool closed)
 		check(!e.BackwardsFaceIdx.Valid() || Faces[e.BackwardsFaceIdx].EdgeIdxs.Contains(edge_idx));
 	}
 
-	for (int vert_idx = 0; vert_idx < Vertices.Num(); vert_idx++)
+	for (Idx<MeshVert> vert_idx{ 0 }; vert_idx < Vertices.Num(); vert_idx++)
 	{
 		auto v = Vertices[vert_idx];
 
@@ -122,7 +122,7 @@ void Mesh::CheckConsistent(bool closed)
 		}
 	}
 
-	for (Idx<MeshFace> face_idx{ 0 }; face_idx < Faces.IdxNum(); face_idx++)
+	for (Idx<MeshFace> face_idx{ 0 }; face_idx < Faces.Num(); face_idx++)
 	{
 		auto& face = Faces[face_idx];
 
@@ -132,7 +132,7 @@ void Mesh::CheckConsistent(bool closed)
 
 		for (auto vert_idx : face.VertIdxs)
 		{
-			check(vert_idx >= 0 && vert_idx < Vertices.Num());
+			check(vert_idx.Valid() && vert_idx < Vertices.Num());
 
 			auto edge_idx = FindEdge(prev_vert_idx, vert_idx);
 			check(edge_idx != Idx<MeshEdge>::None);
@@ -289,18 +289,18 @@ void Mesh::UnitTest()
 
 #endif
 
-int Mesh::AddVert(MeshVertRaw vert, int UVGRoup)
+Idx<MeshVert> Mesh::AddVert(MeshVertRaw vert, int UVGRoup)
 {
-	int vert_idx = FindVert(vert, UVGRoup);
+	auto vert_idx = FindVert(vert, UVGRoup);
 
 	// we have it with this UV already set
-	if (vert_idx != -1)
+	if (vert_idx.Valid())
 		return vert_idx;
 
 	// do we have it without the UV?
 	vert_idx = FindVert(vert.Pos);
 
-	if (vert_idx == -1)
+	if (!vert_idx.Valid())
 	{
 		// no, add it
 		vert_idx = Vertices.Num();
@@ -315,24 +315,24 @@ int Mesh::AddVert(MeshVertRaw vert, int UVGRoup)
 	return vert_idx;
 }
 
-int Mesh::AddVert(FVector pos)
+Idx<MeshVert> Mesh::AddVert(FVector pos)
 {
-	int vert_idx = FindVert(pos);
+	auto vert_idx = FindVert(pos);
 
 	// we have it with this UV already set
-	if (vert_idx != -1)
+	if (vert_idx.Valid())
 		return vert_idx;
 
 	MeshVert mv;
 	mv.Pos = pos;
 	Vertices.Push(mv);
 
-	return Vertices.Num() - 1;
+	return Vertices.LastIdx();
 }
 
-Idx<MeshFace> Mesh::FindFaceByVertIdxs(const TArray<int>& vert_idxs) const
+Idx<MeshFace> Mesh::FindFaceByVertIdxs(const TArray<Idx<MeshVert>>& vert_idxs) const
 {
-	for (Idx<MeshFace> face_idx{ 0 }; face_idx < Faces.IdxNum(); face_idx++)
+	for (Idx<MeshFace> face_idx{ 0 }; face_idx < Faces.Num(); face_idx++)
 	{
 		auto mf = Faces[face_idx];
 
@@ -421,7 +421,7 @@ void Mesh::RemoveEdge(Idx<MeshEdge> edge_idx)
 	Edges.RemoveAt(edge_idx);
 }
 
-void Mesh::RemoveVert(int vert_idx)
+void Mesh::RemoveVert(Idx<MeshVert> vert_idx)
 {
 	auto v = Vertices[vert_idx];
 
@@ -463,7 +463,7 @@ void Mesh::CleanUpRedundantEdges()
 {
 	bool any = false;
 
-	for (Idx<MeshEdge> i{ 0 }; i < Edges.IdxNum();)
+	for (Idx<MeshEdge> i{ 0 }; i < Edges.Num();)
 	{
 		const auto& e = Edges[i];
 
@@ -486,7 +486,7 @@ void Mesh::CleanUpRedundantEdges()
 
 void Mesh::CleanUpRedundantVerts()
 {
-	for (int i = 0; i < Vertices.Num();)
+	for (Idx<MeshVert> i{ 0 }; i < Vertices.Num();)
 	{
 		const auto& v = Vertices[i];
 
@@ -519,7 +519,7 @@ Idx<MeshFace> Mesh::AddFaceFromRawVerts(const TArray<MeshVertRaw>& vertices, int
 
 bool Mesh::CancelExistingFace(const TArray<FVector>& vertices)
 {
-	TArray<int> vert_idxs;
+	TArray<Idx<MeshVert>> vert_idxs;
 
 	for (auto vr : vertices)
 	{
@@ -531,7 +531,7 @@ bool Mesh::CancelExistingFace(const TArray<FVector>& vertices)
 	// the reverse face has the same first vert and the other's reverse
 	// (the same as reversing the whole lot and then Regularizing again)
 
-	TArray<int> reverse_face{ vert_idxs[0] };
+	TArray<Idx<MeshVert>> reverse_face{ vert_idxs[0] };
 
 	for (int i = vert_idxs.Num() - 1; i >= 1; i--)
 	{
@@ -589,12 +589,12 @@ Idx<MeshVertRaw> Mesh::FindBakedVert(const MeshVertRaw& mvr) const
 	return Idx<MeshVertRaw>::None;
 }
 
-void Mesh::RegularizeVertIdxs(TArray<int>& vert_idxs)
+void Mesh::RegularizeVertIdxs(TArray<Idx<MeshVert>>& vert_idxs)
 {
 	// sort the array so that the lowest index is first
 	// allows us to search for faces by verts
 
-	int lowest = vert_idxs[0];
+	auto lowest = vert_idxs[0];
 	auto pos = 0;
 
 	for (int i = 1; i < vert_idxs.Num(); i++)
@@ -609,7 +609,7 @@ void Mesh::RegularizeVertIdxs(TArray<int>& vert_idxs)
 	if (pos == 0)
 		return;
 
-	TArray<int> temp;
+	TArray<Idx<MeshVert>> temp;
 
 	for (int i = 0; i < vert_idxs.Num(); i++)
 	{
@@ -629,20 +629,20 @@ Idx<MeshFace> Mesh::AddFace(MeshFace face)
 
 	for (auto vert_idx : face.VertIdxs)
 	{
-		Vertices[vert_idx].FaceIdxs.Push(Faces.IdxNum());
+		Vertices[vert_idx].FaceIdxs.Push(Faces.Num());
 
 		auto edge_idx = AddFindEdge(prev_vert, vert_idx);
 
 		face.EdgeIdxs.Push(edge_idx);
 
-		Edges[edge_idx].AddFace(Faces.IdxNum(), prev_vert);
+		Edges[edge_idx].AddFace(Faces.Num(), prev_vert);
 
 		prev_vert = vert_idx;
 	}
 
 	Faces.Push(face);
 
-	return Faces.IdxLast();
+	return Faces.LastIdx();
 }
 
 TSharedPtr<Mesh> Mesh::Subdivide()

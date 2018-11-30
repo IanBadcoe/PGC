@@ -66,8 +66,8 @@ public:
 		return static_cast<const TArray<Element>&>(*this)[(int)Index];
 	}
 
-	Idx<Element> IdxNum() const { return Idx<Element>(Num()); }
-	Idx<Element> IdxLast() const { return Idx<Element>(Num() - 1); }
+	Idx<Element> Num() const { return Idx<Element>(TArray::Num()); }
+	Idx<Element> LastIdx() const { return Idx<Element>(TArray::Num() - 1); }
 
 	void Empty() { TArray::Empty(); }
 
@@ -81,8 +81,8 @@ public:
 private:
 	FORCEINLINE friend RangedForIteratorType      begin(TArrayIdx& Array) { return RangedForIteratorType(Array.ArrayNum, Array.GetData()); }
 	FORCEINLINE friend RangedForConstIteratorType begin(const TArrayIdx& Array) { return RangedForConstIteratorType(Array.ArrayNum, Array.GetData()); }
-	FORCEINLINE friend RangedForIteratorType      end(TArrayIdx& Array) { return RangedForIteratorType(Array.ArrayNum, Array.GetData() + Array.Num()); }
-	FORCEINLINE friend RangedForConstIteratorType end(const TArrayIdx& Array) { return RangedForConstIteratorType(Array.ArrayNum, Array.GetData() + Array.Num()); }
+	FORCEINLINE friend RangedForIteratorType      end(TArrayIdx& Array) { return RangedForIteratorType(Array.ArrayNum, Array.GetData() + static_cast<TArray&>(Array).Num()); }
+	FORCEINLINE friend RangedForConstIteratorType end(const TArrayIdx& Array) { return RangedForConstIteratorType(Array.ArrayNum, Array.GetData() + static_cast<const TArray&>(Array).Num()); }
 };
 
 struct MeshFaceRaw {
@@ -224,13 +224,13 @@ struct MeshVert : public MeshVertMultiUV {
 };
 
 struct MeshEdge {
-	int StartVertIdx = -1;
-	int EndVertIdx = -1;
+	Idx<MeshVert> StartVertIdx = Idx<MeshVert>::None;
+	Idx<MeshVert> EndVertIdx = Idx<MeshVert>::None;
 
 	Idx<MeshFace> ForwardsFaceIdx = Idx<MeshFace>::None;
 	Idx<MeshFace> BackwardsFaceIdx = Idx<MeshFace>::None;
 
-	void AddFace(Idx<MeshFace> face_idx, int start_vert_idx)
+	void AddFace(Idx<MeshFace> face_idx, Idx<MeshVert> start_vert_idx)
 	{
 		if (start_vert_idx == StartVertIdx)
 		{
@@ -250,7 +250,7 @@ struct MeshEdge {
 };
 
 struct MeshFace {
-	TArray<int> VertIdxs;
+	TArray<Idx<MeshVert>> VertIdxs;
 	TArray<Idx<MeshEdge>> EdgeIdxs;
 
 	int UVGroup = -1;		///< allow us to respect different UVs at shared vertices
@@ -286,7 +286,7 @@ class APGCGenerator;
 
 class Mesh : public TSharedFromThis<Mesh>
 {
-	TArray<MeshVert> Vertices;
+	TArrayIdx<MeshVert> Vertices;
 	TArrayIdx<MeshEdge> Edges;
 	TArrayIdx<MeshFace> Faces;
 
@@ -297,19 +297,19 @@ class Mesh : public TSharedFromThis<Mesh>
 
 	bool FaceUnique(MeshFace face) const;
 
-	Idx<MeshEdge> FindEdge(int idx1, int idx2) const;
-	Idx<MeshEdge> AddFindEdge(int idx1, int idx2);
+	Idx<MeshEdge> FindEdge(Idx<MeshVert> idx1, Idx<MeshVert> idx2) const;
+	Idx<MeshEdge> AddFindEdge(Idx<MeshVert> idx1, Idx<MeshVert> idx2);
 
-	int FindVert(const FVector& pos) const;
-	int FindVert(const MeshVertRaw& vert, int UVGroup) const;
+	Idx<MeshVert> FindVert(const FVector& pos) const;
+	Idx<MeshVert> FindVert(const MeshVertRaw& vert, int UVGroup) const;
 
 	Idx<MeshFace> AddFace(MeshFace face);
-	int AddVert(MeshVertRaw vert, int UVGroup);
-	int AddVert(FVector pos);
-	Idx<MeshFace> FindFaceByVertIdxs(const TArray<int>& vert_idxs) const;
+	Idx<MeshVert> AddVert(MeshVertRaw vert, int UVGroup);
+	Idx<MeshVert> AddVert(FVector pos);
+	Idx<MeshFace> FindFaceByVertIdxs(const TArray<Idx<MeshVert>>& vert_idxs) const;
 	void RemoveFace(Idx<MeshFace> face_idx);
 	void RemoveEdge(Idx<MeshEdge> edge_idx);		///< it must not be in use by any faces
-	void RemoveVert(int vert_idx);					///< it must not be in use by any edges (or faces)
+	void RemoveVert(Idx<MeshVert> vert_idx);					///< it must not be in use by any edges (or faces)
 	void CleanUpRedundantEdges();
 	void CleanUpRedundantVerts();
 
@@ -320,7 +320,7 @@ class Mesh : public TSharedFromThis<Mesh>
 	Idx<MeshVertRaw> BakeVertex(const MeshVertRaw& mvr);
 	Idx<MeshVertRaw> FindBakedVert(const MeshVertRaw& mvr) const;
 
-	static void RegularizeVertIdxs(TArray<int>& vert_idxs);
+	static void RegularizeVertIdxs(TArray<Idx<MeshVert>>& vert_idxs);
 
 
 public:	
