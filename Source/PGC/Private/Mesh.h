@@ -58,9 +58,11 @@ template <typename Element>
 class TArrayIdx : private TArray<Element> {
 public:
 	ElementType& operator[](Idx<Element> Index) {
+		check(Index.Valid());
 		return static_cast<TArray<Element>&>(*this)[(int)Index];
 	}
 	const ElementType& operator[](Idx<Element> Index) const {
+		check(Index.Valid());
 		return static_cast<const TArray<Element>&>(*this)[(int)Index];
 	}
 
@@ -216,7 +218,7 @@ struct MeshFace;
 
 struct MeshVert : public MeshVertMultiUV {
 	TArray<Idx<MeshEdge>> EdgeIdxs;
-	TArray<int> FaceIdxs;
+	TArray<Idx<MeshFace>> FaceIdxs;
 
 	MeshVertMultiUV WorkingNewPos;
 };
@@ -225,20 +227,20 @@ struct MeshEdge {
 	int StartVertIdx = -1;
 	int EndVertIdx = -1;
 
-	int ForwardsFaceIdx = -1;
-	int BackwardsFaceIdx = -1;
+	Idx<MeshFace> ForwardsFaceIdx = Idx<MeshFace>::None;
+	Idx<MeshFace> BackwardsFaceIdx = Idx<MeshFace>::None;
 
-	void AddFace(int face_idx, int start_vert_idx)
+	void AddFace(Idx<MeshFace> face_idx, int start_vert_idx)
 	{
 		if (start_vert_idx == StartVertIdx)
 		{
-			check(ForwardsFaceIdx == -1);
+			check(!ForwardsFaceIdx.Valid());
 			ForwardsFaceIdx = face_idx;
 		}
 		else
 		{
 			check(start_vert_idx == EndVertIdx);
-			check(BackwardsFaceIdx == -1);
+			check(!BackwardsFaceIdx.Valid());
 
 			BackwardsFaceIdx = face_idx;
 		}
@@ -286,7 +288,7 @@ class Mesh : public TSharedFromThis<Mesh>
 {
 	TArray<MeshVert> Vertices;
 	TArrayIdx<MeshEdge> Edges;
-	TArray<MeshFace> Faces;
+	TArrayIdx<MeshFace> Faces;
 
 	TArray<MeshVertRaw> BakedVerts;
 	TArray<MeshFaceRaw> BakedFaces;
@@ -301,19 +303,19 @@ class Mesh : public TSharedFromThis<Mesh>
 	int FindVert(const FVector& pos) const;
 	int FindVert(const MeshVertRaw& vert, int UVGroup) const;
 
-	int AddFace(MeshFace face);
+	Idx<MeshFace> AddFace(MeshFace face);
 	int AddVert(MeshVertRaw vert, int UVGroup);
 	int AddVert(FVector pos);
-	int FindFaceByVertIdxs(const TArray<int>& vert_idxs) const;
-	void RemoveFace(int face_idx);
+	Idx<MeshFace> FindFaceByVertIdxs(const TArray<int>& vert_idxs) const;
+	void RemoveFace(Idx<MeshFace> face_idx);
 	void RemoveEdge(Idx<MeshEdge> edge_idx);		///< it must not be in use by any faces
-	void RemoveVert(int vert_idx);		///< it must not be in use by any edges (or faces)
+	void RemoveVert(int vert_idx);					///< it must not be in use by any edges (or faces)
 	void CleanUpRedundantEdges();
 	void CleanUpRedundantVerts();
 
-	int AddFaceFromRawVerts(const TArray<MeshVertRaw>& vertices, int UVGroup);
+	Idx<MeshFace> AddFaceFromRawVerts(const TArray<MeshVertRaw>& vertices, int UVGroup);
 	bool CancelExistingFace(const TArray<FVector>& vertices);
-	int AddFaceFromVects(const TArray<FVector>& vertices, const TArray<FVector2D>& uvs, int UVGroup);
+	Idx<MeshFace> AddFaceFromVects(const TArray<FVector>& vertices, const TArray<FVector2D>& uvs, int UVGroup);
 
 	Idx<MeshVertRaw> BakeVertex(const MeshVertRaw& mvr);
 	Idx<MeshVertRaw> FindBakedVert(const MeshVertRaw& mvr) const;
