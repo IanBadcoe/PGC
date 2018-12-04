@@ -21,8 +21,7 @@ Idx<MeshEdge> Mesh::FindEdge(Idx<MeshVert> idx1, Idx<MeshVert> idx2) const
 	{
 		auto& edge = Edges[i];
 
-		if ((edge.StartVertIdx == idx1 && edge.EndVertIdx == idx2)
-			|| (edge.EndVertIdx == idx1 && edge.StartVertIdx == idx2))
+		if ((edge.Contains(idx1) && edge.Contains(idx2)))
 		{
 			return i;
 		}
@@ -112,7 +111,7 @@ void Mesh::CheckConsistent(bool closed)
 		// if we know about an edge, it should know about us
 		for (auto edge_idx : v.EdgeIdxs)
 		{
-			check(Edges[edge_idx].StartVertIdx == vert_idx || Edges[edge_idx].EndVertIdx == vert_idx);
+			check(Edges[edge_idx].Contains(vert_idx));
 		}
 
 		// if we know about a face, it should know about us
@@ -140,11 +139,12 @@ void Mesh::CheckConsistent(bool closed)
 			auto& edge = Edges[edge_idx];
 
 			// should have us as a face on one or the other side
-			check(edge.ForwardsFaceIdx == face_idx || edge.BackwardsFaceIdx == face_idx);
+			check(edge.Contains(face_idx));
 
 			// if the edge starts with our previous vert, then we are the forwards face of this edge,
 			// otherwise we are its backwards face
 			check((edge.StartVertIdx == prev_vert_idx) == (edge.ForwardsFaceIdx == face_idx));
+			check((edge.EndVertIdx == prev_vert_idx) == (edge.BackwardsFaceIdx == face_idx));
 
 			auto v = Vertices[vert_idx];
 
@@ -254,16 +254,16 @@ TArray<TArray<FVector>> working_configs{
 
 static void TestOne(TArray<FVector> config, int x_from, int y_from, int z_from, bool mirror)
 {
-	Mesh mesh;
+	auto mesh = MakeShared<Mesh>();
 
 	int neg = mirror ? -1 : 1;
 
 	for (auto cell : config)
 	{
-		mesh.AddCube(cell[x_from] * neg, cell[y_from] * neg, cell[z_from] * neg);
+		mesh->AddCube(cell[x_from] * neg, cell[y_from] * neg, cell[z_from] * neg);
 	}
 
-	auto div1 = mesh.Subdivide();
+	auto div1 = mesh->Subdivide();
 	auto div2 = div1->Subdivide();
 }
 
@@ -589,6 +589,164 @@ Idx<MeshVertRaw> Mesh::FindBakedVert(const MeshVertRaw& mvr) const
 	return Idx<MeshVertRaw>::None;
 }
 
+TSharedRef<Mesh> Mesh::SplitSharedVerts()
+{
+	auto ret = MakeShared<Mesh>(*this);
+
+	ret->Clean = true;
+
+	for (Idx<MeshVert> i{ 0 }; i < Vertices.Num(); i++)
+	{
+		TArray<TArray<Idx<MeshFace>>> pyramids = FindPyramids(i);
+
+		if (pyramids.Num() > 1)
+		{
+			ret->SplitPyramids(pyramids, i);
+		}
+	}
+
+	return ret;
+}
+
+TArray<TArray<Idx<MeshFace>>> Mesh::FindPyramids(Idx<MeshVert> vert_idx)
+{
+	auto& v = Vertices[vert_idx];
+
+	TSet<Idx<MeshFace>> all_faces{ v.FaceIdxs };
+
+	TArray<TArray<Idx<MeshFace>>> ret;
+
+	while (all_faces.Num())
+	{
+		auto first_face{ *all_faces.CreateIterator() };
+		auto curr_face = first_face;
+
+		auto prev_edge = Idx<MeshEdge>::None;
+
+		ret.Push(TArray<Idx<MeshFace>>());
+
+		do {
+			ret.Last().Push(curr_face);
+
+			check(all_faces.Contains(curr_face));
+			all_faces.Remove(curr_face);
+
+			auto f = Faces[curr_face];
+
+			auto curr_edge = Idx<MeshEdge>::None;
+
+			for (const auto& e : f.EdgeIdxs)
+			{
+				if (e != prev_edge && Edges[e].Contains(vert_idx))
+				{
+					curr_edge = e;
+					break;
+				}
+			}
+
+			check(curr_edge.Valid());
+
+			prev_edge = curr_edge;
+
+			curr_face = Edges[curr_edge].OtherFace(curr_face);
+
+			// find the two edges 
+		} while (curr_face != first_face);
+	}
+
+	return ret;
+}
+
+void Mesh::SplitPyramids(const TArray<TArray<Idx<MeshFace>>>& pyramids, Idx<MeshVert> vert_idx)
+{
+	// splitting pyramids generates duplicate vertices, which would break various vertex searches
+	// HOWEVER we only do this immediately before a subdivide and that will renders the duplicates unique again
+
+	// leave the first pyramid on the vert we already have
+	for (int i = 1; i < pyramids.Num(); i++)
+	{
+		auto& pyramid = pyramids[i];
+
+		// copy the vert
+		{
+			MeshVert temp;
+			temp.Pos = Vertices[vert_idx].Pos;
+			Vertices.Push(temp);
+		}
+		auto new_vert_idx = Vertices.LastIdx();
+
+		auto& vert = Vertices[new_vert_idx];
+
+		auto& old_vert = Vertices[vert_idx];
+
+		for (auto face_idx : pyramid)
+		{
+			auto& face = Faces[face_idx];
+
+			old_vert.FaceIdxs.Remove(face_idx);
+			vert.FaceIdxs.Push(face_idx);
+			vert.UVs.Add(face.UVGroup) = old_vert.UVs[face.UVGroup];
+
+			bool found = false;
+			for (auto& i : face.VertIdxs)
+			{
+				if (i == vert_idx)
+				{
+					found = true;
+					i = new_vert_idx;
+					break;
+				}
+			}
+
+			check(found);
+
+			RegularizeVertIdxs(face.VertIdxs);
+		}
+
+		int edges_found = 0;
+
+		for (int i = 0; i < old_vert.EdgeIdxs.Num();)
+		{
+			auto edge_idx = old_vert.EdgeIdxs[i];
+
+			auto& edge = Edges[edge_idx];
+
+			// only need to check one out of the forwards and backwards faces
+			// since the edges around this vert connect either two or zero faces from this pyramid
+			if (pyramid.Contains(edge.ForwardsFaceIdx))
+			{
+				edges_found++;
+
+				if (edge.StartVertIdx == vert_idx)
+				{
+					old_vert.EdgeIdxs.Remove(edge_idx);
+					vert.EdgeIdxs.Push(edge_idx);
+
+					edge.StartVertIdx = new_vert_idx;
+				}
+				else 
+				{
+					check(edge.EndVertIdx == vert_idx);
+
+					old_vert.EdgeIdxs.Remove(edge_idx);
+					vert.EdgeIdxs.Push(edge_idx);
+
+					edge.EndVertIdx = new_vert_idx;
+				}
+			}
+			else
+			{
+				i++;
+			}
+		}
+
+		// we expect the same number of edges and faces in the pyramid
+		check(edges_found == pyramid.Num());
+
+		CheckConsistent(true);
+	}
+}
+
 void Mesh::RegularizeVertIdxs(TArray<Idx<MeshVert>>& vert_idxs)
 {
 	// sort the array so that the lowest index is first
@@ -648,6 +806,21 @@ Idx<MeshFace> Mesh::AddFace(MeshFace face)
 TSharedPtr<Mesh> Mesh::Subdivide()
 {
 	CheckConsistent(true);
+
+	TSharedRef<Mesh> work_on = AsShared();
+
+	if (!Clean)
+	{
+		work_on = SplitSharedVerts();
+		Clean = true;
+	}
+
+	return work_on->SubdivideInner();
+}
+
+TSharedPtr<Mesh> Mesh::SubdivideInner()
+{
+	check(Clean);
 
 	auto ret = MakeShared<Mesh>();
 
@@ -756,6 +929,8 @@ TSharedPtr<Mesh> Mesh::SubdivideN(int count)
 
 void Mesh::AddCube(int X, int Y, int Z)
 {
+	Clean = false;
+
 	FVector verts[8] {
 		{(float)X, (float)Y, (float)Z},
 		{(float)X, (float)Y, (float)Z + 1},

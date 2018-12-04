@@ -48,6 +48,11 @@ public:
 
 	const static Idx None;
 
+	inline friend uint32 GetTypeHash(const Idx idx)
+	{
+		return GetTypeHash(idx.I);
+	}
+
 private:
 	int I;
 };
@@ -246,6 +251,28 @@ struct MeshEdge {
 		}
 	}
 
+	bool Contains(Idx<MeshVert> vert_idx) const {
+		return StartVertIdx == vert_idx || EndVertIdx == vert_idx;
+	}
+
+	bool Contains(Idx<MeshFace> face_idx) const {
+		return ForwardsFaceIdx == face_idx || BackwardsFaceIdx == face_idx;
+	}
+
+	Idx<MeshFace> OtherFace(Idx<MeshFace> face_idx)
+	{
+		check(Contains(face_idx));
+
+		return face_idx == BackwardsFaceIdx ? ForwardsFaceIdx : BackwardsFaceIdx;
+	}
+
+	Idx<MeshVert> OtherVert(Idx<MeshVert> vert_idx)
+	{
+		check(Contains(vert_idx));
+
+		return vert_idx == StartVertIdx ? EndVertIdx : StartVertIdx;
+	}
+
 	MeshVertMultiUV WorkingEdgeVertex;
 };
 
@@ -295,6 +322,9 @@ class Mesh : public TSharedFromThis<Mesh>
 
 	int NextUVGroup = 0;
 
+	bool Clean = true;				///< when we add geometry, we may generate inappropriately shared verts
+									///< this signals to clean that up
+
 	bool FaceUnique(MeshFace face) const;
 
 	Idx<MeshEdge> FindEdge(Idx<MeshVert> idx1, Idx<MeshVert> idx2) const;
@@ -320,8 +350,14 @@ class Mesh : public TSharedFromThis<Mesh>
 	Idx<MeshVertRaw> BakeVertex(const MeshVertRaw& mvr);
 	Idx<MeshVertRaw> FindBakedVert(const MeshVertRaw& mvr) const;
 
+	TSharedRef<Mesh> SplitSharedVerts();		///< edges and faces should only share a vert if they form a single "pyramid" with that vert as the point, when two 
+									            ///< pyramids share a vert we split the vert
+	TArray<TArray<Idx<MeshFace>>> FindPyramids(Idx<MeshVert> vert_idx);
+	void SplitPyramids(const TArray<TArray<Idx<MeshFace>>>& pyramids, Idx<MeshVert> vert_idx);
+
 	static void RegularizeVertIdxs(TArray<Idx<MeshVert>>& vert_idxs);
 
+	TSharedPtr<Mesh> SubdivideInner();
 
 public:	
 	// Sets default values for this actor's properties
@@ -344,6 +380,8 @@ public:
 		Faces.Empty();
 
 		NextUVGroup = 0;
+
+		Clean = true;
 	}
 
 #ifndef UE_BUILD_RELEASE
