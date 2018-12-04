@@ -327,7 +327,12 @@ class Mesh : public TSharedFromThis<Mesh>
 
 	bool FaceUnique(MeshFace face) const;
 
-	Idx<MeshEdge> FindEdge(Idx<MeshVert> idx1, Idx<MeshVert> idx2) const;
+	// "face_idx" allows disambiguation when there's more than one edge between the same two verts
+	// (happens in edge-edge overlap of cubes)
+	Idx<MeshEdge> FindEdge(Idx<MeshVert> vert_idx1, Idx<MeshVert> vert_idx2, Idx<MeshFace> face_idx) const;
+	TArray<Idx<MeshEdge>> FindAllEdges(Idx<MeshVert> vert_idx1, Idx<MeshVert> vert_idx2) const;
+	// "partial_only" means only return an edge with a face-slot that isn't filled
+	Idx<MeshEdge> FindEdge(Idx<MeshVert> idx1, Idx<MeshVert> idx2, bool partial_only) const;
 	Idx<MeshEdge> AddFindEdge(Idx<MeshVert> idx1, Idx<MeshVert> idx2);
 
 	Idx<MeshVert> FindVert(const FVector& pos) const;
@@ -340,6 +345,8 @@ class Mesh : public TSharedFromThis<Mesh>
 	void RemoveFace(Idx<MeshFace> face_idx);
 	void RemoveEdge(Idx<MeshEdge> edge_idx);		///< it must not be in use by any faces
 	void RemoveVert(Idx<MeshVert> vert_idx);					///< it must not be in use by any edges (or faces)
+	void MergePartialEdges();
+	void MergeEdges(Idx<MeshEdge> edge_idx1, Idx<MeshEdge> edge_idx2);
 	void CleanUpRedundantEdges();
 	void CleanUpRedundantVerts();
 

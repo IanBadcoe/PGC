@@ -15,13 +15,45 @@ inline bool Mesh::FaceUnique(MeshFace face) const
 	return FindFaceByVertIdxs(face.VertIdxs) == Idx<MeshFace>::None;
 }
 
-Idx<MeshEdge> Mesh::FindEdge(Idx<MeshVert> idx1, Idx<MeshVert> idx2) const
+Idx<MeshEdge> Mesh::FindEdge(Idx<MeshVert> vert_idx1, Idx<MeshVert> vert_idx2, Idx<MeshFace> face_idx) const
 {
 	for (Idx<MeshEdge> i{ 0 }; i < Edges.Num(); i++)
 	{
 		auto& edge = Edges[i];
 
-		if ((edge.Contains(idx1) && edge.Contains(idx2)))
+		if (edge.Contains(vert_idx1) && edge.Contains(vert_idx2) && edge.Contains(face_idx))
+		{
+			return i;
+		}
+	}
+
+	return Idx<MeshEdge>::None;
+}
+
+TArray<Idx<MeshEdge>> Mesh::FindAllEdges(Idx<MeshVert> vert_idx1, Idx<MeshVert> vert_idx2) const
+{
+	TArray<Idx<MeshEdge>> ret;
+
+	for (Idx<MeshEdge> i{ 0 }; i < Edges.Num(); i++)
+	{
+		auto& edge = Edges[i];
+
+		if (edge.Contains(vert_idx1) && edge.Contains(vert_idx2))
+		{
+			ret.Push(i);
+		}
+	}
+
+	return ret;
+}
+
+Idx<MeshEdge> Mesh::FindEdge(Idx<MeshVert> vert_idx1, Idx<MeshVert> vert_idx2, bool partial_only) const
+{
+	for (Idx<MeshEdge> i{ 0 }; i < Edges.Num(); i++)
+	{
+		auto& edge = Edges[i];
+
+		if (edge.Contains(vert_idx1) && edge.Contains(vert_idx2) && (!partial_only || edge.Contains(Idx<MeshFace>::None)))
 		{
 			return i;
 		}
@@ -32,7 +64,8 @@ Idx<MeshEdge> Mesh::FindEdge(Idx<MeshVert> idx1, Idx<MeshVert> idx2) const
 
 Idx<MeshEdge> Mesh::AddFindEdge(Idx<MeshVert> idx1, Idx<MeshVert> idx2)
 {
-	auto edge_idx = FindEdge(idx1, idx2);
+	// do we ever need to propagate the "partial_only" parameter of FindEdge up to the caller?  Not yet...
+	auto edge_idx = FindEdge(idx1, idx2, true);
 
 	if (edge_idx != Idx<MeshEdge>::None)
 	{
@@ -133,7 +166,7 @@ void Mesh::CheckConsistent(bool closed)
 		{
 			check(vert_idx.Valid() && vert_idx < Vertices.Num());
 
-			auto edge_idx = FindEdge(prev_vert_idx, vert_idx);
+			auto edge_idx = FindEdge(prev_vert_idx, vert_idx, face_idx);
 			check(edge_idx != Idx<MeshEdge>::None);
 
 			auto& edge = Edges[edge_idx];
@@ -166,11 +199,15 @@ TArray<TArray<FVector>> working_configs{
 		{0, 0, 0},
 		{0, 0, 1},
 	},
-	// requires duplicate edge handling
-	//{							// edge contact
-	//	{0, 0, 0},
-	//	{0, 1, 1},
-	//},
+	{							// edge contact
+		{0, 0, 0},
+		{0, 1, 1},
+	},
+	{							// edge contact then fill-in to remerge into one object
+		{0, 0, 0},
+		{0, 1, 1},
+		{0, 1, 0},
+	},
 	{							// corner contact
 		{0, 0, 0},
 		{1, 1, 1},
@@ -220,39 +257,38 @@ TArray<TArray<FVector>> working_configs{
 		{2, 2, 1},
 		{2, 2, 2},
 	},
-	// requires duplicate edge handling
-	//{							// 3x3 supplying midding cube last
-	//	{0, 0, 0},
-	//	{0, 0, 1},
-	//	{0, 0, 2},
-	//	{0, 1, 0},
-	//	{0, 1, 1},
-	//	{0, 1, 2},
-	//	{0, 2, 0},
-	//	{0, 2, 1},
-	//	{0, 2, 2},
-	//	{1, 0, 0},
-	//	{1, 0, 1},
-	//	{1, 0, 2},
-	//	{1, 1, 0},
-	//	{1, 1, 2},
-	//	{1, 2, 0},
-	//	{1, 2, 1},
-	//	{1, 2, 2},
-	//	{2, 0, 0},
-	//	{2, 0, 1},
-	//	{2, 0, 2},
-	//	{2, 1, 0},
-	//	{2, 1, 1},
-	//	{2, 1, 2},
-	//	{2, 2, 0},
-	//	{2, 2, 1},
-	//	{2, 2, 2},
-	//	{1, 1, 1},
-	//},
+	{							// 3x3 supplying middle cube last
+		{0, 0, 0},
+		{0, 0, 1},
+		{0, 0, 2},
+		{0, 1, 0},
+		{0, 1, 1},
+		{0, 1, 2},
+		{0, 2, 0},
+		{0, 2, 1},
+		{0, 2, 2},
+		{1, 0, 0},
+		{1, 0, 1},
+		{1, 0, 2},
+		{1, 1, 0},
+		{1, 1, 2},
+		{1, 2, 0},
+		{1, 2, 1},
+		{1, 2, 2},
+		{2, 0, 0},
+		{2, 0, 1},
+		{2, 0, 2},
+		{2, 1, 0},
+		{2, 1, 1},
+		{2, 1, 2},
+		{2, 2, 0},
+		{2, 2, 1},
+		{2, 2, 2},
+		{1, 1, 1},
+	},
 };
 
-static void TestOne(TArray<FVector> config, int x_from, int y_from, int z_from, bool mirror)
+static void TestOne(const TArray<FVector>& config, int x_from, int y_from, int z_from, bool mirror)
 {
 	auto mesh = MakeShared<Mesh>();
 
@@ -383,6 +419,8 @@ void Mesh::RemoveFace(Idx<MeshFace> face_idx)
 
 	Faces.RemoveAt(face_idx);
 
+	MergePartialEdges();
+
 	CleanUpRedundantEdges();
 }
 
@@ -457,6 +495,97 @@ void Mesh::RemoveVert(Idx<MeshVert> vert_idx)
 	}
 
 	Vertices.RemoveAt(vert_idx);
+}
+
+void Mesh::MergePartialEdges()
+{
+	for (Idx<MeshEdge> edge_idx{ 0 }; edge_idx < Edges.Num(); edge_idx++)
+	{
+		auto& edge = Edges[edge_idx];
+
+		if (edge.Contains(Idx<MeshFace>::None))
+		{
+			auto edges = FindAllEdges(edge.StartVertIdx, edge.EndVertIdx);
+
+			if (edges.Num() > 1)
+			{
+				for (auto other_edge_idx : edges)
+				{
+					if (other_edge_idx != edge_idx)
+					{
+						const auto& other_edge = Edges[other_edge_idx];
+
+						if (other_edge.Contains(Idx<MeshFace>::None))
+						{
+							check(other_edge_idx > edge_idx);
+							MergeEdges(edge_idx, other_edge_idx);
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// merges from merge_from into merge_to
+// merge_from is then removed from the mesh
+void Mesh::MergeEdges(Idx<MeshEdge> merge_to, Idx<MeshEdge> merge_from)
+{
+	check(merge_to != merge_from);
+
+	auto& edge1 = Edges[merge_to];
+	auto& edge2 = Edges[merge_from];
+
+	if (edge2.StartVertIdx == edge1.StartVertIdx)
+	{
+		// if the edges run the same way
+		if (edge2.ForwardsFaceIdx.Valid())
+		{
+			check(!edge1.ForwardsFaceIdx.Valid());
+
+			Faces[edge2.ForwardsFaceIdx].EdgeIdxs.Remove(merge_from);
+			Faces[edge2.ForwardsFaceIdx].EdgeIdxs.Push(merge_to);
+			edge1.ForwardsFaceIdx = edge2.ForwardsFaceIdx;
+			edge2.ForwardsFaceIdx = Idx<MeshFace>::None;
+		}
+		else
+		{
+			check(edge2.BackwardsFaceIdx.Valid());
+			check(!edge1.BackwardsFaceIdx.Valid());
+
+			Faces[edge2.BackwardsFaceIdx].EdgeIdxs.Remove(merge_from);
+			Faces[edge2.BackwardsFaceIdx].EdgeIdxs.Push(merge_to);
+			edge1.BackwardsFaceIdx = edge2.BackwardsFaceIdx;
+			edge2.BackwardsFaceIdx = Idx<MeshFace>::None;
+		}
+	}
+	else
+	{
+		// if the edges run opposite ways
+		if (edge2.ForwardsFaceIdx.Valid())
+		{
+			check(!edge1.BackwardsFaceIdx.Valid());
+
+			Faces[edge2.ForwardsFaceIdx].EdgeIdxs.Remove(merge_from);
+			Faces[edge2.ForwardsFaceIdx].EdgeIdxs.Push(merge_to);
+			edge1.BackwardsFaceIdx = edge2.ForwardsFaceIdx;
+			edge2.ForwardsFaceIdx = Idx<MeshFace>::None;
+		}
+		else
+		{
+			check(edge2.BackwardsFaceIdx.Valid());
+			check(!edge1.ForwardsFaceIdx.Valid());
+
+			Faces[edge2.BackwardsFaceIdx].EdgeIdxs.Remove(merge_from);
+			Faces[edge2.BackwardsFaceIdx].EdgeIdxs.Push(merge_to);
+			edge1.ForwardsFaceIdx = edge2.BackwardsFaceIdx;
+			edge2.BackwardsFaceIdx = Idx<MeshFace>::None;
+		}
+	}
+
+	// we follow this with a CleanUpRedundantEdges, so no need for this as we've made 
+	// merge_from redundant by unsetting its remaining face index
+	//RemoveEdge(merge_from);
 }
 
 void Mesh::CleanUpRedundantEdges()
@@ -878,8 +1007,9 @@ TSharedPtr<Mesh> Mesh::SubdivideInner()
 		v.WorkingNewPos.UVs = v.UVs;
 	}
 
-	for (const auto f : Faces)
+	for (Idx<MeshFace> face_idx{ 0 }; face_idx < Faces.Num(); face_idx++)
 	{
+		const auto& f = Faces[face_idx];
 		auto n = f.VertIdxs.Num();
 
 		for (int i = 0; i < n; i++)
@@ -888,10 +1018,10 @@ TSharedPtr<Mesh> Mesh::SubdivideInner()
 			auto prev_vert_idx = f.VertIdxs[(i + n - 1) % n];
 			auto next_vert_idx = f.VertIdxs[(i + 1) % n];
 
-			auto prev_edge_idx = FindEdge(prev_vert_idx, vert_idx);
+			auto prev_edge_idx = FindEdge(prev_vert_idx, vert_idx, face_idx);
 			check(prev_edge_idx.Valid());
 
-			auto next_edge_idx = FindEdge(vert_idx, next_vert_idx);
+			auto next_edge_idx = FindEdge(vert_idx, next_vert_idx, face_idx);
 			check(next_edge_idx.Valid());
 
 			auto& v1 = Vertices[vert_idx].WorkingNewPos;
