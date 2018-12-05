@@ -6,7 +6,7 @@
 // Sets default values
 FPGCCube::FPGCCube()
 	: X{ 0 }, Y{ 0 }, Z{ 0 },
-	  Sharp {
+	  EdgeTypes {
 		PGCEdgeType::Rounded, PGCEdgeType::Rounded, PGCEdgeType::Rounded, PGCEdgeType::Rounded,
 		PGCEdgeType::Rounded, PGCEdgeType::Rounded, PGCEdgeType::Rounded, PGCEdgeType::Rounded,
 		PGCEdgeType::Rounded, PGCEdgeType::Rounded, PGCEdgeType::Rounded, PGCEdgeType::Rounded

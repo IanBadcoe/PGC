@@ -338,7 +338,6 @@ class Mesh : public TSharedFromThis<Mesh>
 	Idx<MeshVert> FindVert(const FVector& pos) const;
 	Idx<MeshVert> FindVert(const MeshVertRaw& vert, int UVGroup) const;
 
-	// the edge types will stomp the types on any existing edges
 	Idx<MeshFace> AddFindFace(MeshFace face, const TArray<PGCEdgeType>& edge_types);
 	Idx<MeshVert> AddVert(MeshVertRaw vert, int UVGroup);
 	Idx<MeshVert> AddVert(FVector pos);
@@ -377,6 +376,9 @@ public:
 
 	TSharedPtr<Mesh> SubdivideN(int count);
 
+	// where existing edges are duplicated with incoming ones
+	// the result is a sharp edge if either edge is sharp
+	// (this is the poor, but only in the same way that building by cubes is poor in the first instance)
 	void AddCube(const FPGCCube& cube);
 
 	void Bake(FPGCMeshResult& mesh);

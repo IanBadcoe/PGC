@@ -320,7 +320,7 @@ void Mesh::UnitTest()
 		auto mesh = MakeShared<Mesh>();
 
 		FPGCCube cube;
-		cube.Sharp[(int)edge] = PGCEdgeType::Sharp;
+		cube.EdgeTypes[(int)edge] = PGCEdgeType::Sharp;
 
 		mesh->AddCube(cube);
 
@@ -976,7 +976,11 @@ Idx<MeshFace> Mesh::AddFindFace(MeshFace face, const TArray<PGCEdgeType>& edge_t
 		face.EdgeIdxs.Push(edge_idx);
 
 		// have carefully arranged these edge_types into the same order as the verts
-		Edges[edge_idx].Type = edge_types[i];
+		// sharp edges from either existing or incoming edges take precedence
+		if (Edges[edge_idx].Type == PGCEdgeType::Rounded)
+		{
+			Edges[edge_idx].Type = edge_types[i];
+		}
 		Edges[edge_idx].AddFace(Faces.Num(), prev_vert);
 
 		prev_vert = vert_idx;
@@ -1196,12 +1200,12 @@ void Mesh::AddCube(const FPGCCube& cube)
 	};
 
 	TArray<TArray<PGCEdgeType>> edge_types {
-		{cube.Sharp[(int)PGCEdgeId::BottomFront], cube.Sharp[(int)PGCEdgeId::BottomRight],cube.Sharp[(int)PGCEdgeId::BottomBack],cube.Sharp[(int)PGCEdgeId::BottomLeft]},
-		{cube.Sharp[(int)PGCEdgeId::BottomRight], cube.Sharp[(int)PGCEdgeId::FrontRight],cube.Sharp[(int)PGCEdgeId::TopRight],cube.Sharp[(int)PGCEdgeId::BackRight]},
-		{cube.Sharp[(int)PGCEdgeId::BackLeft], cube.Sharp[(int)PGCEdgeId::BottomBack],cube.Sharp[(int)PGCEdgeId::BackRight],cube.Sharp[(int)PGCEdgeId::TopBack]},
-		{cube.Sharp[(int)PGCEdgeId::TopLeft], cube.Sharp[(int)PGCEdgeId::FrontLeft],cube.Sharp[(int)PGCEdgeId::BottomLeft],cube.Sharp[(int)PGCEdgeId::BackLeft]},
-		{cube.Sharp[(int)PGCEdgeId::TopFront], cube.Sharp[(int)PGCEdgeId::FrontRight],cube.Sharp[(int)PGCEdgeId::BottomFront],cube.Sharp[(int)PGCEdgeId::FrontLeft]},
-		{cube.Sharp[(int)PGCEdgeId::TopRight], cube.Sharp[(int)PGCEdgeId::TopFront],cube.Sharp[(int)PGCEdgeId::TopLeft],cube.Sharp[(int)PGCEdgeId::TopBack]},
+		{cube.EdgeTypes[(int)PGCEdgeId::BottomFront], cube.EdgeTypes[(int)PGCEdgeId::BottomRight],cube.EdgeTypes[(int)PGCEdgeId::BottomBack],cube.EdgeTypes[(int)PGCEdgeId::BottomLeft]},
+		{cube.EdgeTypes[(int)PGCEdgeId::BottomRight], cube.EdgeTypes[(int)PGCEdgeId::FrontRight],cube.EdgeTypes[(int)PGCEdgeId::TopRight],cube.EdgeTypes[(int)PGCEdgeId::BackRight]},
+		{cube.EdgeTypes[(int)PGCEdgeId::BackLeft], cube.EdgeTypes[(int)PGCEdgeId::BottomBack],cube.EdgeTypes[(int)PGCEdgeId::BackRight],cube.EdgeTypes[(int)PGCEdgeId::TopBack]},
+		{cube.EdgeTypes[(int)PGCEdgeId::TopLeft], cube.EdgeTypes[(int)PGCEdgeId::FrontLeft],cube.EdgeTypes[(int)PGCEdgeId::BottomLeft],cube.EdgeTypes[(int)PGCEdgeId::BackLeft]},
+		{cube.EdgeTypes[(int)PGCEdgeId::TopFront], cube.EdgeTypes[(int)PGCEdgeId::FrontRight],cube.EdgeTypes[(int)PGCEdgeId::BottomFront],cube.EdgeTypes[(int)PGCEdgeId::FrontLeft]},
+		{cube.EdgeTypes[(int)PGCEdgeId::TopRight], cube.EdgeTypes[(int)PGCEdgeId::TopFront],cube.EdgeTypes[(int)PGCEdgeId::TopLeft],cube.EdgeTypes[(int)PGCEdgeId::TopBack]},
 	};
 
 	TArray<bool> need_add;

@@ -53,5 +53,5 @@ public:
 	int Z;
 
 	UPROPERTY(EditAnywhere)
-	PGCEdgeType Sharp[PGCEdgeId::MAX];
+	PGCEdgeType EdgeTypes[PGCEdgeId::MAX];
 };
