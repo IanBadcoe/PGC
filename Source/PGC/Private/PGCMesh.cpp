@@ -32,13 +32,13 @@ void UPGCMesh::TickComponent(float DeltaTime, ELevelTick TickType, FActorCompone
 	// ...
 }
 
-FPGCMeshResult UPGCMesh::Generate(int NumDivisions)
+FPGCMeshResult UPGCMesh::Generate(int NumDivisions, bool InsideOut)
 {
 	auto divided_mesh = InitialMesh->SubdivideN(NumDivisions);
 
 	FPGCMeshResult ret;
 
-	divided_mesh->Bake(ret);
+	divided_mesh->Bake(ret, InsideOut);
 
 	return ret;
 }

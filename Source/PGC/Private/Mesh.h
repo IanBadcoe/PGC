@@ -381,7 +381,7 @@ public:
 	// (this is the poor, but only in the same way that building by cubes is poor in the first instance)
 	void AddCube(const FPGCCube& cube);
 
-	void Bake(FPGCMeshResult& mesh);
+	void Bake(FPGCMeshResult& mesh, bool insideOut);
 
 	// C++ only
 	void CheckConsistent(bool closed);

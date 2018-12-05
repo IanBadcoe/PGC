@@ -38,5 +38,5 @@ public:
 	}
 	
 	UFUNCTION(BlueprintCallable)
-	FPGCMeshResult Generate(int NumDivisions);
+	FPGCMeshResult Generate(int NumDivisions, bool InsideOut);
 };

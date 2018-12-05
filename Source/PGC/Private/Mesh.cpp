@@ -315,6 +315,7 @@ static void TestOne(const TArray<FVector>& config, int x_from, int y_from, int z
 
 void Mesh::UnitTest()
 {
+	return;
 	for (auto edge : edge_test)
 	{
 		auto mesh = MakeShared<Mesh>();
@@ -975,8 +976,8 @@ Idx<MeshFace> Mesh::AddFindFace(MeshFace face, const TArray<PGCEdgeType>& edge_t
 
 		face.EdgeIdxs.Push(edge_idx);
 
-		// have carefully arranged these edge_types into the same order as the verts
-		// sharp edges from either existing or incoming edges take precedence
+		// Have carefully arranged these edge_types into the same order as the verts.
+		// Sharp edges from either existing or incoming edges take precedence.
 		if (Edges[edge_idx].Type == PGCEdgeType::Rounded)
 		{
 			Edges[edge_idx].Type = edge_types[i];
@@ -997,10 +998,11 @@ TSharedPtr<Mesh> Mesh::Subdivide()
 
 	TSharedRef<Mesh> work_on = AsShared();
 
+	// if we've had any geometry added manually, we're not clean
+	// if we were generated procedurally (say by SplitSharedVerts or returned from here), then we're clean and don't need any fixing-up...
 	if (!Clean)
 	{
 		work_on = SplitSharedVerts();
-		Clean = true;
 	}
 
 	return work_on->SubdivideInner();
@@ -1230,7 +1232,7 @@ void Mesh::AddCube(const FPGCCube& cube)
 	CheckConsistent(true);
 }
 
-void Mesh::Bake(FPGCMeshResult& mesh)
+void Mesh::Bake(FPGCMeshResult& mesh, bool insideOut)
 {
 	for (const auto& f : Faces)
 	{
@@ -1260,10 +1262,18 @@ void Mesh::Bake(FPGCMeshResult& mesh)
 		{
 			auto this_vert = f.VertIdxs[i];
 
-			mesh.Triangles.Push(common_vert.AsInt());
-			mesh.Triangles.Push(prev_vert.AsInt());
-			mesh.Triangles.Push(this_vert.AsInt());
-
+			if (insideOut)
+			{
+				mesh.Triangles.Push(common_vert.AsInt());
+				mesh.Triangles.Push(this_vert.AsInt());
+				mesh.Triangles.Push(prev_vert.AsInt());
+			}
+			else
+			{
+				mesh.Triangles.Push(common_vert.AsInt());
+				mesh.Triangles.Push(prev_vert.AsInt());
+				mesh.Triangles.Push(this_vert.AsInt());
+			}
 			prev_vert = this_vert;
 		}
 	}
