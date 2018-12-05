@@ -32,7 +32,7 @@ void APGCGenerator::MakeMesh(TSharedPtr<Mesh> mesh)
 {
 	for (auto& cube : Cubes)
 	{
-		mesh->AddCube(cube.CellCoords[0], cube.CellCoords[1], cube.CellCoords[2]);
+		mesh->AddCube(cube);
 	}
 
 	mesh->CheckConsistent(true);

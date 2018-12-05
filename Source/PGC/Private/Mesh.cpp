@@ -10,11 +10,6 @@ PRAGMA_DISABLE_OPTIMIZATION
 template <typename T>
 const Idx<T> Idx<T>::None{ -1 };
 
-inline bool Mesh::FaceUnique(MeshFace face) const
-{
-	return FindFaceByVertIdxs(face.VertIdxs) == Idx<MeshFace>::None;
-}
-
 Idx<MeshEdge> Mesh::FindEdge(Idx<MeshVert> vert_idx1, Idx<MeshVert> vert_idx2, Idx<MeshFace> face_idx) const
 {
 	for (Idx<MeshEdge> i{ 0 }; i < Edges.Num(); i++)
@@ -288,6 +283,21 @@ TArray<TArray<FVector>> working_configs{
 	},
 };
 
+PGCEdgeId edge_test[]{
+	PGCEdgeId::BackLeft,
+	PGCEdgeId::BackRight,
+	PGCEdgeId::FrontLeft,
+	PGCEdgeId::FrontRight,
+	PGCEdgeId::TopBack,
+	PGCEdgeId::TopFront,
+	PGCEdgeId::TopLeft,
+	PGCEdgeId::TopRight,
+	PGCEdgeId::BottomBack,
+	PGCEdgeId::BottomFront,
+	PGCEdgeId::BottomLeft,
+	PGCEdgeId::BottomRight,
+};
+
 static void TestOne(const TArray<FVector>& config, int x_from, int y_from, int z_from, bool mirror)
 {
 	auto mesh = MakeShared<Mesh>();
@@ -296,7 +306,7 @@ static void TestOne(const TArray<FVector>& config, int x_from, int y_from, int z
 
 	for (auto cell : config)
 	{
-		mesh->AddCube(cell[x_from] * neg, cell[y_from] * neg, cell[z_from] * neg);
+		mesh->AddCube(FPGCCube(cell[x_from] * neg, cell[y_from] * neg, cell[z_from] * neg));
 	}
 
 	auto div1 = mesh->Subdivide();
@@ -305,6 +315,26 @@ static void TestOne(const TArray<FVector>& config, int x_from, int y_from, int z
 
 void Mesh::UnitTest()
 {
+	for (auto edge : edge_test)
+	{
+		auto mesh = MakeShared<Mesh>();
+
+		FPGCCube cube;
+		cube.Sharp[(int)edge] = PGCEdgeType::Sharp;
+
+		mesh->AddCube(cube);
+
+		int count_sharp = 0;
+
+		for (const auto& edge : mesh->Edges)
+		{
+			if (edge.Type == PGCEdgeType::Sharp)
+				count_sharp++;
+		}
+
+		check(count_sharp == 1);
+	}
+
 	for(auto config : working_configs)
 	{
 		TestOne(config, 0, 1, 2, false);
@@ -630,20 +660,22 @@ void Mesh::CleanUpRedundantVerts()
 	}
 }
 
-Idx<MeshFace> Mesh::AddFaceFromRawVerts(const TArray<MeshVertRaw>& vertices, int UVGroup)
+Idx<MeshFace> Mesh::AddFaceFromRawVerts(const TArray<MeshVertRaw>& vertices, int UVGroup, const TArray<PGCEdgeType>& edge_types)
 {
-	MeshFace fm;
+	MeshFace mf;
 
 	for (auto vr : vertices)
 	{
-		fm.VertIdxs.Push(AddVert(vr, UVGroup));
+		mf.VertIdxs.Push(AddVert(vr, UVGroup));
 	}
 
-	RegularizeVertIdxs(fm.VertIdxs);
+	TArray<PGCEdgeType> edge_type_copy(edge_types);
 
-	fm.UVGroup = UVGroup;
+	RegularizeVertIdxs(mf.VertIdxs, &edge_type_copy);
 
-	return AddFace(fm);
+	mf.UVGroup = UVGroup;
+
+	return AddFindFace(mf, edge_type_copy);
 }
 
 bool Mesh::CancelExistingFace(const TArray<FVector>& vertices)
@@ -655,7 +687,7 @@ bool Mesh::CancelExistingFace(const TArray<FVector>& vertices)
 		vert_idxs.Push(AddVert(vr));
 	}
 
-	RegularizeVertIdxs(vert_idxs);
+	RegularizeVertIdxs(vert_idxs, nullptr);
 
 	// the reverse face has the same first vert and the other's reverse
 	// (the same as reversing the whole lot and then Regularizing again)
@@ -679,7 +711,9 @@ bool Mesh::CancelExistingFace(const TArray<FVector>& vertices)
 	return false;
 }
 
-Idx<MeshFace> Mesh::AddFaceFromVects(const TArray<FVector>& vertices, const TArray<FVector2D>& uvs, int UVGroup)
+Idx<MeshFace> Mesh::AddFaceFromVects(const TArray<FVector>& vertices,
+	const TArray<FVector2D>& uvs, int UVGroup,
+	const TArray<PGCEdgeType>& edge_types)
 {
 	MeshFace mf;
 
@@ -688,11 +722,13 @@ Idx<MeshFace> Mesh::AddFaceFromVects(const TArray<FVector>& vertices, const TArr
 		mf.VertIdxs.Push(AddVert(MeshVertRaw(vertices[i], uvs[i]), UVGroup));
 	}
 
-	RegularizeVertIdxs(mf.VertIdxs);
+	TArray<PGCEdgeType> edge_type_copy(edge_types);
+
+	RegularizeVertIdxs(mf.VertIdxs, &edge_type_copy);
 
 	mf.UVGroup = UVGroup;
 
-	return AddFace(mf);
+	return AddFindFace(mf, edge_type_copy);
 }
 
 Idx<MeshVertRaw> Mesh::BakeVertex(const MeshVertRaw& mvr)
@@ -829,7 +865,7 @@ void Mesh::SplitPyramids(const TArray<TArray<Idx<MeshFace>>>& pyramids, Idx<Mesh
 
 			check(found);
 
-			RegularizeVertIdxs(face.VertIdxs);
+			RegularizeVertIdxs(face.VertIdxs, nullptr);
 		}
 
 		int edges_found = 0;
@@ -876,7 +912,7 @@ void Mesh::SplitPyramids(const TArray<TArray<Idx<MeshFace>>>& pyramids, Idx<Mesh
 	}
 }
 
-void Mesh::RegularizeVertIdxs(TArray<Idx<MeshVert>>& vert_idxs)
+void Mesh::RegularizeVertIdxs(TArray<Idx<MeshVert>>& vert_idxs, TArray<PGCEdgeType>* edge_types)
 {
 	// sort the array so that the lowest index is first
 	// allows us to search for faces by verts
@@ -897,31 +933,50 @@ void Mesh::RegularizeVertIdxs(TArray<Idx<MeshVert>>& vert_idxs)
 		return;
 
 	TArray<Idx<MeshVert>> temp;
+	TArray<PGCEdgeType> temp2;
 
 	for (int i = 0; i < vert_idxs.Num(); i++)
 	{
 		temp.Push(vert_idxs[pos]);
+		if (edge_types)
+		{
+			temp2.Push((*edge_types)[pos]);
+		}
 
 		pos = (pos + 1) % vert_idxs.Num();
+	}
+
+	if (edge_types)
+	{
+		*edge_types = std::move(temp2);
 	}
 
 	vert_idxs = std::move(temp);
 }
 
-Idx<MeshFace> Mesh::AddFace(MeshFace face)
+Idx<MeshFace> Mesh::AddFindFace(MeshFace face, const TArray<PGCEdgeType>& edge_types)
 {
-	check(FaceUnique(face));
+	auto face_idx = FindFaceByVertIdxs(face.VertIdxs);
+
+	if (face_idx != Idx<MeshFace>::None)
+	{
+		return face_idx;
+	}
 
 	auto prev_vert = face.VertIdxs.Last();
 
-	for (auto vert_idx : face.VertIdxs)
+	for (int i = 0; i < face.VertIdxs.Num(); i++)
 	{
+		auto vert_idx = face.VertIdxs[i];
+
 		Vertices[vert_idx].FaceIdxs.Push(Faces.Num());
 
 		auto edge_idx = AddFindEdge(prev_vert, vert_idx);
 
 		face.EdgeIdxs.Push(edge_idx);
 
+		// have carefully arranged these edge_types into the same order as the verts
+		Edges[edge_idx].Type = edge_types[i];
 		Edges[edge_idx].AddFace(Faces.Num(), prev_vert);
 
 		prev_vert = vert_idx;
@@ -972,36 +1027,71 @@ TSharedPtr<Mesh> Mesh::SubdivideInner()
 
 	for (auto& e : Edges)
 	{
-		e.WorkingEdgeVertex.Pos = (Vertices[e.StartVertIdx].Pos + Vertices[e.EndVertIdx].Pos
-			+ Faces[e.ForwardsFaceIdx].WorkingFaceVertex.Pos + Faces[e.BackwardsFaceIdx].WorkingFaceVertex.Pos) / 4;
+		if (e.Type == PGCEdgeType::Rounded)
+		{
+			e.WorkingEdgeVertex.Pos = (Vertices[e.StartVertIdx].Pos + Vertices[e.EndVertIdx].Pos
+				+ Faces[e.ForwardsFaceIdx].WorkingFaceVertex.Pos + Faces[e.BackwardsFaceIdx].WorkingFaceVertex.Pos) / 4;
+		}
+		else
+		{
+			e.WorkingEdgeVertex.Pos = (Vertices[e.StartVertIdx].Pos + Vertices[e.EndVertIdx].Pos) / 2;
+		}
 
 		e.WorkingEdgeVertex.UVs = (Vertices[e.StartVertIdx].UVs + Vertices[e.EndVertIdx].UVs) / 2;
 	}
 
-	for (auto& v : Vertices)
+	for (Idx<MeshVert> vert_idx{ 0 }; vert_idx < Vertices.Num(); vert_idx++)
 	{
-		auto n = v.FaceIdxs.Num();
+		auto& v = Vertices[vert_idx];
 
-		FVector F{ 0, 0, 0 };
-
-		for (auto face_idx : v.FaceIdxs)
-		{
-			F += Faces[face_idx].WorkingFaceVertex.Pos;
-		}
-
-		F = F / n;
-
-		FVector R{ 0, 0, 0 };
+		TArray<MeshEdge> sharp_edges;
 
 		for (auto edge_idx : v.EdgeIdxs)
 		{
-			R += Edges[edge_idx].WorkingEdgeVertex.Pos;
+			const auto& edge = Edges[edge_idx];
+
+			if (edge.Type == PGCEdgeType::Sharp)
+			{
+				sharp_edges.Add(edge);
+			}
 		}
 
-		// assuming the number of faces == the number of edges, which is true for closed meshes, may need a special rule for the edges if this is ever not true...
-		R = R / n;
+		if (sharp_edges.Num() < 2)
+		{
+			auto n = v.FaceIdxs.Num();
 
-		v.WorkingNewPos.Pos = (v.Pos * (n - 3) + R * 2 + F) / n;
+			FVector F{ 0, 0, 0 };
+
+			for (auto face_idx : v.FaceIdxs)
+			{
+				F += Faces[face_idx].WorkingFaceVertex.Pos;
+			}
+
+			F = F / n;
+
+			FVector R{ 0, 0, 0 };
+
+			for (auto edge_idx : v.EdgeIdxs)
+			{
+				R += Edges[edge_idx].WorkingEdgeVertex.Pos;
+			}
+
+			// assuming the number of faces == the number of edges, which is true for closed meshes, may need a special rule for the edges if this is ever not true...
+			R = R / n;
+
+			v.WorkingNewPos.Pos = (v.Pos * (n - 3) + R * 2 + F) / n;
+		}
+		else if (sharp_edges.Num() == 2)
+		{
+			const auto& ov0 = Vertices[sharp_edges[0].OtherVert(vert_idx)];
+			const auto& ov1 = Vertices[sharp_edges[1].OtherVert(vert_idx)];
+
+			v.WorkingNewPos.Pos = v.Pos * 0.75f + ov0.Pos * 0.125f + ov1.Pos * 0.125f;
+		}
+		else
+		{
+			v.WorkingNewPos.Pos = v.Pos;
+		}
 
 		// on a vert we keep the UVs as they were, since the position is going to pull in but still wants to be the same point in texture-space
 		v.WorkingNewPos.UVs = v.UVs;
@@ -1034,7 +1124,13 @@ TSharedPtr<Mesh> Mesh::SubdivideInner()
 				v2.ToMeshVertRaw(f.UVGroup),
 				v3.ToMeshVertRaw(f.UVGroup),
 				v4.ToMeshVertRaw(f.UVGroup)
-				}, f.UVGroup);
+				}, f.UVGroup,
+				{
+					Edges[prev_edge_idx].Type,
+					Edges[next_edge_idx].Type,
+					PGCEdgeType::Rounded,
+					PGCEdgeType::Rounded,
+				});
 		}
 	}
 
@@ -1057,19 +1153,30 @@ TSharedPtr<Mesh> Mesh::SubdivideN(int count)
 	return ret;
 }
 
-void Mesh::AddCube(int X, int Y, int Z)
+void Mesh::AddCube(const FPGCCube& cube)
 {
 	Clean = false;
 
+	enum VertNames {
+		LFB,
+		LFT,
+		LBB,
+		LBT,
+		RFB,
+		RFT,
+		RBB,
+		RBT,
+	};
+
 	FVector verts[8] {
-		{(float)X, (float)Y, (float)Z},
-		{(float)X, (float)Y, (float)Z + 1},
-		{(float)X, (float)Y + 1, (float)Z},
-		{(float)X, (float)Y + 1, (float)Z + 1},
-		{(float)X + 1, (float)Y, (float)Z},
-		{(float)X + 1, (float)Y, (float)Z + 1},
-		{(float)X + 1, (float)Y + 1, (float)Z},
-		{(float)X + 1, (float)Y + 1, (float)Z + 1}
+		{(float)cube.X, (float)cube.Y, (float)cube.Z},
+		{(float)cube.X, (float)cube.Y, (float)cube.Z + 1},
+		{(float)cube.X, (float)cube.Y + 1, (float)cube.Z},
+		{(float)cube.X, (float)cube.Y + 1, (float)cube.Z + 1},
+		{(float)cube.X + 1, (float)cube.Y, (float)cube.Z},
+		{(float)cube.X + 1, (float)cube.Y, (float)cube.Z + 1},
+		{(float)cube.X + 1, (float)cube.Y + 1, (float)cube.Z},
+		{(float)cube.X + 1, (float)cube.Y + 1, (float)cube.Z + 1}
 	};
 
 	TArray<FVector2D> uvs {
@@ -1079,32 +1186,39 @@ void Mesh::AddCube(int X, int Y, int Z)
 		{1, 0}
 	};
 
-	TArray<TArray<FVector>> faces{
-		{ verts[4], verts[6], verts[2], verts[0] },
-		{ verts[4], verts[5], verts[7], verts[6] },
-		{ verts[2], verts[6], verts[7], verts[3] },
-		{ verts[1], verts[0], verts[2], verts[3] },
-		{ verts[5], verts[4], verts[0], verts[1] },
-		{ verts[5], verts[1], verts[3], verts[7] },
+	TArray<TArray<FVector>> faces {
+		{ verts[RFB], verts[RBB], verts[LBB], verts[LFB] },
+		{ verts[RFB], verts[RFT], verts[RBT], verts[RBB] },
+		{ verts[LBB], verts[RBB], verts[RBT], verts[LBT] },
+		{ verts[LFT], verts[LFB], verts[LBB], verts[LBT] },
+		{ verts[RFT], verts[RFB], verts[LFB], verts[LFT] },
+		{ verts[RFT], verts[LFT], verts[LBT], verts[RBT] }
+	};
+
+	TArray<TArray<PGCEdgeType>> edge_types {
+		{cube.Sharp[(int)PGCEdgeId::BottomFront], cube.Sharp[(int)PGCEdgeId::BottomRight],cube.Sharp[(int)PGCEdgeId::BottomBack],cube.Sharp[(int)PGCEdgeId::BottomLeft]},
+		{cube.Sharp[(int)PGCEdgeId::BottomRight], cube.Sharp[(int)PGCEdgeId::FrontRight],cube.Sharp[(int)PGCEdgeId::TopRight],cube.Sharp[(int)PGCEdgeId::BackRight]},
+		{cube.Sharp[(int)PGCEdgeId::BackLeft], cube.Sharp[(int)PGCEdgeId::BottomBack],cube.Sharp[(int)PGCEdgeId::BackRight],cube.Sharp[(int)PGCEdgeId::TopBack]},
+		{cube.Sharp[(int)PGCEdgeId::TopLeft], cube.Sharp[(int)PGCEdgeId::FrontLeft],cube.Sharp[(int)PGCEdgeId::BottomLeft],cube.Sharp[(int)PGCEdgeId::BackLeft]},
+		{cube.Sharp[(int)PGCEdgeId::TopFront], cube.Sharp[(int)PGCEdgeId::FrontRight],cube.Sharp[(int)PGCEdgeId::BottomFront],cube.Sharp[(int)PGCEdgeId::FrontLeft]},
+		{cube.Sharp[(int)PGCEdgeId::TopRight], cube.Sharp[(int)PGCEdgeId::TopFront],cube.Sharp[(int)PGCEdgeId::TopLeft],cube.Sharp[(int)PGCEdgeId::TopBack]},
 	};
 
 	TArray<bool> need_add;
 
 	// when adding a cube, if it's face is the inverse of an existing face, then we delete that
 	// (and do not add this one, to make the cubes connect
-	for (const auto f : faces)
+	for (const auto& f : faces)
 	{
 		need_add.Push(!CancelExistingFace(f));
 		CheckConsistent(false);
 	}
 
-	int i = 0;
-
-	for (const auto f : faces)
+	for (int i = 0; i < 6; i++)
 	{
-		if (need_add[i++])
+		if (need_add[i])
 		{
-			AddFaceFromVects(f, uvs, NextUVGroup++);
+			AddFaceFromVects(faces[i], uvs, NextUVGroup++, edge_types[i]);
 			CheckConsistent(false);
 		}
 	}

@@ -235,6 +235,8 @@ struct MeshEdge {
 	Idx<MeshFace> ForwardsFaceIdx = Idx<MeshFace>::None;
 	Idx<MeshFace> BackwardsFaceIdx = Idx<MeshFace>::None;
 
+	PGCEdgeType Type = PGCEdgeType::Rounded;
+
 	void AddFace(Idx<MeshFace> face_idx, Idx<MeshVert> start_vert_idx)
 	{
 		if (start_vert_idx == StartVertIdx)
@@ -259,14 +261,14 @@ struct MeshEdge {
 		return ForwardsFaceIdx == face_idx || BackwardsFaceIdx == face_idx;
 	}
 
-	Idx<MeshFace> OtherFace(Idx<MeshFace> face_idx)
+	Idx<MeshFace> OtherFace(Idx<MeshFace> face_idx) const
 	{
 		check(Contains(face_idx));
 
 		return face_idx == BackwardsFaceIdx ? ForwardsFaceIdx : BackwardsFaceIdx;
 	}
 
-	Idx<MeshVert> OtherVert(Idx<MeshVert> vert_idx)
+	Idx<MeshVert> OtherVert(Idx<MeshVert> vert_idx) const
 	{
 		check(Contains(vert_idx));
 
@@ -325,8 +327,6 @@ class Mesh : public TSharedFromThis<Mesh>
 	bool Clean = true;				///< when we add geometry, we may generate inappropriately shared verts
 									///< this signals to clean that up
 
-	bool FaceUnique(MeshFace face) const;
-
 	// "face_idx" allows disambiguation when there's more than one edge between the same two verts
 	// (happens in edge-edge overlap of cubes)
 	Idx<MeshEdge> FindEdge(Idx<MeshVert> vert_idx1, Idx<MeshVert> vert_idx2, Idx<MeshFace> face_idx) const;
@@ -338,7 +338,8 @@ class Mesh : public TSharedFromThis<Mesh>
 	Idx<MeshVert> FindVert(const FVector& pos) const;
 	Idx<MeshVert> FindVert(const MeshVertRaw& vert, int UVGroup) const;
 
-	Idx<MeshFace> AddFace(MeshFace face);
+	// the edge types will stomp the types on any existing edges
+	Idx<MeshFace> AddFindFace(MeshFace face, const TArray<PGCEdgeType>& edge_types);
 	Idx<MeshVert> AddVert(MeshVertRaw vert, int UVGroup);
 	Idx<MeshVert> AddVert(FVector pos);
 	Idx<MeshFace> FindFaceByVertIdxs(const TArray<Idx<MeshVert>>& vert_idxs) const;
@@ -350,9 +351,9 @@ class Mesh : public TSharedFromThis<Mesh>
 	void CleanUpRedundantEdges();
 	void CleanUpRedundantVerts();
 
-	Idx<MeshFace> AddFaceFromRawVerts(const TArray<MeshVertRaw>& vertices, int UVGroup);
+	Idx<MeshFace> AddFaceFromRawVerts(const TArray<MeshVertRaw>& vertices, int UVGroup, const TArray<PGCEdgeType>& edge_types);
 	bool CancelExistingFace(const TArray<FVector>& vertices);
-	Idx<MeshFace> AddFaceFromVects(const TArray<FVector>& vertices, const TArray<FVector2D>& uvs, int UVGroup);
+	Idx<MeshFace> AddFaceFromVects(const TArray<FVector>& vertices, const TArray<FVector2D>& uvs, int UVGroup, const TArray<PGCEdgeType>& edge_types);
 
 	Idx<MeshVertRaw> BakeVertex(const MeshVertRaw& mvr);
 	Idx<MeshVertRaw> FindBakedVert(const MeshVertRaw& mvr) const;
@@ -362,7 +363,9 @@ class Mesh : public TSharedFromThis<Mesh>
 	TArray<TArray<Idx<MeshFace>>> FindPyramids(Idx<MeshVert> vert_idx);
 	void SplitPyramids(const TArray<TArray<Idx<MeshFace>>>& pyramids, Idx<MeshVert> vert_idx);
 
-	static void RegularizeVertIdxs(TArray<Idx<MeshVert>>& vert_idxs);
+	// if we cyclically re-order the edges, then we can need to reorder the edge_types because during construction
+	// we find the edges from the verts
+	static void RegularizeVertIdxs(TArray<Idx<MeshVert>>& vert_idxs, TArray<PGCEdgeType>* edge_types);
 
 	TSharedPtr<Mesh> SubdivideInner();
 
@@ -374,7 +377,7 @@ public:
 
 	TSharedPtr<Mesh> SubdivideN(int count);
 
-	void AddCube(int X, int Y, int Z);
+	void AddCube(const FPGCCube& cube);
 
 	void Bake(FPGCMeshResult& mesh);
 
