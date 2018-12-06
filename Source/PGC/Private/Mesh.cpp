@@ -315,13 +315,12 @@ static void TestOne(const TArray<FVector>& config, int x_from, int y_from, int z
 
 void Mesh::UnitTest()
 {
-	return;
-	for (auto edge : edge_test)
+	for (auto edge_id : edge_test)
 	{
 		auto mesh = MakeShared<Mesh>();
 
 		FPGCCube cube;
-		cube.EdgeTypes[(int)edge] = PGCEdgeType::Sharp;
+		cube.EdgeTypes[(int)edge_id] = PGCEdgeType::Sharp;
 
 		mesh->AddCube(cube);
 
@@ -854,12 +853,12 @@ void Mesh::SplitPyramids(const TArray<TArray<Idx<MeshFace>>>& pyramids, Idx<Mesh
 			vert.UVs.Add(face.UVGroup) = old_vert.UVs[face.UVGroup];
 
 			bool found = false;
-			for (auto& i : face.VertIdxs)
+			for (auto& j : face.VertIdxs)
 			{
-				if (i == vert_idx)
+				if (j == vert_idx)
 				{
 					found = true;
-					i = new_vert_idx;
+					j = new_vert_idx;
 					break;
 				}
 			}
@@ -871,9 +870,9 @@ void Mesh::SplitPyramids(const TArray<TArray<Idx<MeshFace>>>& pyramids, Idx<Mesh
 
 		int edges_found = 0;
 
-		for (int i = 0; i < old_vert.EdgeIdxs.Num();)
+		for (int j = 0; j < old_vert.EdgeIdxs.Num();)
 		{
-			auto edge_idx = old_vert.EdgeIdxs[i];
+			auto edge_idx = old_vert.EdgeIdxs[j];
 
 			auto& edge = Edges[edge_idx];
 
@@ -902,7 +901,7 @@ void Mesh::SplitPyramids(const TArray<TArray<Idx<MeshFace>>>& pyramids, Idx<Mesh
 			}
 			else
 			{
-				i++;
+				j++;
 			}
 		}
 
