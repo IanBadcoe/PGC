@@ -1174,14 +1174,14 @@ void Mesh::AddCube(const FPGCCube& cube)
 	};
 
 	FVector verts[8] {
-		{(float)cube.X, (float)cube.Y, (float)cube.Z},
-		{(float)cube.X, (float)cube.Y, (float)cube.Z + 1},
-		{(float)cube.X, (float)cube.Y + 1, (float)cube.Z},
-		{(float)cube.X, (float)cube.Y + 1, (float)cube.Z + 1},
-		{(float)cube.X + 1, (float)cube.Y, (float)cube.Z},
-		{(float)cube.X + 1, (float)cube.Y, (float)cube.Z + 1},
-		{(float)cube.X + 1, (float)cube.Y + 1, (float)cube.Z},
-		{(float)cube.X + 1, (float)cube.Y + 1, (float)cube.Z + 1}
+		{(float)cube.X - 0.5f, (float)cube.Y - 0.5f, (float)cube.Z - 0.5f},
+		{(float)cube.X - 0.5f, (float)cube.Y - 0.5f, (float)cube.Z + 0.5f},
+		{(float)cube.X - 0.5f, (float)cube.Y + 0.5f, (float)cube.Z - 0.5f},
+		{(float)cube.X - 0.5f, (float)cube.Y + 0.5f, (float)cube.Z + 0.5f},
+		{(float)cube.X + 0.5f, (float)cube.Y - 0.5f, (float)cube.Z - 0.5f},
+		{(float)cube.X + 0.5f, (float)cube.Y - 0.5f, (float)cube.Z + 0.5f},
+		{(float)cube.X + 0.5f, (float)cube.Y + 0.5f, (float)cube.Z - 0.5f},
+		{(float)cube.X + 0.5f, (float)cube.Y + 0.5f, (float)cube.Z + 0.5f}
 	};
 
 	TArray<FVector2D> uvs {
@@ -1247,7 +1247,7 @@ void Mesh::Bake(FPGCMeshResult& mesh, bool insideOut)
 
 	for (auto v : BakedVerts)
 	{
-		mesh.Verts.Push(v.Pos * 100.0f);
+		mesh.Verts.Push(v.Pos);
 		mesh.UVs.Push(v.UV);
 	}
 
