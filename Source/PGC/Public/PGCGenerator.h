@@ -3,37 +3,25 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
-
-#include "Runtime/Core/Public/Containers/Array.h"
-#include "Runtime/Core/Public/Templates/SharedPointer.h"
-#include "PGCCube.h"
-
-
-
+#include "UObject/Interface.h"
 #include "PGCGenerator.generated.h"
 
-class Mesh;
+// This class does not need to be modified.
+UINTERFACE(BlueprintType)
+class UPGCGenerator : public UInterface
+{
+	GENERATED_BODY()
+};
 
-UCLASS()
-class PGC_API APGCGenerator : public AActor
+/**
+ * 
+ */
+class PGC_API IPGCGenerator
 {
 	GENERATED_BODY()
 
-public:	
-	// Sets default values for this actor's properties
-	APGCGenerator();
-
-protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
-
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
-
-	UPROPERTY(EditAnywhere)
-	TArray<FPGCCube> Cubes;
-
-	void MakeMesh(TSharedPtr<Mesh> mesh);
+	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
+public:
+	
+	virtual void MakeMesh(TSharedPtr<Mesh> mesh) = 0;
 };

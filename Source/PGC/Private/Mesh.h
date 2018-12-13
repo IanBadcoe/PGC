@@ -311,8 +311,6 @@ struct FPGCMeshResult {
 	TArray<int> Triangles;
 };
 
-class APGCGenerator;
-
 class Mesh : public TSharedFromThis<Mesh>
 {
 	TArrayIdx<MeshVert> Vertices;

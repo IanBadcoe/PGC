@@ -3,7 +3,7 @@
 #include "Runtime/Core/Public/Templates/SharedPointer.h"
 #include "Runtime/Core/Public/Templates/SharedPointer.h"
 
-namespace GraphLayout {
+namespace LayoutGraph {
 	// in all the following, TypeId is something like an enum class, for us as an Id for the types of connector
 
 	template <typename TypeId> class Node;
@@ -17,40 +17,54 @@ namespace GraphLayout {
 	};
 
 	template <typename TypeId>
-	class Connector {
+	class ConnectorDef {
 	public:
 		const TypeId Id;
 		const TArray<FVector2D> Profile;		// x is L->R across the width of the incoming edge
 												// y is D->U on it
-		const FVector Pos;
-		const FRotator Rot;
-
-		Connector(TypeId&& id, TArray<FVector2D>&& profile,
-			FVector&& pos, FRotator&& rot)
+		ConnectorDef(TypeId&& id, TArray<FVector2D>&& profile)
 			: Id(id), 
-			  Profile(profile), 
-			  Pos(pos),
-		      Rot(rot) {}
+			  Profile(profile) {}
+		ConnectorDef() = delete;
+		ConnectorDef(const ConnectorDef&) = delete;
+		const ConnectorDef& operator=(const ConnectorDef&) = delete;
+	};
+
+	template <typename TypeId>
+	class ConnectorInst {
+	public:
+		using ConnectorDefT = ConnectorDef<TypeId>;
+
+		const ConnectorDefT& Definition;
+
+		FVector Pos;			// centre of the connector in node-space
+		FVector Normal;			// normal, pointing out of the node and into the edge
+
+		ConnectorInst(const ConnectorDefT& definition, FVector&& pos, FVector&& normal)
+			: Definition(definition), Pos(pos), Normal(normal) {}
 	};
 
 	template <typename TypeId>
 	class Node {
 	public:
 		using EdgeT = Edge<TypeId>;
-		using ConnectorT = Connector<TypeId>;
+		using ConnectorT = ConnectorInst<TypeId>;
 
 		TArray<TWeakPtr<EdgeT>> Edges;
-		const TArray<TUniquePtr<ConnectorT>> Connectors;
+		const TArray<ConnectorT> Connectors;
 
-		Node(TArray<TUniquePtr<ConnectorT>>&& connectors)
+		Node(TArray<ConnectorT>&& connectors)
 			: Connectors(connectors) {}
+		Node() = delete;
+		Node(const Node&) = delete;
+		const Node& operator=(const Node&) = delete;
 	};
 
 	template <typename TypeId>
 	class Graph {
 		using NodeT = Node<TypeId>;
 		using EdgeT = Edge<TypeId>;
-		using ConnectorTypeT = Connector<TypeId>;
+		using ConnectorTypeT = ConnectorDef<TypeId>;
 
 		TArray<TSharedPtr<NodeT>> Nodes;
 		TArray<TSharedPtr<EdgeT>> Edges;

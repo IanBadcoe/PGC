@@ -11,7 +11,7 @@
 #include "PGCMesh.generated.h"
 
 
-UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+UCLASS(BlueprintType)
 class PGC_API UPGCMesh : public UActorComponent
 {
 	GENERATED_BODY()
@@ -30,13 +30,13 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	UFUNCTION(BlueprintCallable)
-	void SetInputMesh(APGCGenerator* gen)
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate", Keywords = "PGC, procedural"), Category = "PGC")
+	void SetGenerator(const TScriptInterface<IPGCGenerator>& gen)
 	{
 		InitialMesh->Clear();
 		gen->MakeMesh(InitialMesh);
 	}
 	
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate", Keywords = "PGC, procedural"), Category = "PGC")
 	FPGCMeshResult Generate(int NumDivisions, bool InsideOut);
 };
