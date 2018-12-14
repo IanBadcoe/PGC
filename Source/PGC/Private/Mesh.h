@@ -111,9 +111,11 @@ struct MeshVertRaw {
 		return MeshVertRaw{ Pos / rhs, UV / rhs };
 	}
 
-	bool operator==(const MeshVertRaw& rhs) const {
-		return Pos == rhs.Pos && UV == rhs.UV;
-	}
+	//bool operator==(const MeshVertRaw& rhs) const {
+	//	return Pos == rhs.Pos && UV == rhs.UV;
+	//}
+
+	bool ToleranceCompare(const MeshVertRaw& other, float tolerance) const;
 
 	FVector Pos;
 	FVector2D UV;
@@ -321,9 +323,10 @@ class Mesh : public TSharedFromThis<Mesh>
 	TArray<MeshFaceRaw> BakedFaces;
 
 	int NextUVGroup = 0;
+	float VertexTolerance = 0.001f;	// currently working on meshes that are multiples of 1 in size, so 0.001 should be plenty
 
-	bool Clean = true;				///< when we add geometry, we may generate inappropriately shared verts
-									///< this signals to clean that up
+	bool Clean = true;				// when we add geometry, we may generate inappropriately shared verts
+									// this signals to clean that up
 
 	// "face_idx" allows disambiguation when there's more than one edge between the same two verts
 	// (happens in edge-edge overlap of cubes)
@@ -350,7 +353,6 @@ class Mesh : public TSharedFromThis<Mesh>
 
 	Idx<MeshFace> AddFaceFromRawVerts(const TArray<MeshVertRaw>& vertices, int UVGroup, const TArray<PGCEdgeType>& edge_types);
 	bool CancelExistingFace(const TArray<FVector>& vertices);
-	Idx<MeshFace> AddFaceFromVects(const TArray<FVector>& vertices, const TArray<FVector2D>& uvs, int UVGroup, const TArray<PGCEdgeType>& edge_types);
 
 	Idx<MeshVertRaw> BakeVertex(const MeshVertRaw& mvr);
 	Idx<MeshVertRaw> FindBakedVert(const MeshVertRaw& mvr) const;
@@ -378,6 +380,8 @@ public:
 	// the result is a sharp edge if either edge is sharp
 	// (this is the poor, but only in the same way that building by cubes is poor in the first instance)
 	void AddCube(const FPGCCube& cube);
+
+	Idx<MeshFace> AddFaceFromVects(const TArray<FVector>& vertices, const TArray<FVector2D>& uvs, int UVGroup, const TArray<PGCEdgeType>& edge_types);
 
 	void Bake(FPGCMeshResult& mesh, bool insideOut);
 

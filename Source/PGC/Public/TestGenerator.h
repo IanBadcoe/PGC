@@ -3,9 +3,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
+#include "Components/ActorComponent.h"
 
 #include "LayoutGraph.h"
+#include "PGCGenerator.h"
 
 #include "TestGenerator.generated.h"
 
@@ -13,41 +14,25 @@ enum class TestConnectorTypes {
 	StandardRoad,
 };
 
-using ConnectorDefT = LayoutGraph::ConnectorDef<TestConnectorTypes>;
-using ConnectorInstT = LayoutGraph::ConnectorInst<TestConnectorTypes>;
-using NodeT = LayoutGraph::Node<TestConnectorTypes>;
+extern const LayoutGraph::ConnectorDef StandardRoadbed_CD;
 
-class StandardRoadbed : public ConnectorDefT {
+class YJunction : public LayoutGraph::Node {
 public:
-	StandardRoadbed()
-		: ConnectorDefT(TestConnectorTypes::StandardRoad,
-			TArray<FVector2D> {
-				{ -2, 0.5 },
-				{ -1, 0.5 },
-				{ 0, 0.5 },
-				{ 1, 0.5 },
-				{ 2, 0.5 },
-				{ 2, -0.5 },
-				{ 1, -0.5 },
-				{ 0, -0.5 },
-				{ -1, -0.5 },
-				{ -2, -0.5 },
-			}) {}
+	YJunction();
 
-	static const StandardRoadbed Instance;
+private:
+	static const ConnectorArray ConnectorData;
+	static const VertexArray VertexData;
+	static const PolygonArray PolygonData;
 };
 
-class YJunction : public NodeT {
-	YJunction()
-		: NodeT(TArray<ConnectorInstT>{
-			ConnectorInstT(StandardRoadbed::Instance, FVector{ 0, -0.866f, 0 }, FVector{ -1, 0, 0 }),
-			ConnectorInstT(StandardRoadbed::Instance, FVector{ 0.5f, 0.433f, 0 }, FVector{ 0.866f, 0.5f, 0 }),
-			ConnectorInstT(StandardRoadbed::Instance, FVector{ 0.5f, -0.433f, 0 }, FVector{ -0.866f, 0.5f, 0 }),
-	}) {}
+class TestGraph : public LayoutGraph::Graph {
+public:
+	void Generate();
 };
 
-UCLASS()
-class PGC_API ATestGenerator : public AActor
+UCLASS(BlueprintType)
+class PGC_API ATestGenerator : public AActor, public IPGCGenerator
 {
 	GENERATED_BODY()
 	
@@ -63,6 +48,7 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	
-	
+	// Inherited via IPGCGenerator
+	virtual void MakeMesh(TSharedPtr<Mesh> mesh);
+
 };

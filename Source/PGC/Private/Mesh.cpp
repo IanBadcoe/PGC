@@ -99,7 +99,7 @@ Idx<MeshVert> Mesh::FindVert(const MeshVertRaw& mvr, int UVGroup) const
 		auto& vert = Vertices[i];
 
 		// ToMeshVertRaw explodes if vert doesn't know about this UVGroup
-		if (vert.UVs.Contains(UVGroup) && vert.ToMeshVertRaw(UVGroup) == mvr)
+		if (vert.UVs.Contains(UVGroup) && vert.ToMeshVertRaw(UVGroup).ToleranceCompare(mvr, VertexTolerance))
 		{
 			return i;
 		}
@@ -747,7 +747,7 @@ Idx<MeshVertRaw> Mesh::FindBakedVert(const MeshVertRaw& mvr) const
 {
 	for (int i = 0; i < BakedVerts.Num(); i++)
 	{
-		if (BakedVerts[i] == mvr)
+		if (BakedVerts[i].ToleranceCompare(mvr, VertexTolerance))
 			return Idx<MeshVertRaw>(i);
 	}
 
@@ -1211,7 +1211,7 @@ void Mesh::AddCube(const FPGCCube& cube)
 
 	TArray<bool> need_add;
 
-	// when adding a cube, if it's face is the inverse of an existing face, then we delete that
+	// when adding a cube, if its face is the inverse of an existing face, then we delete that
 	// (and do not add this one, to make the cubes connect
 	for (const auto& f : faces)
 	{
@@ -1279,6 +1279,14 @@ void Mesh::Bake(FPGCMeshResult& mesh, bool insideOut)
 
 	BakedFaces.Empty();
 	BakedVerts.Empty();
+}
+
+
+bool MeshVertRaw::ToleranceCompare(const MeshVertRaw& other, float tolerance) const
+{
+	// may need separate coord and UV tolerances if the scales get very different...
+	return FVector::DistSquared(Pos, other.Pos) < tolerance * tolerance
+		&& FVector2D::DistSquared(UV, other.UV) < tolerance * tolerance;
 }
 
 PRAGMA_ENABLE_OPTIMIZATION
