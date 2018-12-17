@@ -4,18 +4,12 @@
 
 using namespace LayoutGraph;
 
-const static TArray<FVector2D> StandardRoadbedProfileData
+const static ConnectorDef::ProfileArray StandardRoadbedProfileData
 {
-	{ -2, 0.5 },
-	{ -1, 0.5 },
-	{ 0, 0.5 },
-	{ 1, 0.5 },
-	{ 2, 0.5 },
-	{ 2, -0.5 },
-	{ 1, -0.5 },
-	{ 0, -0.5 },
-	{ -1, -0.5 },
-	{ -2, -0.5 },
+	ProfileVert { FVector2D { -2,  0.5 }, PGCEdgeType::Rounded },
+	ProfileVert { FVector2D {  2,  0.5 }, PGCEdgeType::Sharp   },
+	ProfileVert { FVector2D {  2, -0.5 }, PGCEdgeType::Rounded },
+	ProfileVert { FVector2D { -2, -0.5 }, PGCEdgeType::Sharp   },
 };
 
 const ConnectorDef StandardRoadbed_CD
@@ -26,9 +20,10 @@ const ConnectorDef StandardRoadbed_CD
 
 const YJunction::ConnectorArray YJunction::ConnectorData
 {
-	ConnectorInst(StandardRoadbed_CD, FVector{ 0, -3.46f, 0 }, FVector{ 0, -1, 0 }, FVector{ 0, 0, 1 }),
-	ConnectorInst(StandardRoadbed_CD, FVector{ 3, 1.73f, 0 }, FVector{ 0.866f, 0.5f, 0 }, FVector{ 0, 0, 1 }),
-	ConnectorInst(StandardRoadbed_CD, FVector{ -3, 1.73f, 0 }, FVector{ -0.866f, 0.5f, 0 }, FVector{ 0, 0, 1 }),
+	// speeds shouldn't come from here?  should be set by generation needs?  pass into ctor?  just overwrite later?
+	MakeShared<ConnectorInst>(StandardRoadbed_CD, FVector{ 0, -3.46f, 0 }, FVector{ 0, -1, 0 }, FVector{ 0, 0, 1 }),
+	MakeShared<ConnectorInst>(StandardRoadbed_CD, FVector{ 3, 1.73f, 0 }, FVector{ 0.866f, 0.5f, 0 }, FVector{ 0, 0, 1 }),
+	MakeShared<ConnectorInst>(StandardRoadbed_CD, FVector{ -3, 1.73f, 0 }, FVector{ -0.866f, 0.5f, 0 }, FVector{ 0, 0, 1 }),
 };
 const YJunction::VertexArray YJunction::VertexData
 {
@@ -41,15 +36,15 @@ const YJunction::VertexArray YJunction::VertexData
 };
 const YJunction::PolygonArray YJunction::PolygonData
 {
-	Polygon { {  0, 4 }, { -1, 0 }, {  1, 0 }, {  1, 9 }, { -1, 1 }, {  0, 5 }, },			// between C0 and C1
-	Polygon { {  1, 4 }, { -1, 2 }, {  2, 0 }, {  2, 9 }, { -1, 3 }, {  1, 5 }, },			// between C1 and C2
-	Polygon { {  2, 4 }, { -1, 4 }, {  0, 0 }, {  0, 9 }, { -1, 5 }, {  2, 5 }, },			// between C2 and C0
-	Polygon { {  0, 4 }, {  0, 3 }, {  0, 2 }, {  0, 1 }, {  0, 0 }, { -1, 4 },
-			  {  2, 4 }, {  2, 3 }, {  2, 2 }, {  2, 1 }, {  2, 0 }, { -1, 2 },
-			  {  1, 4 }, {  1, 3 }, {  1, 2 }, {  1, 1 }, {  1, 0 }, { -1, 0 }, },			// top
-	Polygon { {  0, 9 }, {  0, 8 }, {  0, 7 }, {  0, 6 }, {  0, 5 }, { -1, 1 },
-			  {  1, 9 }, {  1, 8 }, {  1, 7 }, {  1, 6 }, {  1, 5 }, { -1, 3 },
-			  {  2, 9 }, {  2, 8 }, {  2, 7 }, {  2, 6 }, {  2, 5 }, { -1, 5 }, },			// bottom
+	Polygon { {  0, 1 }, { -1, 0 }, {  1, 0 }, {  1, 3 }, { -1, 1 }, {  0, 2 }, },			// between C0 and C1
+	Polygon { {  1, 1 }, { -1, 2 }, {  2, 0 }, {  2, 3 }, { -1, 3 }, {  1, 2 }, },			// between C1 and C2
+	Polygon { {  2, 1 }, { -1, 4 }, {  0, 0 }, {  0, 3 }, { -1, 5 }, {  2, 2 }, },			// between C2 and C0
+	Polygon { {  0, 1 }, {  0, 0 }, { -1, 4 },
+			  {  2, 1 }, {  2, 0 }, { -1, 2 },
+			  {  1, 1 }, {  1, 0 }, { -1, 0 }, },			// top
+	Polygon { {  0, 3 }, {  0, 2 }, { -1, 1 },
+			  {  1, 3 }, {  1, 2 }, { -1, 3 },
+			  {  2, 3 }, {  2, 2 }, { -1, 5 }, },			// bottom
 };
 
 YJunction::YJunction()
@@ -88,4 +83,11 @@ void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh)
 void TestGraph::Generate()
 {
 	Nodes.Add(MakeShared<YJunction>());
+	Nodes.Add(MakeShared<YJunction>());
+
+	Nodes[1]->Position.SetLocation(FVector(-25, 5, 10));
+
+	Connect(1, 0, 0, 0, 20, 100.0f, 100.0f);
+	Connect(0, 1, 1, 1, 15, 100.0f, 100.0f);
+	Connect(0, 2, 1, 2, 20, 100.0f, 100.0f);
 }
