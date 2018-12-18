@@ -22,10 +22,7 @@ namespace LayoutGraph {
 		int Divs;					// how many points along the spline required for smoothness, swivels etc...
 
 		Edge(TWeakPtr<Node> fromNode, TWeakPtr<Node> toNode,
-			TWeakPtr<ConnectorInst> fromConnector, TWeakPtr<ConnectorInst> toConnector)
-			: FromNode(fromNode), ToNode(toNode),
-		      FromConnector(fromConnector), ToConnector(toConnector) {
-		}
+			TWeakPtr<ConnectorInst> fromConnector, TWeakPtr<ConnectorInst> toConnector);
 
 		void AddToMesh(TSharedPtr<Mesh> mesh);
 	};
@@ -116,19 +113,55 @@ namespace LayoutGraph {
 		Node() = delete;
 		Node(const Node&) = delete;
 		const Node& operator=(const Node&) = delete;
+		virtual ~Node() = default;
 
 		void AddToMesh(TSharedPtr<Mesh> mesh);
 		FVector GetTransformedVert(const Polygon::Idx& idx) const;
+
+		virtual Node* FactoryMethod() const = 0;
+
+		int FindConnectorIdx(const TSharedPtr<ConnectorInst>& conn) const;
+
+	};
+
+	// built-in node type, used to connect edges end-to-end when filling-out their geometry
+	class BackToBack : public Node {
+	public:
+		BackToBack(const ConnectorDef& def);
+		virtual ~BackToBack() = default;
+
+		// Creates an empty Node of the same type...
+		virtual Node* FactoryMethod() const override;
+
+	private:
+		static const ConnectorArray ConnectorData;
+		static const VertexArray VertexData;
+		static const PolygonArray PolygonData;
 	};
 
 	class Graph {
 	public:
 		void MakeMesh(TSharedPtr<Mesh> mesh) const;
-		// "divs" is just a preliminary value...
+		// connect "from" to "to" directly with an edge and no regard to geometry...
 		void Connect(int nodeFrom, int nodeFromconnector,
 			int nodeTo, int nodeToconnector, int divs,
 			float inSpeed, float outSpeed);
+		// connect "from" to "to" via "Divs" intermediate back-to-back nodes
+		void ConnectAndFillOut(int nodeFrom, int nodeFromconnector,
+			int nodeTo, int nodeToconnector, int divs,
+			float inSpeed, float outSpeed);
 
+		void FillOutStructuralGraph(Graph& sg);
+
+		int FindNodeIdx(const TSharedPtr<Node>& node) const;
+
+	protected:
+		TArray<TSharedPtr<Node>> Nodes;
+		TArray<TSharedPtr<Edge>> Edges;
+	};
+
+	class SplineUtil {
+	public:
 		static FVector Hermite(float t, FVector P1, FVector P2, FVector P1Dir, FVector P2Dir) {
 			float t2 = t * t;
 			float t3 = t * t * t;
@@ -153,10 +186,5 @@ namespace LayoutGraph {
 
 			return h1 * P1 + h2 * P2 + h3 * P1Dir + h4 * P2Dir;
 		}
-
-	protected:
-		TArray<TSharedPtr<Node>> Nodes;
-		TArray<TSharedPtr<Edge>> Edges;
-		TArray<ConnectorDef> ConnectorTypes;
 	};
 }

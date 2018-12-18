@@ -19,6 +19,10 @@ extern const LayoutGraph::ConnectorDef StandardRoadbed_CD;
 class YJunction : public LayoutGraph::Node {
 public:
 	YJunction();
+	virtual ~YJunction() = default;
+
+	// Creates an empty Node of the same type...
+	virtual Node* FactoryMethod() const override;
 
 private:
 	static const ConnectorArray ConnectorData;

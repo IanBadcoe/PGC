@@ -52,6 +52,11 @@ YJunction::YJunction()
 {
 }
 
+Node * YJunction::FactoryMethod() const
+{
+	return new YJunction();
+}
+
 // Sets default values
 ATestGenerator::ATestGenerator()
 {
@@ -77,7 +82,10 @@ void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh)
 
 	g.Generate();
 
-	g.MakeMesh(mesh);
+	TestGraph sg;
+	g.FillOutStructuralGraph(sg);
+
+	sg.MakeMesh(mesh);
 }
 
 void TestGraph::Generate()
