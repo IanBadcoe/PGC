@@ -5,8 +5,8 @@
 using namespace LayoutGraph;
 
 BackToBack::BackToBack(const ConnectorDef& def)
-	: Node({ MakeShared<ConnectorInst>(def, FVector{ 0, 0, 0 }, FVector{ 0, 1, 0 }, FVector{ 0, 0, 1 }),
-			 MakeShared<ConnectorInst>(def, FVector{ 0, 0, 0 }, FVector{ 0, -1, 0 }, FVector{ 0, 0, 1 }),},
+	: Node({ MakeShared<ConnectorInst>(def, FVector{ 0, 0, 0 }, FVector{ 1, 0, 0 }, FVector{ 0, 0, 1 }),
+			 MakeShared<ConnectorInst>(def, FVector{ 0, 0, 0 }, FVector{ -1, 0, 0 }, FVector{ 0, 0, 1 }),},
 		   {},
 		   {})
 {
@@ -55,7 +55,7 @@ void Graph::Connect(int nodeFrom, int nodeFromConnector, int nodeTo, int nodeToC
 }
 
 void Graph::ConnectAndFillOut(int nodeFromIdx, int nodeFromconnectorIdx, int nodeToIdx, int nodeToconnectorIdx,
-	int Divs, float InSpeed, float OutSpeed)
+	int divs, float inSpeed, float outSpeed)
 {
 	auto from_n = Nodes[nodeFromIdx];
 	auto to_n = Nodes[nodeToIdx];
@@ -75,8 +75,8 @@ void Graph::ConnectAndFillOut(int nodeFromIdx, int nodeFromconnectorIdx, int nod
 	const auto from_forward = from_trans.ToMatrixNoScale().GetScaledAxis(EAxis::X);
 	const auto to_forward = -to_trans.ToMatrixNoScale().GetScaledAxis(EAxis::X);
 
-	const auto in_dir = from_forward * InSpeed;
-	const auto out_dir = to_forward * OutSpeed;
+	const auto in_dir = from_forward * inSpeed;
+	const auto out_dir = to_forward * outSpeed;
 
 	const auto in_pos = from_trans.GetLocation();
 	const auto out_pos = to_trans.GetLocation();
@@ -88,8 +88,8 @@ void Graph::ConnectAndFillOut(int nodeFromIdx, int nodeFromconnectorIdx, int nod
 
 	TArray<FTransform> frames;
 
-	for (auto i = 0; i <= Divs; i++) {
-		float t = (float)i / Divs;
+	for (auto i = 0; i <= divs; i++) {
+		float t = (float)i / divs;
 
 		FVector pos = SplineUtil::Hermite(t, in_pos, out_pos, in_dir, out_dir);
 
@@ -120,8 +120,9 @@ void Graph::ConnectAndFillOut(int nodeFromIdx, int nodeFromconnectorIdx, int nod
 		angle_mismatch = -angle_mismatch;
 	}
 
-	for (auto i = 1; i < Divs; i++) {
-		float t = (float)i / Divs;
+	// take this one further than required, so we can assert we arrived the right way up
+	for (auto i = 0; i <= divs; i++) {
+		float t = (float)i / divs;
 
 		auto angle_correct = t * angle_mismatch;
 
@@ -138,34 +139,33 @@ void Graph::ConnectAndFillOut(int nodeFromIdx, int nodeFromconnectorIdx, int nod
 
 	check(angle_check > 0.99f);
 
-	auto prev_node = from_n;
+	auto prev_node_idx = nodeFromIdx;
 	int prev_conn_idx = nodeFromconnectorIdx;
 	int next_conn_idx = 0;
 
-	for (auto i = 1; i <= Divs; i++) {
-		float t = (float)i / Divs;
+	for (auto i = 1; i <= divs; i++) {
+		float t = (float)i / divs;
 
-		TSharedPtr<Node> next_node;
+		int next_node_idx;
 		
-		if (i < Divs)
+		if (i < divs)
 		{
-			next_node = MakeShared<BackToBack>(from_c->Definition);
-			next_node->Position = frames[i];
-			Nodes.Add(next_node);
+			next_node_idx = Nodes.Num();
+			auto new_node = MakeShared<BackToBack>(from_c->Definition);
+			new_node->Position = frames[i];
+			Nodes.Add(new_node);
 		}
 		else
 		{
-			next_node = to_n;
+			next_node_idx = nodeToIdx;
 			next_conn_idx = nodeToconnectorIdx;
 		}
 
-		// connector 1 is the backwards-facing one on the b2b
-		auto edge = MakeShared<Edge>(prev_node, next_node, next_node->Connectors[next_conn_idx], prev_node->Connectors[prev_conn_idx]);
-		edge->Divs = 1;
-		edge->InSpeed = edge->OutSpeed = InSpeed + (OutSpeed - InSpeed) * t;
+		auto interp_speed = inSpeed + (outSpeed - inSpeed) * t;
+		Connect(prev_node_idx, prev_conn_idx, next_node_idx, next_conn_idx, 1, interp_speed, interp_speed);
 		
-		prev_conn_idx = 0;
-		prev_node = next_node;
+		prev_conn_idx = 1;
+		prev_node_idx = next_node_idx;
 	}
 }
 
