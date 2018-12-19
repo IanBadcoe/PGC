@@ -27,24 +27,24 @@ const YJunction::ConnectorArray YJunction::ConnectorData
 };
 const YJunction::VertexArray YJunction::VertexData
 {
-	FVector { 3, -1.73f, 0.5f },
-	FVector { 3, -1.73f, -0.5f },
-	FVector { 0, 3.46f, 0.5f },
-	FVector { 0, 3.46f, -0.5f },
-	FVector { -3, -1.73f, 0.5f },
-	FVector { -3, -1.73f, -0.5f },
+	//FVector { 3, -1.73f, 0.5f },
+	//FVector { 3, -1.73f, -0.5f },
+	//FVector { 0, 3.46f, 0.5f },
+	//FVector { 0, 3.46f, -0.5f },
+	//FVector { -3, -1.73f, 0.5f },
+	//FVector { -3, -1.73f, -0.5f },
 };
 const YJunction::PolygonArray YJunction::PolygonData
 {
-	Polygon { {  0, 1 }, { -1, 0 }, {  1, 0 }, {  1, 3 }, { -1, 1 }, {  0, 2 }, },			// between C0 and C1
-	Polygon { {  1, 1 }, { -1, 2 }, {  2, 0 }, {  2, 3 }, { -1, 3 }, {  1, 2 }, },			// between C1 and C2
-	Polygon { {  2, 1 }, { -1, 4 }, {  0, 0 }, {  0, 3 }, { -1, 5 }, {  2, 2 }, },			// between C2 and C0
-	Polygon { {  0, 1 }, {  0, 0 }, { -1, 4 },
-			  {  2, 1 }, {  2, 0 }, { -1, 2 },
-			  {  1, 1 }, {  1, 0 }, { -1, 0 }, },			// top
-	Polygon { {  0, 3 }, {  0, 2 }, { -1, 1 },
-			  {  1, 3 }, {  1, 2 }, { -1, 3 },
-			  {  2, 3 }, {  2, 2 }, { -1, 5 }, },			// bottom
+	Polygon { {  0, 1 }, /*{ -1, 0 },*/ {  1, 0 }, {  1, 3 }, /*{ -1, 1 },*/ {  0, 2 }, },			// between C0 and C1
+	Polygon { {  1, 1 }, /*{ -1, 2 },*/ {  2, 0 }, {  2, 3 }, /*{ -1, 3 },*/ {  1, 2 }, },			// between C1 and C2
+	Polygon { {  2, 1 }, /*{ -1, 4 },*/ {  0, 0 }, {  0, 3 }, /*{ -1, 5 },*/ {  2, 2 }, },			// between C2 and C0
+	Polygon { {  0, 1 }, {  0, 0 }, /*{ -1, 4 },*/
+			  {  2, 1 }, {  2, 0 }, /*{ -1, 2 },*/
+			  {  1, 1 }, {  1, 0 }, /*{ -1, 0 },*/ },			// top
+	Polygon { {  0, 3 }, {  0, 2 }, /*{ -1, 1 },*/
+			  {  1, 3 }, {  1, 2 }, /*{ -1, 3 },*/
+			  {  2, 3 }, {  2, 2 }, /*{ -1, 5 },*/ },			// bottom
 };
 
 YJunction::YJunction()
