@@ -1,6 +1,7 @@
 // Copyright 1998-2018 Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
+using System.IO;
 
 public class PGC : ModuleRules
 {
@@ -49,5 +50,9 @@ public class PGC : ModuleRules
 				// ... add any modules that your module loads dynamically here ...
 			}
 			);
-	}
+
+        PublicDelayLoadDLLs.Add("libnlopt-0.dll");
+
+        PublicAdditionalLibraries.Add(Path.Combine("../../../projects/BWBlank/Plugins/PGC/Source/PGC/Private/nlopt", "libnlopt-0.lib"));
+    }
 }
