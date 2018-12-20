@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "TestGenerator.h"
+#include "NlOptWrapper.h"
 
 using namespace LayoutGraph;
 
@@ -85,6 +86,10 @@ void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh)
 	TestGraph sg;
 	g.FillOutStructuralGraph(sg);
 
+	OptFunction of(sg);
+
+	NlOptWrapper opt(of);
+
 	sg.MakeMesh(mesh);
 }
 
@@ -92,10 +97,17 @@ void TestGraph::Generate()
 {
 	Nodes.Add(MakeShared<YJunction>());
 	Nodes.Add(MakeShared<YJunction>());
+	Nodes.Add(MakeShared<YJunction>());
+	Nodes.Add(MakeShared<YJunction>());
 
-	Nodes[1]->Position.SetLocation(FVector(-25, 5, 10));
+	Nodes[1]->Position.SetLocation(FVector(20, 20, 10));
+	Nodes[2]->Position.SetLocation(FVector(20, 0, 0));
+	Nodes[3]->Position.SetLocation(FVector(0, 20, 10));
 
-	Connect(1, 0, 0, 0, 20, 100.0f, 100.0f);
-	Connect(0, 1, 1, 1, 15, 100.0f, 100.0f);
-	Connect(0, 2, 1, 2, 20, 100.0f, 100.0f);
+	Connect(0, 0, 1, 0, 10, 100.0f, 100.0f);
+	Connect(0, 1, 2, 1, 10, 100.0f, 100.0f);
+	Connect(0, 2, 3, 2, 10, 100.0f, 100.0f);
+	Connect(2, 2, 1, 2, 10, 100.0f, 100.0f);
+	Connect(2, 0, 3, 0, 10, 100.0f, 100.0f);
+	Connect(3, 1, 1, 1, 10, 100.0f, 100.0f);
 }

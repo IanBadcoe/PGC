@@ -427,4 +427,208 @@ FVector ConnectorDef::GetTransformedVert(int vert_idx, const FTransform& total_t
 	return total_trans.TransformPosition(temp);
 }
 
+double OptFunction::CalcGrad(const double* x, int n) const
+{
+	int node_idx = n / 4;
+	int param_idx = n % 4;
+
+	double ret = 0;
+
+	for (int i = 0; i < Working.Num(); i++)
+	{
+		if (i != node_idx)
+		{
+			if (Connected.Contains(TPair<int, int>{node_idx, i}))
+			{
+				ret += ConnectedNodeNodeGrad(param_idx, Working[param_idx].GetLocation(), Working[i].GetLocation());
+			}
+		}
+	}
+
+	return ret;
+}
+
+double OptFunction::CalcVal(const double* x) const
+{
+	double ret = 0.0;
+
+	//const auto& nodes = G.GetNodes();
+	//const auto& edges = G.GetEdges();
+
+	for (int i = 0; i < Working.Num() - 1; i++)
+	{
+		for (int j = i + 1; j < Working.Num(); j++)
+		{
+			if (Connected.Contains(TPair<int, int>{ i, j }))
+			{
+				ret += ConnectedNodeNodeVal(Working[i].GetLocation(), Working[i].GetLocation());
+			}
+		}
+	}
+
+	return ret;
+}
+
+double OptFunction::UnconnectedNodeNodeVal(const FVector& p1, const FVector& p2, float D) const
+{
+	float dist = FVector::Dist(p1, p2);
+
+	return LeonardJonesVal(dist, D, 1);
+}
+
+double OptFunction::UnconnectedNodeNodeGrad(int i, const FVector& pGrad, const FVector& pOther, float D) const
+{
+	if (i > 2)		// angle has no effect on distance
+	{
+		return 0.0;
+	}
+
+	float dist = FVector::Dist(pGrad, pOther);
+
+	double delta = pGrad[i] - pOther[i];
+
+	return delta * LeonardJonesGrad(dist, D, 1) / dist;
+}
+
+double OptFunction::ConnectedNodeNodeVal(const FVector & p1, const FVector & p2) const
+{
+	float dist = FVector::Dist(p1, p2);
+
+	return LeonardJonesVal(dist, G.SegLength, 2);
+}
+
+double OptFunction::ConnectedNodeNodeGrad(int i, const FVector & pGrad, const FVector & pOther) const
+{
+	if (i > 2)		// angle has no effect on distance
+	{
+		return 0.0;
+	}
+
+	float dist = FVector::Dist(pGrad, pOther);
+
+	double delta = pGrad[i] - pOther[i];
+
+	return delta * LeonardJonesGrad(dist, G.SegLength, 2) / dist;
+}
+
+double OptFunction::LeonardJonesVal(double R, double D, int N) const
+{
+	double rat = D / R;
+
+	return FMath::Pow(rat, N * 2) - 2 * FMath::Pow(rat, N);
+}
+
+double OptFunction::LeonardJonesGrad(double R, double D, int N) const
+{
+	double rat = D / R;
+
+	return 2 * N * (FMath::Pow(rat, N) - 1) * FMath::Pow(rat, N) / R;
+}
+
+void OptFunction::BuildPropagationFrom(TSet<TSharedPtr<Node>>& found, const TSharedPtr<Node>& node, int addingIdx)
+{
+	check(!found.Contains(node));
+	found.Add(node);
+	Working[addingIdx] = node->Position;
+	Propagation.Add(addingIdx);
+
+	for (const auto& edge : node->Edges)
+	{
+		auto edge_ptr = edge.Pin();
+
+		// if it is an out edge
+		if (edge_ptr->FromNode == node)
+		{
+			const auto& next_node = edge_ptr->ToNode.Pin();
+
+			int next_idx = G.FindNodeIdx(next_node);
+
+			check(!Connected.Contains(TPair<int, int>{addingIdx, next_idx}));
+			check(!Connected.Contains(TPair<int, int>{next_idx, addingIdx}));
+
+			Connected.Add(TPair<int, int>{addingIdx, next_idx});
+			Connected.Add(TPair<int, int>{next_idx, addingIdx});
+
+			if (!found.Contains(next_node))
+			{
+				Propagation[addingIdx].Add(next_idx);
+
+				BuildPropagationFrom(found, next_node, next_idx);
+			}
+		}
+	}
+}
+
+void OptFunction::SetupWorkingTransforms(const double* x, int propagateFrom /* = 0 */) const
+{
+	for (auto i : Propagation[propagateFrom])
+	{
+		PropagateTransform(x, propagateFrom, i);
+
+		SetupWorkingTransforms(x, i);
+	}
+}
+
+void OptFunction::PropagateTransform(const double* x, int from, int to) const
+{
+	auto to_pos = FVector{ (float)x[from * 4 + 0], (float)x[from * 4 + 1], (float)x[from * 4 + 2] };
+
+	auto forward = to_pos - Working[from].GetLocation();
+	forward.Normalize();
+
+	auto from_up = Working[from].GetUnitAxis(EAxis::Z);
+
+	auto to_right = FVector::CrossProduct(forward, from_up);
+
+	to_right.Normalize();
+
+	auto to_up = FVector::CrossProduct(to_right, forward);
+
+	to_up.Normalize();
+
+	// position at to_pos, oriented the same as from accept for up/righ adjusted to be orthogonal to our local forward
+	Working[to] = FTransform(forward, to_right, to_up, to_pos);
+
+	// rotate that according to how the other param wants to rotate up....
+	Working[to] = FTransform(FQuat({ 1, 0, 0 }, (float)x[to * 4 + 3])) * Working[to];
+}
+
+OptFunction::OptFunction(const Graph& g)
+	: G(g)
+{
+	TSet<TSharedPtr<Node>> found;
+
+	Working.AddDefaulted(G.GetNodes().Num());
+
+	BuildPropagationFrom(found, G.GetNodes()[0], 0);
+
+	// was the graph a DAG?
+	check(found.Num() == G.GetNodes().Num());
+}
+
+int OptFunction::GetSize() const
+{
+	// 4 DoF per node = position (3) + rotation of up vector
+	// - our "parent" node is the one whose line in "Propagation" we are in
+	// - forward vector is oriented along the line from our parent
+	// - up vector is the up vector of our parent, made orthogonal with our forwards, and rotated by our rotation
+	// - right vector is normal to both of those
+
+	return G.GetNodes().Num() * 4;
+}
+
+double OptFunction::f(int n, const double* x, double* grad) const
+{
+	check(n == GetSize());
+
+	SetupWorkingTransforms(x);
+
+	for (int i = 0; i < n; i++)
+	{
+		grad[i] = CalcGrad(x, i);
+	}
+
+	return CalcVal(x);
+}
+
 #pragma optimize ("", on)

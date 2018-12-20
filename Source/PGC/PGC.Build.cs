@@ -27,6 +27,8 @@ public class PGC : ModuleRules
 			new string[]
 			{
 				"Core",
+                "NlOptLibrary",
+                "Projects",
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -51,8 +53,10 @@ public class PGC : ModuleRules
 			}
 			);
 
-        PublicDelayLoadDLLs.Add("libnlopt-0.dll");
+        //PublicDelayLoadDLLs.Add("libnlopt-0.dll");
 
-        PublicAdditionalLibraries.Add(Path.Combine("../../../projects/BWBlank/Plugins/PGC/Source/PGC/Private/nlopt", "libnlopt-0.lib"));
+        //PublicAdditionalLibraries.Add(Path.Combine("../../../projects/BWBlank/Plugins/PGC/Source/PGC/Private/nlopt", "libnlopt-0.lib"));
+
+        //RuntimeDependencies.Add(new RuntimeDependency(Path.Combine("../../../projects/BWBlank/Plugins/PGC/Source/PGC/Private/nlopt", "libnlopt-0.dll")));
     }
 }

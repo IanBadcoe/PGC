@@ -4,6 +4,7 @@
 #include "Runtime/Core/Public/Templates/SharedPointer.h"
 
 #include "Mesh.h"
+#include "NlOptWrapper.h"
 
 namespace LayoutGraph {
 	class Node;
@@ -141,6 +142,10 @@ namespace LayoutGraph {
 
 	class Graph {
 	public:
+		const float SegLength;
+
+		Graph(float segLength) : SegLength(SegLength) {}
+
 		void MakeMesh(TSharedPtr<Mesh> mesh) const;
 		// connect "from" to "to" directly with an edge and no regard to geometry...
 		void Connect(int nodeFrom, int nodeFromconnector,
@@ -155,9 +160,47 @@ namespace LayoutGraph {
 
 		int FindNodeIdx(const TSharedPtr<Node>& node) const;
 
+		const TArray<TSharedPtr<Node>>& GetNodes() const { return Nodes; }
+		const TArray<TSharedPtr<Edge>>& GetEdges() const { return Edges; }
+
 	protected:
 		TArray<TSharedPtr<Node>> Nodes;
 		TArray<TSharedPtr<Edge>> Edges;
+	};
+
+	class OptFunction : public NlOptIface {
+		const Graph& G;
+		mutable TArray<FTransform> Working;
+		TMap<int, TArray<int>> Propagation;
+		TSet<TPair<int, int>> Connected;
+
+		double CalcGrad(const double* x, int n) const;
+		double CalcVal(const double* x) const;
+
+		double UnconnectedNodeNodeVal(const FVector& p1, const FVector& p2, float D) const;
+		// i is the index of one of the parameters of pGrad
+		double UnconnectedNodeNodeGrad(int i, const FVector& pGrad, const FVector& pOther, float D) const;
+
+		double ConnectedNodeNodeVal(const FVector& p1, const FVector& p2) const;
+		// i is the index of one of the parameters of pGrad
+		double ConnectedNodeNodeGrad(int i, const FVector& pGrad, const FVector& pOther) const;
+
+		// R = distance, D = optimal distance, N = power
+		double LeonardJonesVal(double R, double D, int N) const;
+		double LeonardJonesGrad(double R, double D, int N) const;
+
+		void BuildPropagationFrom(TSet<TSharedPtr<Node>>& found, const TSharedPtr<Node>& node, int addingIdx);
+
+		void SetupWorkingTransforms(const double* x, int propagateFrom = 0) const;
+		void PropagateTransform(const double* x, int from, int to) const;
+
+	public:
+		OptFunction(const Graph& g);
+		virtual ~OptFunction() = default;
+
+		// Inherited via NlOptIface
+		int GetSize() const;
+		virtual double f(int n, const double * x, double * grad) const override;
 	};
 
 	class SplineUtil {
