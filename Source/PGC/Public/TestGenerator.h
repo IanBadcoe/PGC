@@ -7,6 +7,7 @@
 
 #include "LayoutGraph.h"
 #include "PGCGenerator.h"
+#include "NlOptWrapper.h"
 
 #include "TestGenerator.generated.h"
 
@@ -41,7 +42,16 @@ UCLASS(BlueprintType)
 class PGC_API ATestGenerator : public AActor, public IPGCGenerator
 {
 	GENERATED_BODY()
-	
+
+	TSharedPtr<TestGraph> TopologicalGraph;
+	TSharedPtr<TestGraph> StructuralGraph;
+
+	TSharedPtr<NlOptIface> OptimizerInterface;
+	TSharedPtr<NlOptWrapper> Optimizer;
+
+	void EnsureGraphs();
+	void EnsureOptimizer();
+
 public:	
 	// Sets default values for this actor's properties
 	ATestGenerator();
@@ -56,5 +66,11 @@ public:
 
 	// Inherited via IPGCGenerator
 	virtual void MakeMesh(TSharedPtr<Mesh> mesh);
+
+
+	// Inherited via IPGCGenerator
+	virtual bool NeedsSteps() override;
+
+	virtual void Step() override;
 
 };

@@ -38,5 +38,15 @@ void APGCCubeGenerator::MakeMesh(TSharedPtr<Mesh> mesh)
 	mesh->CheckConsistent(true);
 }
 
+bool APGCCubeGenerator::NeedsSteps()
+{
+	return false;
+}
+
+void APGCCubeGenerator::Step()
+{
+	check(false);
+}
+
 PRAGMA_ENABLE_OPTIMIZATION
 

@@ -20,6 +20,8 @@ Node* BackToBack::FactoryMethod() const
 
 void Graph::MakeMesh(TSharedPtr<Mesh> mesh) const
 {
+	mesh->Clear();
+
 	for (const auto& node : Nodes)
 	{
 		node->AddToMesh(mesh);
@@ -169,14 +171,14 @@ void Graph::ConnectAndFillOut(int nodeFromIdx, int nodeFromconnectorIdx, int nod
 	}
 }
 
-void Graph::FillOutStructuralGraph(Graph& sg)
+void Graph::FillOutStructuralGraph(Graph* sg)
 {
 	for (const auto& n : Nodes)
 	{
 		auto new_node = TSharedPtr<Node>(n->FactoryMethod());
 		new_node->Position = n->Position;
 
-		sg.Nodes.Add(new_node);
+		sg->Nodes.Add(new_node);
 	}
 
 	for (const auto& e : Edges)
@@ -190,7 +192,7 @@ void Graph::FillOutStructuralGraph(Graph& sg)
 		int from_connector_idx = from_node->FindConnectorIdx(e->FromConnector.Pin());
 		int to_connector_idx = to_node->FindConnectorIdx(e->ToConnector.Pin());
 
-		sg.ConnectAndFillOut(from_idx, from_connector_idx, to_idx, to_connector_idx, e->Divs, e->InSpeed, e->OutSpeed);
+		sg->ConnectAndFillOut(from_idx, from_connector_idx, to_idx, to_connector_idx, e->Divs, e->InSpeed, e->OutSpeed);
 	}
 }
 
@@ -440,7 +442,9 @@ double OptFunction::CalcGrad(const double* x, int n) const
 		{
 			if (Connected.Contains(TPair<int, int>{node_idx, i}))
 			{
-				ret += ConnectedNodeNodeGrad(param_idx, Working[param_idx].GetLocation(), Working[i].GetLocation());
+				ret += ConnectedNodeNodeGrad(param_idx,
+					Working[param_idx].trans.GetLocation(),
+					Working[i].trans.GetLocation());
 			}
 		}
 	}
@@ -461,7 +465,7 @@ double OptFunction::CalcVal(const double* x) const
 		{
 			if (Connected.Contains(TPair<int, int>{ i, j }))
 			{
-				ret += ConnectedNodeNodeVal(Working[i].GetLocation(), Working[i].GetLocation());
+				ret += ConnectedNodeNodeVal(Working[i].trans.GetLocation(), Working[i].trans.GetLocation());
 			}
 		}
 	}
@@ -494,7 +498,7 @@ double OptFunction::ConnectedNodeNodeVal(const FVector & p1, const FVector & p2)
 {
 	float dist = FVector::Dist(p1, p2);
 
-	return LeonardJonesVal(dist, G.SegLength, 2);
+	return LeonardJonesVal(dist, G->SegLength, 2);
 }
 
 double OptFunction::ConnectedNodeNodeGrad(int i, const FVector & pGrad, const FVector & pOther) const
@@ -508,7 +512,7 @@ double OptFunction::ConnectedNodeNodeGrad(int i, const FVector & pGrad, const FV
 
 	double delta = pGrad[i] - pOther[i];
 
-	return delta * LeonardJonesGrad(dist, G.SegLength, 2) / dist;
+	return delta * LeonardJonesGrad(dist, G->SegLength, 2) / dist;
 }
 
 double OptFunction::LeonardJonesVal(double R, double D, int N) const
@@ -525,11 +529,58 @@ double OptFunction::LeonardJonesGrad(double R, double D, int N) const
 	return 2 * N * (FMath::Pow(rat, N) - 1) * FMath::Pow(rat, N) / R;
 }
 
-void OptFunction::BuildPropagationFrom(TSet<TSharedPtr<Node>>& found, const TSharedPtr<Node>& node, int addingIdx)
+static double CalcZRot(const TSharedPtr<Node>& parent, const TSharedPtr<Node>& node)
+{
+	auto node_up = node->Position.GetUnitAxis(EAxis::Z);
+
+	auto parent_up = parent->Position.GetUnitAxis(EAxis::Z);
+
+	auto forward = node->Position.GetLocation() - parent->Position.GetLocation();
+
+	forward.Normalize();
+
+	// adjust parent up into the same plane as ours
+	{
+		// hpr is normal to local forward and parent_up
+		auto here_parent_right = FVector::CrossProduct(forward, parent_up);
+
+		here_parent_right.Normalize();
+
+		// so now parent_up with be forward and hpr, making it co-planar with
+		// local up and right, but still possibly rotated around forwards
+		// compared to local up...
+		parent_up = FVector::CrossProduct(here_parent_right, forward);
+
+		parent_up.Normalize();
+	}
+
+	auto angle = FMath::Acos(FVector::DotProduct(parent_up, node_up));
+
+	auto sign_check = FVector::CrossProduct(parent_up, node_up);
+
+	// forward and this plane would be facing different ways
+	if (FVector::DotProduct(sign_check, forward) > 0)
+	{
+		angle = -angle;
+	}
+
+	return angle;
+}
+
+void OptFunction::BuildPropagationFrom(TSet<TSharedPtr<Node>>& found, const TSharedPtr<Node>& node, const TSharedPtr<Node>& parent, int addingIdx)
 {
 	check(!found.Contains(node));
 	found.Add(node);
-	Working[addingIdx] = node->Position;
+	Working[addingIdx].trans = node->Position;
+	if (parent.IsValid())
+	{
+		Working[addingIdx].z_rot = CalcZRot(parent, node);
+	}
+	else
+	{
+		Working[addingIdx].z_rot = 0.0;
+	}
+
 	Propagation.Add(addingIdx);
 
 	for (const auto& edge : node->Edges)
@@ -541,7 +592,7 @@ void OptFunction::BuildPropagationFrom(TSet<TSharedPtr<Node>>& found, const TSha
 		{
 			const auto& next_node = edge_ptr->ToNode.Pin();
 
-			int next_idx = G.FindNodeIdx(next_node);
+			int next_idx = G->FindNodeIdx(next_node);
 
 			check(!Connected.Contains(TPair<int, int>{addingIdx, next_idx}));
 			check(!Connected.Contains(TPair<int, int>{next_idx, addingIdx}));
@@ -553,7 +604,7 @@ void OptFunction::BuildPropagationFrom(TSet<TSharedPtr<Node>>& found, const TSha
 			{
 				Propagation[addingIdx].Add(next_idx);
 
-				BuildPropagationFrom(found, next_node, next_idx);
+				BuildPropagationFrom(found, next_node, node, next_idx);
 			}
 		}
 	}
@@ -573,10 +624,10 @@ void OptFunction::PropagateTransform(const double* x, int from, int to) const
 {
 	auto to_pos = FVector{ (float)x[from * 4 + 0], (float)x[from * 4 + 1], (float)x[from * 4 + 2] };
 
-	auto forward = to_pos - Working[from].GetLocation();
+	auto forward = to_pos - Working[from].trans.GetLocation();
 	forward.Normalize();
 
-	auto from_up = Working[from].GetUnitAxis(EAxis::Z);
+	auto from_up = Working[from].trans.GetUnitAxis(EAxis::Z);
 
 	auto to_right = FVector::CrossProduct(forward, from_up);
 
@@ -587,23 +638,45 @@ void OptFunction::PropagateTransform(const double* x, int from, int to) const
 	to_up.Normalize();
 
 	// position at to_pos, oriented the same as from accept for up/righ adjusted to be orthogonal to our local forward
-	Working[to] = FTransform(forward, to_right, to_up, to_pos);
+	Working[to].trans = FTransform(forward, to_right, to_up, to_pos);
+
+	double angle = x[to * 4 + 3];
 
 	// rotate that according to how the other param wants to rotate up....
-	Working[to] = FTransform(FQuat({ 1, 0, 0 }, (float)x[to * 4 + 3])) * Working[to];
+	Working[to].trans = FTransform(FQuat({ 1, 0, 0 }, (float)angle)) * Working[to].trans;
+	Working[to].z_rot = angle;
 }
 
-OptFunction::OptFunction(const Graph& g)
+OptFunction::OptFunction(TSharedPtr<Graph> g)
 	: G(g)
 {
 	TSet<TSharedPtr<Node>> found;
 
-	Working.AddDefaulted(G.GetNodes().Num());
+	Working.AddDefaulted(G->GetNodes().Num());
 
-	BuildPropagationFrom(found, G.GetNodes()[0], 0);
+	// this is node zero and has no parent
+	BuildPropagationFrom(found, G->GetNodes()[0], TSharedPtr<Node>(), 0);
+
+#ifdef UE_BUILD_DEBUG
+	{
+		TArray<double> test_config;
+		test_config.AddDefaulted(GetSize());
+
+		GetState(test_config);
+
+		SetState(test_config);
+
+		TArray<double> check_config;
+		check_config.AddDefaulted(GetSize());
+
+		GetState(check_config);
+
+		check(test_config == check_config);
+	}
+#endif
 
 	// was the graph a DAG?
-	check(found.Num() == G.GetNodes().Num());
+	check(found.Num() == G->GetNodes().Num());
 }
 
 int OptFunction::GetSize() const
@@ -614,7 +687,7 @@ int OptFunction::GetSize() const
 	// - up vector is the up vector of our parent, made orthogonal with our forwards, and rotated by our rotation
 	// - right vector is normal to both of those
 
-	return G.GetNodes().Num() * 4;
+	return G->GetNodes().Num() * 4;
 }
 
 double OptFunction::f(int n, const double* x, double* grad) const
@@ -629,6 +702,51 @@ double OptFunction::f(int n, const double* x, double* grad) const
 	}
 
 	return CalcVal(x);
+}
+
+void OptFunction::GetInitialStepSize(TArray<double>& steps) const
+{
+	check(steps.Num() == GetSize());
+
+	for (int i = 0; i < G->GetNodes().Num(); i++)
+	{
+		steps[i * 3 + 0] = 0.01;
+		steps[i * 3 + 1] = 0.01;
+		steps[i * 3 + 2] = 0.01;
+		steps[i * 3 + 3] = .06;
+	}
+}
+
+void OptFunction::GetState(TArray<double>& x) const
+{
+	check(x.Num() == GetSize());
+
+	for (int i = 0; i < x.Num(); i++)
+	{
+		int node_idx = i / 4;
+		int param_idx = i % 4;
+
+		if (param_idx < 3)
+		{
+			x[i] = Working[node_idx].trans.GetLocation()[param_idx];
+		}
+		else
+		{
+			x[i] = Working[node_idx].z_rot;
+		}
+	}
+}
+
+void OptFunction::SetState(const TArray<double>& x)
+{
+	check(x.Num() == GetSize());
+
+	SetupWorkingTransforms(x.GetData());
+
+	for (int i = 0; i < G->GetNodes().Num(); i++)
+	{
+		G->GetNodes()[i]->SetPosition(Working[i].trans);
+	}
 }
 
 #pragma optimize ("", on)

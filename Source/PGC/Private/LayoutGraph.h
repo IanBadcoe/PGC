@@ -123,6 +123,7 @@ namespace LayoutGraph {
 
 		int FindConnectorIdx(const TSharedPtr<ConnectorInst>& conn) const;
 
+		void SetPosition(const FTransform& pos) { Position = pos; }
 	};
 
 	// built-in node type, used to connect edges end-to-end when filling-out their geometry
@@ -156,7 +157,7 @@ namespace LayoutGraph {
 			int nodeTo, int nodeToconnector, int divs,
 			float inSpeed, float outSpeed);
 
-		void FillOutStructuralGraph(Graph& sg);
+		void FillOutStructuralGraph(Graph* sg);
 
 		int FindNodeIdx(const TSharedPtr<Node>& node) const;
 
@@ -169,8 +170,13 @@ namespace LayoutGraph {
 	};
 
 	class OptFunction : public NlOptIface {
-		const Graph& G;
-		mutable TArray<FTransform> Working;
+		struct WorkingData {
+			FTransform trans;
+			double z_rot;
+		};
+
+		TSharedPtr<Graph>& G;
+		mutable TArray<WorkingData> Working;
 		TMap<int, TArray<int>> Propagation;
 		TSet<TPair<int, int>> Connected;
 
@@ -189,18 +195,21 @@ namespace LayoutGraph {
 		double LeonardJonesVal(double R, double D, int N) const;
 		double LeonardJonesGrad(double R, double D, int N) const;
 
-		void BuildPropagationFrom(TSet<TSharedPtr<Node>>& found, const TSharedPtr<Node>& node, int addingIdx);
+		void BuildPropagationFrom(TSet<TSharedPtr<Node>>& found, const TSharedPtr<Node>& node, const TSharedPtr<Node>& parent, int addingIdx);
 
 		void SetupWorkingTransforms(const double* x, int propagateFrom = 0) const;
 		void PropagateTransform(const double* x, int from, int to) const;
 
 	public:
-		OptFunction(const Graph& g);
+		OptFunction(TSharedPtr<Graph> g);
 		virtual ~OptFunction() = default;
 
 		// Inherited via NlOptIface
 		int GetSize() const;
 		virtual double f(int n, const double * x, double * grad) const override;
+		virtual void GetInitialStepSize(TArray<double>& steps) const override;
+		virtual void GetState(TArray<double>& x) const override;
+		virtual void SetState(const TArray<double>& x) override;
 	};
 
 	class SplineUtil {

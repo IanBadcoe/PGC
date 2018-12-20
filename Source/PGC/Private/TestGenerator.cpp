@@ -1,7 +1,6 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "TestGenerator.h"
-#include "NlOptWrapper.h"
 
 using namespace LayoutGraph;
 
@@ -63,6 +62,35 @@ ATestGenerator::ATestGenerator()
 {
 }
 
+void ATestGenerator::EnsureGraphs()
+{
+	if (!TopologicalGraph.IsValid())
+	{
+		TopologicalGraph = MakeShared<TestGraph>();
+		TopologicalGraph->Generate();
+	}
+
+	if (!StructuralGraph.IsValid())
+	{
+		StructuralGraph = MakeShared<TestGraph>();
+		TopologicalGraph->FillOutStructuralGraph(StructuralGraph.Get());
+	}
+}
+
+void ATestGenerator::EnsureOptimizer()
+{
+	EnsureGraphs();
+
+	if (!Optimizer.IsValid())
+	{
+		check(!OptimizerInterface.IsValid());
+
+		OptimizerInterface = MakeShared<OptFunction>(StructuralGraph);
+
+		Optimizer = MakeShared<NlOptWrapper>(OptimizerInterface);
+	}
+}
+
 // Called when the game starts or when spawned
 void ATestGenerator::BeginPlay()
 {
@@ -79,18 +107,21 @@ void ATestGenerator::Tick(float DeltaTime)
 
 void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh)
 {
-	TestGraph g;
+	EnsureGraphs();
 
-	g.Generate();
+	StructuralGraph->MakeMesh(mesh);
+}
 
-	TestGraph sg;
-	g.FillOutStructuralGraph(sg);
+bool ATestGenerator::NeedsSteps()
+{
+	return true;
+}
 
-	OptFunction of(sg);
+void ATestGenerator::Step()
+{
+	EnsureOptimizer();
 
-	NlOptWrapper opt(of);
-
-	sg.MakeMesh(mesh);
+	Optimizer->Optimize();
 }
 
 void TestGraph::Generate()
