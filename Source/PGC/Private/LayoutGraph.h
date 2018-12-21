@@ -122,8 +122,6 @@ namespace LayoutGraph {
 		virtual Node* FactoryMethod() const = 0;
 
 		int FindConnectorIdx(const TSharedPtr<ConnectorInst>& conn) const;
-
-		void SetPosition(const FTransform& pos) { Position = pos; }
 	};
 
 	// built-in node type, used to connect edges end-to-end when filling-out their geometry
@@ -152,12 +150,6 @@ namespace LayoutGraph {
 		void Connect(int nodeFrom, int nodeFromconnector,
 			int nodeTo, int nodeToconnector, int divs,
 			float inSpeed, float outSpeed);
-		// connect "from" to "to" via "Divs" intermediate back-to-back nodes
-		void ConnectAndFillOut(int nodeFrom, int nodeFromconnector,
-			int nodeTo, int nodeToconnector, int divs,
-			float inSpeed, float outSpeed);
-
-		void FillOutStructuralGraph(Graph* sg);
 
 		int FindNodeIdx(const TSharedPtr<Node>& node) const;
 
@@ -167,49 +159,6 @@ namespace LayoutGraph {
 	protected:
 		TArray<TSharedPtr<Node>> Nodes;
 		TArray<TSharedPtr<Edge>> Edges;
-	};
-
-	class OptFunction : public NlOptIface {
-		struct WorkingData {
-			FTransform trans;
-			double z_rot;
-		};
-
-		TSharedPtr<Graph>& G;
-		mutable TArray<WorkingData> Working;
-		TMap<int, TArray<int>> Propagation;
-		TSet<TPair<int, int>> Connected;
-
-		double CalcGrad(const double* x, int n) const;
-		double CalcVal(const double* x) const;
-
-		double UnconnectedNodeNodeVal(const FVector& p1, const FVector& p2, float D) const;
-		// i is the index of one of the parameters of pGrad
-		double UnconnectedNodeNodeGrad(int i, const FVector& pGrad, const FVector& pOther, float D) const;
-
-		double ConnectedNodeNodeVal(const FVector& p1, const FVector& p2) const;
-		// i is the index of one of the parameters of pGrad
-		double ConnectedNodeNodeGrad(int i, const FVector& pGrad, const FVector& pOther) const;
-
-		// R = distance, D = optimal distance, N = power
-		double LeonardJonesVal(double R, double D, int N) const;
-		double LeonardJonesGrad(double R, double D, int N) const;
-
-		void BuildPropagationFrom(TSet<TSharedPtr<Node>>& found, const TSharedPtr<Node>& node, const TSharedPtr<Node>& parent, int addingIdx);
-
-		void SetupWorkingTransforms(const double* x, int propagateFrom = 0) const;
-		void PropagateTransform(const double* x, int from, int to) const;
-
-	public:
-		OptFunction(TSharedPtr<Graph> g);
-		virtual ~OptFunction() = default;
-
-		// Inherited via NlOptIface
-		int GetSize() const;
-		virtual double f(int n, const double * x, double * grad) const override;
-		virtual void GetInitialStepSize(TArray<double>& steps) const override;
-		virtual void GetState(TArray<double>& x) const override;
-		virtual void SetState(const TArray<double>& x) override;
 	};
 
 	class SplineUtil {

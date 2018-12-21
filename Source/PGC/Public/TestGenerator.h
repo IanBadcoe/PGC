@@ -6,6 +6,7 @@
 #include "Components/ActorComponent.h"
 
 #include "LayoutGraph.h"
+#include "StructuralGraph.h"
 #include "PGCGenerator.h"
 #include "NlOptWrapper.h"
 
@@ -44,7 +45,7 @@ class PGC_API ATestGenerator : public AActor, public IPGCGenerator
 	GENERATED_BODY()
 
 	TSharedPtr<TestGraph> TopologicalGraph;
-	TSharedPtr<TestGraph> StructuralGraph;
+	TSharedPtr<StructuralGraph::SGraph> StructuralGraph;
 
 	TSharedPtr<NlOptIface> OptimizerInterface;
 	TSharedPtr<NlOptWrapper> Optimizer;

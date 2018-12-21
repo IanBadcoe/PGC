@@ -8,11 +8,11 @@ extern "C" {
 
 class NlOptIface {
 public:
-	virtual double f(int n, const double* x, double* grad) const = 0;
+	virtual double f(int n, const double* x, double* grad) = 0;
 	virtual int GetSize() const = 0;
-	virtual void GetInitialStepSize(TArray<double>& steps) const = 0;
-	virtual void GetState(TArray<double>& x) const = 0;
-	virtual void SetState(const TArray<double>& x) = 0;
+	virtual void GetInitialStepSize(double* steps, int n) const = 0;
+	virtual void GetState(double* x, int n) const = 0;
+	virtual void SetState(const double* x, int n) = 0;
 };
 
 class NlOptWrapper

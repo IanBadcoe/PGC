@@ -14,6 +14,8 @@ NlOptWrapper::NlOptWrapper(const TSharedPtr<NlOptIface> iface)
 	TArray<double> initial_step;
 	initial_step.AddDefaulted(NlIface->GetSize());
 
+	NlIface->GetInitialStepSize(initial_step.GetData(), NlIface->GetSize());
+
 	nlopt_set_initial_step(NlOpt, initial_step.GetData());
 }
 
@@ -26,13 +28,13 @@ bool NlOptWrapper::Optimize()
 {
 	TArray<double> state;
 	state.AddDefaulted(NlIface->GetSize());
-	NlIface->GetState(state);
+	NlIface->GetState(state.GetData(), NlIface->GetSize());
 
 	double val = 0.0;
 
 	auto res = nlopt_optimize(NlOpt, state.GetData(), &val);
 
-	NlIface->SetState(state);
+	NlIface->SetState(state.GetData(), NlIface->GetSize());
 
 	return res != NLOPT_MAXEVAL_REACHED;
 }

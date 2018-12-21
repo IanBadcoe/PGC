@@ -3,6 +3,7 @@
 #include "TestGenerator.h"
 
 using namespace LayoutGraph;
+using namespace StructuralGraph;
 
 const static ConnectorDef::ProfileArray StandardRoadbedProfileData
 {
@@ -72,8 +73,7 @@ void ATestGenerator::EnsureGraphs()
 
 	if (!StructuralGraph.IsValid())
 	{
-		StructuralGraph = MakeShared<TestGraph>();
-		TopologicalGraph->FillOutStructuralGraph(StructuralGraph.Get());
+		StructuralGraph = MakeShared<SGraph>(TopologicalGraph);
 	}
 }
 
@@ -128,17 +128,20 @@ void TestGraph::Generate()
 {
 	Nodes.Add(MakeShared<YJunction>());
 	Nodes.Add(MakeShared<YJunction>());
-	Nodes.Add(MakeShared<YJunction>());
-	Nodes.Add(MakeShared<YJunction>());
+	//Nodes.Add(MakeShared<YJunction>());
+	//Nodes.Add(MakeShared<YJunction>());
 
-	Nodes[1]->Position.SetLocation(FVector(20, 20, 10));
-	Nodes[2]->Position.SetLocation(FVector(20, 0, 0));
-	Nodes[3]->Position.SetLocation(FVector(0, 20, 10));
+	Nodes[1]->Position.SetLocation(FVector(0, -20, 0));
+	Nodes[1]->Position.SetRotation(FQuat(FVector(0, 0, 1), PI));
+	//Nodes[2]->Position.SetLocation(FVector(20, 0, 0));
+	//Nodes[3]->Position.SetLocation(FVector(0, 20, 10));
 
 	Connect(0, 0, 1, 0, 10, 100.0f, 100.0f);
-	Connect(0, 1, 2, 1, 10, 100.0f, 100.0f);
-	Connect(0, 2, 3, 2, 10, 100.0f, 100.0f);
-	Connect(2, 2, 1, 2, 10, 100.0f, 100.0f);
-	Connect(2, 0, 3, 0, 10, 100.0f, 100.0f);
-	Connect(3, 1, 1, 1, 10, 100.0f, 100.0f);
+	Connect(0, 1, 1, 2, 10, 100.0f, 100.0f);
+	Connect(0, 2, 1, 1, 10, 100.0f, 100.0f);
+	//Connect(0, 1, 2, 1, 10, 100.0f, 100.0f);
+	//Connect(0, 2, 3, 2, 10, 100.0f, 100.0f);
+	//Connect(2, 2, 1, 2, 10, 100.0f, 100.0f);
+	//Connect(2, 0, 3, 0, 10, 100.0f, 100.0f);
+	//Connect(3, 1, 1, 1, 10, 100.0f, 100.0f);
 }
