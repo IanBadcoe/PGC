@@ -29,6 +29,7 @@ namespace StructuralGraph {
 
 		FVector Position;
 		FVector Up;
+		FVector Forwards;
 
 		int Idx;
 
@@ -42,9 +43,20 @@ namespace StructuralGraph {
 		virtual ~SNode() = default;
 
 		void SetPosition(const FVector& pos, const FVector& up) { Position = pos; Up = up; }
+
+		void AddToMesh(TSharedPtr<Mesh> mesh) {
+			if (LayoutNode.IsValid())
+			{
+				LayoutNode->AddToMesh(mesh);
+			}
+		}
 	};
 
 	class SGraph {
+		mutable TMap<const SNode*, FTransform> CachedTransforms;
+
+		void RefreshTransforms() const;
+
 	public:
 		SGraph(TSharedPtr<LayoutGraph::Graph> input);
 

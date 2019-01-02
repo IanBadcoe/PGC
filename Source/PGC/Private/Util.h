@@ -19,4 +19,27 @@ inline void AddPolyToMesh(TSharedPtr<Mesh> mesh, const TArray<FVector>& verts)
 	mesh->AddFaceFromVects(verts, UVs, 0, EdgeTypes);
 }
 
+// we expect forward and up to be set, right then derives from those
+inline void MakeAxisSet(FVector& forward, FVector& right, FVector& up)
+{
+	forward.Normalize();
+
+	right = FVector::CrossProduct(forward, up);
+
+	right.Normalize();
+
+	up = FVector::CrossProduct(right, forward);
+
+	up.Normalize();
+}
+
+inline FTransform MakeTransform(const FVector& pos, FVector local_up, FVector forward)
+{
+	FVector right;
+
+	MakeAxisSet(forward, right, local_up);
+
+	return FTransform(forward, right, local_up, pos);
+}
+
 }

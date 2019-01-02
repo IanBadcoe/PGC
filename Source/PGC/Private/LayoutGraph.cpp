@@ -1,6 +1,7 @@
 #include "LayoutGraph.h"
 
 #include "Util.h"
+#include "SplineUtil.h"
 
 #pragma optimize ("", off)
 
@@ -19,6 +20,11 @@ Node* BackToBack::FactoryMethod() const
 	return new BackToBack(Connectors[0]->Definition);
 }
 
+
+Graph::Graph(float segLength) : SegLength(segLength)
+{
+
+}
 
 void Graph::MakeMesh(TSharedPtr<Mesh> mesh) const
 {

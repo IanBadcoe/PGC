@@ -5,6 +5,7 @@
 #pragma optimize ("", off)
 
 namespace StructuralGraph {
+
 SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 {
 	for (const auto& n : input->GetNodes())
@@ -12,6 +13,7 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 		auto new_node = MakeShared<SNode>(Nodes.Num(), nullptr);
 		new_node->Position = n->Position.GetLocation();
 		new_node->Up = n->Position.GetUnitAxis(EAxis::Z);
+		new_node->Forwards = n->Position.GetUnitAxis(EAxis::X);
 		new_node->LayoutNode = n;					// nodes directly from the input note their input node so they can make the right mesh for it
 		Nodes.Add(new_node);
 	}
@@ -32,6 +34,7 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 
 			conn_node->Position = tot_trans.GetLocation();
 			conn_node->Up = tot_trans.GetUnitAxis(EAxis::Z);
+			conn_node->Forwards = tot_trans.GetUnitAxis(EAxis::X);
 
 			Nodes.Add(conn_node);
 
@@ -69,6 +72,17 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 	}
 }
 
+void SGraph::RefreshTransforms() const
+{
+	// first node is defined as having a unit transform
+	CachedTransforms.Add(Nodes[0].Get()) = FTransform::Identity;
+
+	for(const auto& n : Nodes)
+	{
+		CachedTransforms.Add(n.Get()) = Util::MakeTransform(n->Position, n->Up, n->Forwards);
+	}
+}
+
 void SGraph::Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, double D)
 {
 	Edges.Add(MakeShared<SEdge>(n1, n2, D));
@@ -81,14 +95,19 @@ void SGraph::Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, dou
 void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode> from_c, const TSharedPtr<SNode> to_n, TSharedPtr<SNode> to_c,
 	int divs, float D0, const LayoutGraph::ConnectorDef* profile)
 {
-	const auto from_forward = from_c->Position - from_n->Position;
-	const auto to_forward = to_c->Position - to_n->Position;
+	auto from_forward = from_c->Position - from_n->Position;
+	auto to_forward = to_c->Position - to_n->Position;
 
-	const auto in_dir = from_forward * 10;
-	const auto out_dir = -to_forward * 10;
+	from_forward.Normalize();
+	to_forward.Normalize();
 
 	const auto in_pos = from_c->Position;
 	const auto out_pos = to_c->Position;
+
+	const auto dist = FVector::Distance(in_pos, out_pos);
+
+	const auto in_dir = from_forward * dist /* / 3 */;		// dividing by 3 means if the two connectors are pointing at each other
+	const auto out_dir = -to_forward * dist /* / 3 */;		// then we divide the space evenly
 
 	const auto from_up = from_c->Up;
 	const auto to_up = to_c->Up;
@@ -98,6 +117,7 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 	struct Frame {
 		FVector pos;
 		FVector up;
+		FVector forwards;
 	};
 
 	TArray<Frame> frames;
@@ -105,9 +125,9 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 	for (auto i = 0; i <= divs; i++) {
 		float t = (float)i / divs;
 
-		FVector pos = SplineUtil::Hermite(t, in_pos, out_pos, in_dir, out_dir);
+		FVector pos = SplineUtil::CubicBezier(t, in_pos, in_pos + in_dir, out_pos - out_dir, out_pos);
 
-		FVector forward = SplineUtil::HermiteTangent(t, in_pos, out_pos, in_dir, out_dir);
+		FVector forward = SplineUtil::CubicBezierTangent(t, in_pos, in_pos + in_dir, out_pos - out_dir, out_pos);
 
 		forward.Normalize();
 
@@ -119,7 +139,7 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 
 		current_up.Normalize();
 
-		frames.Add({pos, current_up});
+		frames.Add({pos, current_up, forward});
 	}
 
 	auto angle_mismatch = FMath::Acos(FVector::DotProduct(current_up, to_up));
@@ -153,8 +173,8 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 
 	auto curr_node = from_c;
 
-	// i = 0 would be the from connector, that we already have
-	// i = divs would be the to connector
+	// i = 0 is the from-connector
+	// i = divs is the to-connector
 	for (auto i = 1; i <= divs; i++) {
 		float t = (float)i / divs;
 
@@ -165,6 +185,8 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 			next_node = MakeShared<SNode>(Nodes.Num(), profile);
 			next_node->Position = frames[i].pos;
 			next_node->Up = frames[i].up;
+			next_node->Forwards = frames[i].forwards;
+
 			Nodes.Add(next_node);
 		}
 		else
@@ -193,46 +215,54 @@ int SGraph::FindNodeIdx(const TSharedPtr<SNode>& node) const
 
 void SGraph::MakeMesh(TSharedPtr<Mesh> mesh)
 {
-	for (int i = 0; i < Nodes.Num(); i++) {
-		const auto& n = Nodes[i];
+	mesh->Clear();
 
-		for (const auto& e : n->Edges)
+	RefreshTransforms();
+
+	for (const auto& node : Nodes)
+	{
+		node->AddToMesh(mesh);
+	}
+
+	for (const auto& e : Edges)
+	{
+		auto from_n = e->FromNode.Pin();
+		auto to_n = e->ToNode.Pin();
+
+		if (from_n->Profile && to_n->Profile)
 		{
-			auto ep = e.Pin();
+			TArray<FVector> verts_to;
+			TArray<FVector> verts_from;
 
-			if (ep->FromNode == n)
+			auto to_trans = CachedTransforms[to_n.Get()];
+			const auto from_trans = CachedTransforms[from_n.Get()];
+
+			// if the two forward vectors are not within 180 degrees, rotate
+
+			FVector to_forwards = to_trans.GetUnitAxis(EAxis::X);
+			FVector from_forwards = from_trans.GetUnitAxis(EAxis::X);
+
+			if (FVector::DotProduct(to_forwards, from_forwards) < 0)
 			{
-				auto to_n = ep->ToNode.Pin();
+				to_trans = FTransform(FRotator(0, 180, 0)) * to_trans;
+			}
 
-				auto forward = to_n->Position - n->Position;
+			for (int i = 0; i < to_n->Profile->NumVerts(); i++)
+			{
+				verts_to.Add(to_n->Profile->GetTransformedVert(i, to_trans) /* + to_forwards * 0.01f */);
+				verts_from.Add(from_n->Profile->GetTransformedVert(i, from_trans) /* - from_forwards * 0.01f */);
+			}
 
-				forward.Normalize();
+			int prev_vert = to_n->Profile->NumVerts() - 1;
 
-				auto right = FVector::CrossProduct(forward, to_n->Up);
+			//Util::AddPolyToMesh(mesh, verts_from);
+			//Util::AddPolyToMesh(mesh, verts_to);
 
-				right.Normalize();
+			for (int i = 0; i < to_n->Profile->NumVerts(); i++)
+			{
+				Util::AddPolyToMesh(mesh, { verts_from[i], verts_from[prev_vert], verts_to[prev_vert], verts_to[i] });
 
-				auto corrected_up = FVector::CrossProduct(right, forward);
-
-				corrected_up.Normalize();
-
-				FTransform t(forward, right, corrected_up, to_n->Position);
-
-				TArray<FVector> verts;
-
-				for (int i = 0; i < to_n->Profile->NumVerts(); i++)
-				{
-					verts.Add(to_n->Profile->GetTransformedVert(i, t));
-				}
-
-				int prev_vert = to_n->Profile->NumVerts() - 1;
-
-				for (int i = 0; i < to_n->Profile->NumVerts(); i++)
-				{
-					Util::AddPolyToMesh(mesh, { verts[i], verts[prev_vert], verts[prev_vert] + forward, verts[i] + forward });
-
-					prev_vert = i;
-				}
+				prev_vert = i;
 			}
 		}
 	}
