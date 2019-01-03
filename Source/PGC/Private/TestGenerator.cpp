@@ -112,12 +112,12 @@ void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh)
 	StructuralGraph->MakeMesh(mesh);
 }
 
-bool ATestGenerator::NeedsSteps()
+bool ATestGenerator::NeedsRefinement()
 {
 	return true;
 }
 
-void ATestGenerator::Step()
+void ATestGenerator::Refine()
 {
 	EnsureOptimizer();
 
@@ -131,14 +131,14 @@ void TestGraph::Generate()
 	//Nodes.Add(MakeShared<YJunction>());
 	//Nodes.Add(MakeShared<YJunction>());
 
-	Nodes[1]->Position.SetLocation(FVector(0, -20, 0));
+	Nodes[1]->Position.SetLocation(FVector(0, -20, 10));
 	Nodes[1]->Position.SetRotation(FQuat(FVector(0, 0, 1), PI));
 	//Nodes[2]->Position.SetLocation(FVector(20, 0, 0));
 	//Nodes[3]->Position.SetLocation(FVector(0, 20, 10));
 
-	//Connect(0, 0, 1, 0, 10, 100.0f, 100.0f);
-	//Connect(0, 1, 1, 2, 10, 100.0f, 100.0f);
-	Connect(1, 1, 0, 2, 20, 100.0f, 100.0f);
+	Connect(0, 0, 1, 0, 10, 100.0f, 100.0f);
+	Connect(0, 1, 1, 2, 10, 100.0f, 100.0f);
+	Connect(1, 1, 0, 2, 10, 100.0f, 100.0f);
 	//Connect(0, 1, 2, 1, 10, 100.0f, 100.0f);
 	//Connect(0, 2, 3, 2, 10, 100.0f, 100.0f);
 	//Connect(2, 2, 1, 2, 10, 100.0f, 100.0f);

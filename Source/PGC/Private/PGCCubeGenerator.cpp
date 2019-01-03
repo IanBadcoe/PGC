@@ -38,12 +38,12 @@ void APGCCubeGenerator::MakeMesh(TSharedPtr<Mesh> mesh)
 	mesh->CheckConsistent(true);
 }
 
-bool APGCCubeGenerator::NeedsSteps()
+bool APGCCubeGenerator::NeedsRefinement()
 {
 	return false;
 }
 
-void APGCCubeGenerator::Step()
+void APGCCubeGenerator::Refine()
 {
 	check(false);
 }

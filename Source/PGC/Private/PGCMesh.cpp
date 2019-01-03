@@ -8,7 +8,7 @@ UPGCMesh::UPGCMesh()
 {
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
-	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bCanEverTick = false;
 
 	// ...
 }
@@ -41,5 +41,19 @@ FPGCMeshResult UPGCMesh::Generate(int NumDivisions, bool InsideOut)
 	divided_mesh->Bake(ret, InsideOut);
 
 	return ret;
+}
+
+bool UPGCMesh::NeedsRefinement()
+{
+	if (Generator.GetObject())
+		return Generator->NeedsRefinement();
+
+	return false;
+}
+
+void UPGCMesh::Refine()
+{
+	if (Generator.GetObject())
+		Generator->Refine();
 }
 

@@ -70,8 +70,8 @@ public:
 
 
 	// Inherited via IPGCGenerator
-	virtual bool NeedsSteps() override;
+	virtual bool NeedsRefinement() override;
 
-	virtual void Step() override;
+	virtual void Refine() override;
 
 };

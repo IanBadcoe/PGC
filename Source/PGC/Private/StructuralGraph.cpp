@@ -153,23 +153,23 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 	}
 
 	//// take this one further than required, so we can assert we arrived the right way up
-	//for (auto i = 0; i <= divs; i++) {
-	//	float t = (float)i / divs;
+	for (auto i = 0; i <= divs; i++) {
+		float t = (float)i / divs;
 
-	//	auto angle_correct = t * angle_mismatch;
+		auto angle_correct = t * angle_mismatch;
 
-	//	FVector forward = SplineUtil::HermiteTangent(t, in_pos, out_pos, in_dir, out_dir);
+		FVector forward = SplineUtil::HermiteTangent(t, in_pos, out_pos, in_dir, out_dir);
 
-	//	forward.Normalize();
+		forward.Normalize();
 
-	//	frames[i].up = FTransform(FQuat(forward, angle_correct)).TransformVector(frames[i].up);
-	//}
+		frames[i].up = FTransform(FQuat(forward, angle_correct)).TransformVector(frames[i].up);
+	}
 
-	//auto check_up = frames.Last().up;
+	auto check_up = frames.Last().up;
 
-	//auto angle_check = FVector::DotProduct(check_up, to_up);
+	auto angle_check = FVector::DotProduct(check_up, to_up);
 
-	//check(angle_check > 0.99f);
+	check(angle_check > 0.99f);
 
 	auto curr_node = from_c;
 
@@ -237,8 +237,9 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh)
 			auto to_trans = CachedTransforms[to_n.Get()];
 			const auto from_trans = CachedTransforms[from_n.Get()];
 
-			// if the two forward vectors are not within 180 degrees, rotate
-
+			// if the two forward vectors are not within 180 degrees, because the
+			// dest profile will be the wrong way around (not doing this will cause the connection to "bottle neck" and
+			// also crash mesh generation since we'll be trying to add two faces rotating the same way to one edge)
 			FVector to_forwards = to_trans.GetUnitAxis(EAxis::X);
 			FVector from_forwards = from_trans.GetUnitAxis(EAxis::X);
 

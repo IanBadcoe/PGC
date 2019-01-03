@@ -1148,12 +1148,12 @@ TSharedPtr<Mesh> Mesh::SubdivideN(int count)
 {
 	auto ret = AsShared();
 
-	//for (int i = 0; i < count; i++)
-	//{
-	//	auto temp = ret->Subdivide();
+	for (int i = 0; i < count; i++)
+	{
+		auto temp = ret->Subdivide();
 
-	//	ret = temp.ToSharedRef();
-	//}
+		ret = temp.ToSharedRef();
+	}
 
 	return ret;
 }

@@ -36,6 +36,6 @@ public:
 	TArray<FPGCCube> Cubes;
 
 	virtual void MakeMesh(TSharedPtr<Mesh> mesh) override;
-	virtual bool NeedsSteps() override;
-	virtual void Step() override;
+	virtual bool NeedsRefinement() override;
+	virtual void Refine() override;
 };

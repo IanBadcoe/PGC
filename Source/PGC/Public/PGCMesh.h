@@ -18,6 +18,8 @@ class PGC_API UPGCMesh : public UActorComponent
 
 	TSharedPtr<Mesh> InitialMesh{ MakeShared<Mesh>() };
 
+	TScriptInterface<IPGCGenerator> Generator;
+
 public:	
 	// Sets default values for this component's properties
 	UPGCMesh();
@@ -30,13 +32,22 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate", Keywords = "PGC, procedural"), Category = "PGC")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Set Generator", Keywords = "PGC, procedural"), Category = "PGC")
 	void SetGenerator(const TScriptInterface<IPGCGenerator>& gen)
 	{
+		Generator = gen;
+
 		InitialMesh->Clear();
-		gen->MakeMesh(InitialMesh);
+
+		Generator->MakeMesh(InitialMesh);
 	}
 	
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate", Keywords = "PGC, procedural"), Category = "PGC")
-	FPGCMeshResult Generate(int NumDivisions, bool InsideOut);
+		FPGCMeshResult Generate(int NumDivisions, bool InsideOut);
+
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Needs Refinement", Keywords = "PGC, procedural"), Category = "PGC")
+		bool NeedsRefinement();
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Refine", Keywords = "PGC, procedural"), Category = "PGC")
+		void Refine();
+
 };
