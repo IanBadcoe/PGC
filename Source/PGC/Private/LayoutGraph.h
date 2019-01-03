@@ -21,6 +21,7 @@ namespace LayoutGraph {
 		//float OutSpeed;				// a measure of how straight we want to go into the "to" connector
 
 		int Divs;					// how many points along the spline required for smoothness, swivels etc...
+		int Twists;					// how many +ve or -ve half-twists to make along the edge
 
 		Edge(TWeakPtr<Node> fromNode, TWeakPtr<Node> toNode,
 			TWeakPtr<ConnectorInst> fromConnector, TWeakPtr<ConnectorInst> toConnector);
@@ -149,7 +150,8 @@ namespace LayoutGraph {
 //		void MakeMesh(TSharedPtr<Mesh> mesh) const;
 		// connect "from" to "to" directly with an edge and no regard to geometry...
 		void Connect(int nodeFrom, int nodeFromconnector,
-			int nodeTo, int nodeToconnector, int divs);
+			int nodeTo, int nodeToconnector,
+			int divs = 10, int twists = 0);
 
 		int FindNodeIdx(const TSharedPtr<Node>& node) const;
 

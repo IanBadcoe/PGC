@@ -19,8 +19,9 @@ namespace StructuralGraph {
 		const TWeakPtr<SNode> ToNode;
 
 		const double D0;
+		const bool Flipping;
 
-		SEdge(TWeakPtr<SNode> fromNode, TWeakPtr<SNode> toNode, double d0);
+		SEdge(TWeakPtr<SNode> fromNode, TWeakPtr<SNode> toNode, double d0, bool flipping);
 	};
 
 	class SNode {
@@ -61,11 +62,12 @@ namespace StructuralGraph {
 		SGraph(TSharedPtr<LayoutGraph::Graph> input);
 
 		// connect "from" to "to" directly with an edge and no regard to geometry...
-		void Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, double D0);
+		void Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, double D0, bool flipping);
 		// connect "from" to "to" via "Divs" intermediate back-to-back nodes
 		void ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode> from_c,
 			const TSharedPtr<SNode> to_n, TSharedPtr<SNode> to_c,
-			int divs, float D0, const LayoutGraph::ConnectorDef* profile);
+			int divs, int twists,
+			float D0, const LayoutGraph::ConnectorDef* profile);
 
 		int FindNodeIdx(const TSharedPtr<SNode>& node) const;
 

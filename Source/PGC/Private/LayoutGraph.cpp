@@ -42,7 +42,7 @@ Graph::Graph(float segLength) : SegLength(segLength)
 //}
 
 void Graph::Connect(int nodeFrom, int nodeFromConnector, int nodeTo, int nodeToConnector,
-	int divs)
+	int divs /* = 10 */, int twists /* = 0 */)
 {
 	check(!Nodes[nodeFrom]->Edges[nodeFromConnector].IsValid());
 	check(!Nodes[nodeTo]->Edges[nodeToConnector].IsValid());
@@ -59,6 +59,7 @@ void Graph::Connect(int nodeFrom, int nodeFromConnector, int nodeTo, int nodeToC
 	Nodes[nodeTo]->Edges[nodeToConnector] = edge;
 
 	edge->Divs = divs;
+	edge->Twists = twists;
 }
 
 int Graph::FindNodeIdx(const TSharedPtr<Node>& node) const

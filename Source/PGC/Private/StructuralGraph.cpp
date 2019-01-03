@@ -38,7 +38,7 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 
 			Nodes.Add(conn_node);
 
-			Connect(here_node, conn_node, FVector::Dist(here_node->Position, conn_node->Position));
+			Connect(here_node, conn_node, FVector::Dist(here_node->Position, conn_node->Position), false);
 		}
 	}
 
@@ -66,7 +66,9 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 				auto here_to_node = Nodes[to_idx];
 				auto here_to_conn_node = here_to_node->Edges[to_conn_idx].Pin()->ToNode.Pin();
 
-				ConnectAndFillOut(here_node, here_conn_node, here_to_node, here_to_conn_node, edge->Divs, input->SegLength, here_conn_node->Profile);
+				ConnectAndFillOut(here_node, here_conn_node, here_to_node, here_to_conn_node,
+					edge->Divs, edge->Twists,
+					input->SegLength, here_conn_node->Profile);
 			}
 		}
 	}
@@ -83,9 +85,9 @@ void SGraph::RefreshTransforms() const
 	}
 }
 
-void SGraph::Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, double D)
+void SGraph::Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, double D, bool flipping)
 {
-	Edges.Add(MakeShared<SEdge>(n1, n2, D));
+	Edges.Add(MakeShared<SEdge>(n1, n2, D, flipping));
 
 	// edges are no particular order in nodes
 	n1->Edges.Add(Edges.Last());
@@ -93,7 +95,8 @@ void SGraph::Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, dou
 }
 
 void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode> from_c, const TSharedPtr<SNode> to_n, TSharedPtr<SNode> to_c,
-	int divs, float D0, const LayoutGraph::ConnectorDef* profile)
+	int divs, int twists, 
+	float D0, const LayoutGraph::ConnectorDef* profile)
 {
 	auto from_forward = from_c->Position - from_n->Position;
 	auto to_forward = to_c->Position - to_n->Position;
@@ -152,6 +155,8 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 		angle_mismatch = -angle_mismatch;
 	}
 
+	angle_mismatch += twists * PI;
+
 	//// take this one further than required, so we can assert we arrived the right way up
 	for (auto i = 0; i <= divs; i++) {
 		float t = (float)i / divs;
@@ -169,7 +174,17 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 
 	auto angle_check = FVector::DotProduct(check_up, to_up);
 
-	check(angle_check > 0.99f);
+	bool flipping = (twists & 1) != 0;
+
+	// we expect to come out either 100% up or 100% down, according to whether we have an odd number of half-twists or not
+	if (flipping)
+	{
+		check(angle_check < -0.99f);
+	}
+	else
+	{
+		check(angle_check > 0.99f);
+	}
 
 	auto curr_node = from_c;
 
@@ -194,7 +209,9 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 			next_node = to_c;
 		}
 
-		Connect(curr_node, next_node, D0);
+		// the last connection needs to rotate the mapping onto the target connector 180 degrees if we've
+		// accumulated a half-twist along the connection
+		Connect(curr_node, next_node, D0, flipping && i == divs);
 		
 		curr_node = next_node;
 	}
@@ -248,9 +265,21 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh)
 				to_trans = FTransform(FRotator(0, 180, 0)) * to_trans;
 			}
 
+			int to_vert_offset = 0;
+			if (e->Flipping)
+			{
+				// if we have a half-twist in the overall sequence of edges, then we need to allow for that when connecting the last set of polys
+				// for the moment assuming only 1/2 twists, but square or triangular profiles could make use of 1/3 or 1/4 twists,
+				// so if we upgrade to that may want to replace "Flipping" with a "NumberOfPartTurns" which is between 0 and N-1, when N
+				// if the order of symmetry in the connector
+				check(to_n->Profile->NumVerts() % 2 == 0);
+
+				to_vert_offset = to_n->Profile->NumVerts() / 2;
+			}
+
 			for (int i = 0; i < to_n->Profile->NumVerts(); i++)
 			{
-				verts_to.Add(to_n->Profile->GetTransformedVert(i, to_trans) /* + to_forwards * 0.01f */);
+				verts_to.Add(to_n->Profile->GetTransformedVert((i + to_vert_offset) % to_n->Profile->NumVerts(), to_trans) /* + to_forwards * 0.01f */);
 				verts_from.Add(from_n->Profile->GetTransformedVert(i, from_trans) /* - from_forwards * 0.01f */);
 			}
 
@@ -269,8 +298,8 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh)
 	}
 }
 
-SEdge::SEdge(TWeakPtr<SNode> fromNode, TWeakPtr<SNode> toNode, double d0)
-	: FromNode(fromNode), ToNode(toNode), D0(d0) {
+SEdge::SEdge(TWeakPtr<SNode> fromNode, TWeakPtr<SNode> toNode, double d0, bool flipping)
+	: FromNode(fromNode), ToNode(toNode), D0(d0), Flipping(flipping) {
 }
 
 //double OptFunction::CalcGrad(const double* x, int n) const
