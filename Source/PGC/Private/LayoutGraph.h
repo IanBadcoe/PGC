@@ -17,15 +17,15 @@ namespace LayoutGraph {
 		const TWeakPtr<ConnectorInst> FromConnector;
 		const TWeakPtr<ConnectorInst> ToConnector;
 
-		float InSpeed;				// a measure of how straight we want to come out of the "from" connector
-		float OutSpeed;				// a measure of how straight we want to go into the "to" connector
+		//float InSpeed;				// a measure of how straight we want to come out of the "from" connector
+		//float OutSpeed;				// a measure of how straight we want to go into the "to" connector
 
 		int Divs;					// how many points along the spline required for smoothness, swivels etc...
 
 		Edge(TWeakPtr<Node> fromNode, TWeakPtr<Node> toNode,
 			TWeakPtr<ConnectorInst> fromConnector, TWeakPtr<ConnectorInst> toConnector);
 
-		void AddToMesh(TSharedPtr<Mesh> mesh);
+//		void AddToMesh(TSharedPtr<Mesh> mesh);
 	};
 
 	struct ProfileVert {
@@ -116,6 +116,7 @@ namespace LayoutGraph {
 		const Node& operator=(const Node&) = delete;
 		virtual ~Node() = default;
 
+		// still in use temporarily until I do node meshing properly in StructuralGraph
 		void AddToMesh(TSharedPtr<Mesh> mesh);
 		FVector GetTransformedVert(const Polygon::Idx& idx) const;
 
@@ -145,11 +146,10 @@ namespace LayoutGraph {
 
 		Graph(float segLength);
 
-		void MakeMesh(TSharedPtr<Mesh> mesh) const;
+//		void MakeMesh(TSharedPtr<Mesh> mesh) const;
 		// connect "from" to "to" directly with an edge and no regard to geometry...
 		void Connect(int nodeFrom, int nodeFromconnector,
-			int nodeTo, int nodeToconnector, int divs,
-			float inSpeed, float outSpeed);
+			int nodeTo, int nodeToconnector, int divs);
 
 		int FindNodeIdx(const TSharedPtr<Node>& node) const;
 

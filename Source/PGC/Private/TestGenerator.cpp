@@ -136,12 +136,12 @@ void TestGraph::Generate()
 	//Nodes[2]->Position.SetLocation(FVector(20, 0, 0));
 	//Nodes[3]->Position.SetLocation(FVector(0, 20, 10));
 
-	Connect(0, 0, 1, 0, 10, 100.0f, 100.0f);
-	Connect(0, 1, 1, 2, 10, 100.0f, 100.0f);
-	Connect(1, 1, 0, 2, 10, 100.0f, 100.0f);
-	//Connect(0, 1, 2, 1, 10, 100.0f, 100.0f);
-	//Connect(0, 2, 3, 2, 10, 100.0f, 100.0f);
-	//Connect(2, 2, 1, 2, 10, 100.0f, 100.0f);
-	//Connect(2, 0, 3, 0, 10, 100.0f, 100.0f);
-	//Connect(3, 1, 1, 1, 10, 100.0f, 100.0f);
+	Connect(0, 0, 1, 0, 10);
+	Connect(0, 1, 1, 2, 10);
+	Connect(1, 1, 0, 2, 10);
+	//Connect(0, 1, 2, 1, 10);
+	//Connect(0, 2, 3, 2, 10);
+	//Connect(2, 2, 1, 2, 10);
+	//Connect(2, 0, 3, 0, 10);
+	//Connect(3, 1, 1, 1, 10);
 }
