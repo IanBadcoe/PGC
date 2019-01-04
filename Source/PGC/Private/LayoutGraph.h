@@ -24,27 +24,65 @@ namespace LayoutGraph {
 			TWeakPtr<ConnectorInst> fromConnector, TWeakPtr<ConnectorInst> toConnector);
 	};
 
-	struct ProfileVert {
-		FVector2D Position;
-		PGCEdgeType FollowingEdgeType;
+	struct ParameterisedProfile {
+		static constexpr int VertsPerQuarter = 6;
+		static constexpr int NumVerts = VertsPerQuarter * 4;
 
-		ProfileVert(const FVector2D& position,
-			PGCEdgeType followingEdgeType)
-			: Position(position), FollowingEdgeType(followingEdgeType){}
+		const float Width;					// width of roadbed
+		const float BarrierHeights[4];		// height of side-barriers: upper-right, lower-right, lower-left, upper-left
+		const float OverhangWidths[4];		// width of overhangs: upper-right, lower-right, lower-left, upper-left
+
+		//const PGCEdgeType FollowingEdgeType[24];
+		//const PGCEdgeType ExtrudedEdgeType[24];
+
+		static const bool UsesBarrierHeight[NumVerts];
+		static const bool UsesOverhangWidth[NumVerts];
+		static const bool IsXOuter[NumVerts];
+		static const bool IsYOuter[NumVerts];
+
+		ParameterisedProfile(float width, const TArray<float>& barriers, const TArray<float> overhangs)
+			: Width{ width }
+			, BarrierHeights{ barriers[0], barriers[1], barriers[2], barriers[3] }
+			, OverhangWidths{ overhangs[0], overhangs[1], overhangs[2], overhangs[3] }
+		{
+			CheckConsistent();
+		}
+
+		void CheckConsistent() const;
+
+		// "flipped" means rotated 180 around centre, which maps 0 -> 2 etc...
+		bool IsCompatible(const ParameterisedProfile& other, bool flipped) const {
+			// the only thing we cannot blend between is an overhang where there isn't even a barrier
+			for (int i = 0; i < 4; i++)
+			{
+				const auto other_idx = flipped ? i ^ 2 : i;
+
+				if (OverhangWidths[i] > 0 && other.BarrierHeights[other_idx] == 0)
+					return false;
+
+				if (BarrierHeights[i] == 0 && other.OverhangWidths[other_idx] > 0)
+					return false;
+			}
+
+			return true;
+		}
+
+		static int GetQuarterIdx(int idx)
+		{
+			return idx / VertsPerQuarter;
+		}
+
+		FVector2D GetPoint(int idx) const;
 	};
 
 	class ConnectorDef {
 	public:
-		using ProfileArray = TArray<ProfileVert>;
-
 		const int Id;
-		const ProfileArray& Profile;		// x is L->R across the width of the incoming edge
-											// y is D->U on it
-											// rotate clockwise when looking from outside the Node
+		const ParameterisedProfile& Profile;
 
 		// any identified type that reasonably casts to int
 		template <typename IdType>
-		ConnectorDef(IdType id, const ProfileArray& profile)
+		ConnectorDef(IdType id, const ParameterisedProfile& profile)
 			: Id(static_cast<int>(id)),
 			Profile(profile) {}
 		ConnectorDef() = delete;
@@ -52,7 +90,7 @@ namespace LayoutGraph {
 		const ConnectorDef& operator=(const ConnectorDef&) = delete;
 
 		FVector GetTransformedVert(int vert_idx, const FTransform& total_trans) const;
-		int NumVerts() const { return Profile.Num(); }
+		int NumVerts() const { return ParameterisedProfile::NumVerts; }
 	};
 
 	class ConnectorInst {

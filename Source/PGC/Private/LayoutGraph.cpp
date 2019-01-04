@@ -7,6 +7,36 @@
 
 namespace LayoutGraph {
 
+const bool ParameterisedProfile::UsesBarrierHeight[ParameterisedProfile::NumVerts]{
+	false, true, true, true, true, false,
+	false, true, true, true, true, false,
+	false, true, true, true, true, false,
+	false, true, true, true, true, false,
+};
+
+const bool ParameterisedProfile::UsesOverhangWidth[ParameterisedProfile::NumVerts]{
+	false, false, true, true, false, false,
+	false, false, true, true, false, false,
+	false, false, true, true, false, false,
+	false, false, true, true, false, false,
+};
+
+const bool ParameterisedProfile::IsXOuter[ParameterisedProfile::NumVerts]{
+	false, false, false, false, true, true,
+	true, true, false, false, false, false,
+	false, false, false, false, true, true,
+	true, true, false, false, false, false,
+};
+
+const bool ParameterisedProfile::IsYOuter[ParameterisedProfile::NumVerts]{
+	false, false, false, true, true, false,
+	false, true, true, false, false, false,
+	false, false, false, true, true, false,
+	false, true, true, false, false, false,
+};
+
+
+
 BackToBack::BackToBack(const ConnectorDef& def)
 	: Node({ MakeShared<ConnectorInst>(def, FVector{ 0, 0, 0 }, FVector{ 1, 0, 0 }, FVector{ 0, 0, 1 }),
 			 MakeShared<ConnectorInst>(def, FVector{ 0, 0, 0 }, FVector{ -1, 0, 0 }, FVector{ 0, 0, 1 }),},
@@ -81,9 +111,13 @@ void Node::AddToMesh(TSharedPtr<Mesh> mesh)
 		{
 			TArray<FVector> verts;
 	
-			for (int j = 0; j < Connectors[i]->Definition.Profile.Num(); j++)
+			for (int j = 0; j < Connectors[i]->Definition.NumVerts(); j++)
 			{
-				verts.Add(GetTransformedVert({i, j}));
+				FVector vert{ GetTransformedVert({i, j}) };
+
+				// skip any redundant verts due to parameterizations with zero lengths...
+				if (!verts.Num() || verts.Last() != vert)
+					verts.Add(vert);
 			}
 
 			Util::AddPolyToMesh(mesh, verts);
@@ -142,12 +176,61 @@ Edge::Edge(TWeakPtr<Node> fromNode, TWeakPtr<Node> toNode, TWeakPtr<ConnectorIns
 
 FVector ConnectorDef::GetTransformedVert(int vert_idx, const FTransform& total_trans) const
 {
+	const auto point = Profile.GetPoint(vert_idx);
+
 	// an untransformed connector faces down X and it upright w.r.t Z
 	// so its width (internal X) is mapped onto Y and its height (internal Y) onto Z
-	FVector temp{ 0.0f, Profile[vert_idx].Position.X, Profile[vert_idx].Position.Y };
+	FVector temp{ 0.0f, point.X, point.Y };
 
 	return total_trans.TransformPosition(temp);
 }
 
+void ParameterisedProfile::CheckConsistent() const {
+	check(Width > 0);
+
+	for (int i = 0; i < 4; i++)
+	{
+		// no -ve values
+		check(OverhangWidths[i] >= 0);
+		check(BarrierHeights[i] >= 0);
+
+		// cannot have an overhang unless the barrier is high enough
+		check(OverhangWidths[i] == 0 || BarrierHeights[i] >= 1);
+
+		const auto other_half_idx = i ^ 1;
+
+		// the overhangs do not collide
+		check(OverhangWidths[i] + OverhangWidths[other_half_idx] < Width || FMath::Abs(BarrierHeights[i] - BarrierHeights[other_half_idx]) >= 1);
+	}
+}
+
+FVector2D ParameterisedProfile::GetPoint(int idx) const {
+	const auto quarter = GetQuarterIdx(idx);
+
+	float x{ Width / 2 };
+	float y{ 0.5f };
+
+	if (UsesBarrierHeight[idx])
+		y += BarrierHeights[quarter];
+
+	if (IsXOuter[idx] && BarrierHeights[quarter] > 0)
+		x += 1;
+
+	if (UsesOverhangWidth[idx])
+		x -= OverhangWidths[quarter];
+
+	if (IsYOuter[idx] && OverhangWidths[quarter])
+		y += 1;
+
+	if (quarter > 1)
+		x = -x;
+
+	if (quarter == 1 || quarter == 2)
+		y = -y;
+
+	return FVector2D{ x, y };
+}
+
+}
+
 #pragma optimize ("", on)
- }

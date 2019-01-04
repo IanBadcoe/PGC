@@ -5,18 +5,19 @@
 using namespace LayoutGraph;
 using namespace StructuralGraph;
 
-const static ConnectorDef::ProfileArray StandardRoadbedProfileData
-{
-	ProfileVert { FVector2D { -2,  0.5 }, PGCEdgeType::Rounded },
-	ProfileVert { FVector2D {  2,  0.5 }, PGCEdgeType::Sharp   },
-	ProfileVert { FVector2D {  2, -0.5 }, PGCEdgeType::Rounded },
-	ProfileVert { FVector2D { -2, -0.5 }, PGCEdgeType::Sharp   },
-};
+const static ParameterisedProfile FullRoadbedProfile
+(
+	4.0f,
+	//{ 2.0f, 2.0f, 0.0f, 0.0f },
+	//{ 1.0f, 1.0f, 0.0f, 0.0f }
+	{1.0f, 2.0f, 4.0f, 1.0f},
+	{ 2.0f, 2.0f, 3.0f, 2.0f }
+);
 
 const ConnectorDef StandardRoadbed_CD
 {
 	TestConnectorTypes::StandardRoad,
-	StandardRoadbedProfileData
+	FullRoadbedProfile
 };
 
 const YJunction::ConnectorArray YJunction::ConnectorData
@@ -131,14 +132,14 @@ void TestGraph::Generate()
 	//Nodes.Add(MakeShared<YJunction>());
 	//Nodes.Add(MakeShared<YJunction>());
 
-	Nodes[1]->Position.SetLocation(FVector(0, -20, 10));
+	Nodes[1]->Position.SetLocation(FVector(0, -40, 20));
 	Nodes[1]->Position.SetRotation(FQuat(FVector(0, 0, 1), PI));
 	//Nodes[2]->Position.SetLocation(FVector(20, 0, 0));
 	//Nodes[3]->Position.SetLocation(FVector(0, 20, 10));
 
 	Connect(0, 0, 1, 0);
-	Connect(0, 1, 1, 2, 10, 1);
-	Connect(1, 1, 0, 2, 10, -2);
+	//Connect(0, 1, 1, 2, 10, 1);
+	//Connect(1, 1, 0, 2, 10, -2);
 	//Connect(0, 1, 2, 1, 10);
 	//Connect(0, 2, 3, 2, 10);
 	//Connect(2, 2, 1, 2, 10);
