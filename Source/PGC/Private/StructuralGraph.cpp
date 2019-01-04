@@ -109,8 +109,8 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 
 	const auto dist = FVector::Distance(in_pos, out_pos);
 
-	const auto in_dir = from_forward * dist /* / 3 */;		// dividing by 3 means if the two connectors are pointing at each other
-	const auto out_dir = -to_forward * dist /* / 3 */;		// then we divide the space evenly
+	const auto in_dir = from_forward * dist / 3;		// dividing by 3 means if the two connectors are pointing at each other
+	const auto out_dir = -to_forward * dist / 3;		// then we divide the space evenly
 
 	const auto from_up = from_c->Up;
 	const auto to_up = to_c->Up;
