@@ -352,7 +352,12 @@ class Mesh : public TSharedFromThis<Mesh>
 	void CleanUpRedundantVerts();
 
 	Idx<MeshFace> AddFaceFromRawVerts(const TArray<MeshVertRaw>& vertices, int UVGroup, const TArray<PGCEdgeType>& edge_types);
-	bool CancelExistingFace(const TArray<FVector>& vertices);
+
+	// the function of these was driven by the AddFace requirement of finding and canceling an existing face
+	// which is the reverse of these, so the arguments here take a face winding the opposite wat to the one we are removing
+	// if we need a "forwards" version of either of these it would be trivial to write...
+	bool CancelExistingReverseFace(const TArray<Idx<MeshVert>>& face);
+	bool CancelExistingReverseFaceFromVects(const TArray<FVector>& vertices);
 
 	Idx<MeshVertRaw> BakeVertex(const MeshVertRaw& mvr);
 	Idx<MeshVertRaw> FindBakedVert(const MeshVertRaw& mvr) const;

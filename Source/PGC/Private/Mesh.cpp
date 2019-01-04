@@ -678,25 +678,16 @@ Idx<MeshFace> Mesh::AddFaceFromRawVerts(const TArray<MeshVertRaw>& vertices, int
 	return AddFindFace(mf, edge_type_copy);
 }
 
-bool Mesh::CancelExistingFace(const TArray<FVector>& vertices)
+bool Mesh::CancelExistingReverseFace(const TArray<Idx<MeshVert>>& face)
 {
-	TArray<Idx<MeshVert>> vert_idxs;
-
-	for (auto vr : vertices)
-	{
-		vert_idxs.Push(AddVert(vr));
-	}
-
-	RegularizeVertIdxs(vert_idxs, nullptr);
-
 	// the reverse face has the same first vert and the other's reverse
 	// (the same as reversing the whole lot and then Regularizing again)
 
-	TArray<Idx<MeshVert>> reverse_face{ vert_idxs[0] };
+	TArray<Idx<MeshVert>> reverse_face{ face[0] };
 
-	for (int i = vert_idxs.Num() - 1; i >= 1; i--)
+	for (int i = face.Num() - 1; i >= 1; i--)
 	{
-		reverse_face.Push(vert_idxs[i]);
+		reverse_face.Push(face[i]);
 	}
 
 	// if we have the reverse face already, then we cancel it instead to connect the shapes
@@ -709,6 +700,20 @@ bool Mesh::CancelExistingFace(const TArray<FVector>& vertices)
 	}
 
 	return false;
+}
+
+bool Mesh::CancelExistingReverseFaceFromVects(const TArray<FVector>& vertices)
+{
+	TArray<Idx<MeshVert>> vert_idxs;
+
+	for (auto vr : vertices)
+	{
+		vert_idxs.Push(AddVert(vr));
+	}
+
+	RegularizeVertIdxs(vert_idxs, nullptr);
+
+	return CancelExistingReverseFace(vert_idxs);
 }
 
 Idx<MeshFace> Mesh::AddFaceFromVects(const TArray<FVector>& vertices,
@@ -956,6 +961,9 @@ void Mesh::RegularizeVertIdxs(TArray<Idx<MeshVert>>& vert_idxs, TArray<PGCEdgeTy
 
 Idx<MeshFace> Mesh::AddFindFace(MeshFace face, const TArray<PGCEdgeType>& edge_types)
 {
+	if (CancelExistingReverseFace(face.VertIdxs))
+		return Idx<MeshFace>::None;
+
 	auto face_idx = FindFaceByVertIdxs(face.VertIdxs);
 
 	if (face_idx != Idx<MeshFace>::None)
@@ -1209,23 +1217,10 @@ void Mesh::AddCube(const FPGCCube& cube)
 		{cube.EdgeTypes[(int)PGCEdgeId::TopRight], cube.EdgeTypes[(int)PGCEdgeId::TopFront],cube.EdgeTypes[(int)PGCEdgeId::TopLeft],cube.EdgeTypes[(int)PGCEdgeId::TopBack]},
 	};
 
-	TArray<bool> need_add;
-
-	// when adding a cube, if its face is the inverse of an existing face, then we delete that
-	// (and do not add this one, to make the cubes connect
-	for (const auto& f : faces)
-	{
-		need_add.Push(!CancelExistingFace(f));
-		CheckConsistent(false);
-	}
-
 	for (int i = 0; i < 6; i++)
 	{
-		if (need_add[i])
-		{
-			AddFaceFromVects(faces[i], uvs, NextUVGroup++, edge_types[i]);
-			CheckConsistent(false);
-		}
+		AddFaceFromVects(faces[i], uvs, NextUVGroup++, edge_types[i]);
+		CheckConsistent(false);
 	}
 
 	CheckConsistent(true);
