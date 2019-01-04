@@ -17,16 +17,11 @@ namespace LayoutGraph {
 		const TWeakPtr<ConnectorInst> FromConnector;
 		const TWeakPtr<ConnectorInst> ToConnector;
 
-		//float InSpeed;				// a measure of how straight we want to come out of the "from" connector
-		//float OutSpeed;				// a measure of how straight we want to go into the "to" connector
-
 		int Divs;					// how many points along the spline required for smoothness, swivels etc...
 		int Twists;					// how many +ve or -ve half-twists to make along the edge
 
 		Edge(TWeakPtr<Node> fromNode, TWeakPtr<Node> toNode,
 			TWeakPtr<ConnectorInst> fromConnector, TWeakPtr<ConnectorInst> toConnector);
-
-//		void AddToMesh(TSharedPtr<Mesh> mesh);
 	};
 
 	struct ProfileVert {

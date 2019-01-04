@@ -378,7 +378,7 @@ public:
 
 	// where existing edges are duplicated with incoming ones
 	// the result is a sharp edge if either edge is sharp
-	// (this is the poor, but only in the same way that building by cubes is poor in the first instance)
+	// (this is poor, but only in the same way that building by cubes is poor in the first instance)
 	void AddCube(const FPGCCube& cube);
 
 	Idx<MeshFace> AddFaceFromVects(const TArray<FVector>& vertices, const TArray<FVector2D>& uvs, int UVGroup, const TArray<PGCEdgeType>& edge_types);
