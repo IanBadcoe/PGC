@@ -961,6 +961,11 @@ void Mesh::RegularizeVertIdxs(TArray<Idx<MeshVert>>& vert_idxs, TArray<PGCEdgeTy
 
 Idx<MeshFace> Mesh::AddFindFace(MeshFace face, const TArray<PGCEdgeType>& edge_types)
 {
+	// enough verts?
+	check(face.VertIdxs.Num() > 2);
+	// all verts unique?
+	check(TSet<Idx<MeshVert>>{face.VertIdxs}.Num() == face.VertIdxs.Num());
+
 	if (CancelExistingReverseFace(face.VertIdxs))
 		return Idx<MeshFace>::None;
 
@@ -997,6 +1002,56 @@ Idx<MeshFace> Mesh::AddFindFace(MeshFace face, const TArray<PGCEdgeType>& edge_t
 	Faces.Push(face);
 
 	return Faces.LastIdx();
+}
+
+TSharedPtr<Mesh> Mesh::Triangularise()
+{
+	check(Clean);
+
+	auto ret = MakeShared<Mesh>();
+
+	for (const auto& f : Faces)
+	{
+		check(f.VertIdxs.Num() > 2);
+
+		MeshVertRaw fv;
+
+		for (auto v : f.VertIdxs)
+		{
+			fv += Vertices[v].ToMeshVertRaw(f.UVGroup);
+		}
+
+		fv = fv / f.VertIdxs.Num();
+
+		auto prev_vert = f.VertIdxs.Last();
+
+		for (auto v : f.VertIdxs)
+		{
+			check(prev_vert != v);
+
+			const MeshVertRaw& from = Vertices[prev_vert].ToMeshVertRaw(f.UVGroup);
+			const MeshVertRaw& to = Vertices[v].ToMeshVertRaw(f.UVGroup);
+
+			check(!(from == to));
+			check(!(from == fv));
+			check(!(to == fv));
+
+			const auto& edge_idx = FindEdge(prev_vert, v, false);
+
+			check(edge_idx.Valid());
+
+			ret->AddFaceFromRawVerts({ from, to, fv },
+				f.UVGroup,
+				{ Edges[edge_idx].Type, PGCEdgeType::Rounded, PGCEdgeType::Rounded });
+
+			prev_vert = v;
+		}
+	}
+
+	// we could check for closure if we knew the input was also closed...
+	ret->CheckConsistent(false);
+
+	return ret;
 }
 
 TSharedPtr<Mesh> Mesh::Subdivide()

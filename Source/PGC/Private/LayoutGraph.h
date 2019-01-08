@@ -28,6 +28,24 @@ namespace LayoutGraph {
 		static constexpr int VertsPerQuarter = 6;
 		static constexpr int NumVerts = VertsPerQuarter * 4;
 
+		//   3----4
+		//   |    |
+		//   2-1  |
+		//     |  |
+		//  ---0  |
+		//		  |
+		//		  |
+		//		  5
+
+		enum class VertTypes {
+			RoadbedInner = 0,
+			BarrierTopInner = 1,
+			OverhangEndInner = 2,
+			OverhangEndOuter = 3,
+			BarrierTopOuter = 4,
+			RoadbedOuter = 5
+		};
+
 		const float Width;					// width of roadbed
 		const float BarrierHeights[4];		// height of side-barriers: upper-right, lower-right, lower-left, upper-left
 		const float OverhangWidths[4];		// width of overhangs: upper-right, lower-right, lower-left, upper-left
@@ -50,12 +68,12 @@ namespace LayoutGraph {
 
 		void CheckConsistent() const;
 
-		// "flipped" means rotated 180 around centre, which maps 0 -> 2 etc...
-		bool IsCompatible(const ParameterisedProfile& other, bool flipped) const {
+		// "rolled" means rotated in-plane 180 around centre, which maps quarter 0 -> 2 etc...
+		bool IsCompatible(const ParameterisedProfile& other, bool rolled) const {
 			// the only thing we cannot blend between is an overhang where there isn't even a barrier
 			for (int i = 0; i < 4; i++)
 			{
-				const auto other_idx = flipped ? i ^ 2 : i;
+				const auto other_idx = rolled ? i ^ 2 : i;
 
 				if (OverhangWidths[i] > 0 && other.BarrierHeights[other_idx] == 0)
 					return false;
@@ -73,6 +91,9 @@ namespace LayoutGraph {
 		}
 
 		FVector2D GetPoint(int idx) const;
+
+		FVector GetTransformedVert(int vert_idx, const FTransform& total_trans) const;
+		FVector GetTransformedVert(VertTypes type, int quarter_idx, const FTransform& total_trans) const;
 	};
 
 	class ConnectorDef {
@@ -89,7 +110,7 @@ namespace LayoutGraph {
 		ConnectorDef(const ConnectorDef&) = delete;
 		const ConnectorDef& operator=(const ConnectorDef&) = delete;
 
-		FVector GetTransformedVert(int vert_idx, const FTransform& total_trans) const;
+//		FVector GetTransformedVert(int vert_idx, const FTransform& total_trans) const;
 		int NumVerts() const { return ParameterisedProfile::NumVerts; }
 	};
 
@@ -100,8 +121,6 @@ namespace LayoutGraph {
 		FTransform Transform;
 
 		ConnectorInst(const ConnectorDef& definition, const FVector& pos, const FVector& normal, const FVector& up);
-
-		FVector GetTransformedVert(int vert_idx, const FTransform& trans) const;
 	};
 
 	class Polygon {
@@ -149,10 +168,6 @@ namespace LayoutGraph {
 		Node(const Node&) = delete;
 		const Node& operator=(const Node&) = delete;
 		virtual ~Node() = default;
-
-		// still in use temporarily until I do node meshing properly in StructuralGraph
-		void AddToMesh(TSharedPtr<Mesh> mesh);
-		FVector GetTransformedVert(const Polygon::Idx& idx) const;
 
 		virtual Node* FactoryMethod() const = 0;
 

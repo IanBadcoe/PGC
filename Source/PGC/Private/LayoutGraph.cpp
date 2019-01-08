@@ -90,53 +90,6 @@ int Graph::FindNodeIdx(const TSharedPtr<Node>& node) const
 	return -1;
 }
 
-void Node::AddToMesh(TSharedPtr<Mesh> mesh)
-{
-	for (const auto& pol : Polygons)
-	{
-		TArray<FVector> verts;
-
-		for (const auto& idx : pol.VertexIndices)
-		{
-			verts.Add(GetTransformedVert(idx));
-		}
-
-		Util::AddPolyToMesh(mesh, verts);
-	}
-
-	// fill-in any connectors that aren't connected
-	for (int i = 0; i < Connectors.Num(); i++)
-	{
-		if (!Edges[i].IsValid())
-		{
-			TArray<FVector> verts;
-	
-			for (int j = 0; j < Connectors[i]->Definition.NumVerts(); j++)
-			{
-				FVector vert{ GetTransformedVert({i, j}) };
-
-				// skip any redundant verts due to parameterizations with zero lengths...
-				if (!verts.Num() || verts.Last() != vert)
-					verts.Add(vert);
-			}
-
-			Util::AddPolyToMesh(mesh, verts);
-		}
-	}
-}
-
-FVector Node::GetTransformedVert(const Polygon::Idx& idx) const
-{
-	if (idx.Connector == -1)
-	{
-		return Position.TransformPosition(Vertices[idx.Vertex]);
-	}
-	else
-	{
-		return Connectors[idx.Connector]->GetTransformedVert(idx.Vertex, Position);
-	}
-}
-
 int Node::FindConnectorIdx(const TSharedPtr<ConnectorInst>& conn) const
 {
 	for (int i = 0; i < Connectors.Num(); i++)
@@ -160,29 +113,11 @@ inline ConnectorInst::ConnectorInst(const ConnectorDef& definition,
 	Transform = FTransform(normal, right, up, pos);
 }
 
-FVector ConnectorInst::GetTransformedVert(int vert_idx, const FTransform& node_trans) const
-{
-	FTransform tot_trans = Transform * node_trans;
-
-	return Definition.GetTransformedVert(vert_idx, tot_trans);
-}
-
 Edge::Edge(TWeakPtr<Node> fromNode, TWeakPtr<Node> toNode, TWeakPtr<ConnectorInst> fromConnector, TWeakPtr<ConnectorInst> toConnector)
 	: FromNode(fromNode), ToNode(toNode),
 	FromConnector(fromConnector), ToConnector(toConnector) {
 	check(FromNode.Pin()->FindConnectorIdx(FromConnector.Pin()) != -1);
 	check(ToNode.Pin()->FindConnectorIdx(ToConnector.Pin()) != -1);
-}
-
-FVector ConnectorDef::GetTransformedVert(int vert_idx, const FTransform& total_trans) const
-{
-	const auto point = Profile.GetPoint(vert_idx);
-
-	// an untransformed connector faces down X and it upright w.r.t Z
-	// so its width (internal X) is mapped onto Y and its height (internal Y) onto Z
-	FVector temp{ 0.0f, point.X, point.Y };
-
-	return total_trans.TransformPosition(temp);
 }
 
 void ParameterisedProfile::CheckConsistent() const {
@@ -229,6 +164,33 @@ FVector2D ParameterisedProfile::GetPoint(int idx) const {
 		y = -y;
 
 	return FVector2D{ x, y };
+}
+
+FVector ParameterisedProfile::GetTransformedVert(int vert_idx, const FTransform & trans) const
+{
+	const auto point = GetPoint(vert_idx);
+
+	// an untransformed connector faces down X and it upright w.r.t Z
+	// so its width (internal X) is mapped onto Y and its height (internal Y) onto Z
+	FVector temp{ 0.0f, point.X, point.Y };
+
+	return trans.TransformPosition(temp);
+}
+
+FVector ParameterisedProfile::GetTransformedVert(VertTypes type, int quarter_idx, const FTransform & trans) const
+{
+	int idx = quarter_idx * VertsPerQuarter;
+
+	if (quarter_idx & 1)
+	{
+		idx = idx + 5 - (int)type;
+	}
+	else
+	{
+		idx = idx + (int)type;
+	}
+
+	return GetTransformedVert(idx, trans);
 }
 
 }

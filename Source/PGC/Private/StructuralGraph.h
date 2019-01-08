@@ -19,9 +19,9 @@ namespace StructuralGraph {
 		const TWeakPtr<SNode> ToNode;
 
 		const double D0;
-		const bool Flipping;
+		const bool Rolling;
 
-		SEdge(TWeakPtr<SNode> fromNode, TWeakPtr<SNode> toNode, double d0, bool flipping);
+		SEdge(TWeakPtr<SNode> fromNode, TWeakPtr<SNode> toNode, double d0, bool rolling);
 	};
 
 	class SNode {
@@ -32,12 +32,15 @@ namespace StructuralGraph {
 		FVector Up;
 		FVector Forwards;
 
-		int Idx;
+		const int Idx;
 
-		TSharedPtr<LayoutGraph::Node> LayoutNode;
-		const LayoutGraph::ConnectorDef* Profile;
+		const LayoutGraph::ParameterisedProfile* Profile;
 
-		SNode(int idx, const LayoutGraph::ConnectorDef* profile) : Idx(idx), Profile(profile) {}
+		mutable FTransform CachedTransform;
+		mutable bool Flipped;
+		mutable bool Rolled;
+
+		SNode(int idx, const LayoutGraph::ParameterisedProfile* profile) : Idx(idx), Profile(profile), Flipped(false), Rolled(false) {}
 
 		SNode(const SNode&) = delete;
 		const SNode& operator=(const SNode&) = delete;
@@ -45,17 +48,10 @@ namespace StructuralGraph {
 
 		void SetPosition(const FVector& pos, const FVector& up) { Position = pos; Up = up; }
 
-		void AddToMesh(TSharedPtr<Mesh> mesh) {
-			if (LayoutNode.IsValid())
-			{
-				LayoutNode->AddToMesh(mesh);
-			}
-		}
+		void AddToMesh(TSharedPtr<Mesh> mesh);
 	};
 
 	class SGraph {
-		mutable TMap<const SNode*, FTransform> CachedTransforms;
-
 		void RefreshTransforms() const;
 
 	public:
@@ -67,7 +63,7 @@ namespace StructuralGraph {
 		void ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode> from_c,
 			const TSharedPtr<SNode> to_n, TSharedPtr<SNode> to_c,
 			int divs, int twists,
-			float D0, const LayoutGraph::ConnectorDef* profile);
+			float D0, const LayoutGraph::ParameterisedProfile* profile);
 
 		int FindNodeIdx(const TSharedPtr<SNode>& node) const;
 

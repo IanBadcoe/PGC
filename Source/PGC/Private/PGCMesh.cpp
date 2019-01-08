@@ -34,9 +34,18 @@ void UPGCMesh::TickComponent(float DeltaTime, ELevelTick TickType, FActorCompone
 
 FPGCMeshResult UPGCMesh::Generate(int NumDivisions, bool InsideOut)
 {
-	NumDivisions = 0; /// DEBUGGING! <<<
-
-	auto divided_mesh = InitialMesh->SubdivideN(NumDivisions);
+	TSharedPtr<Mesh> divided_mesh;
+	
+	if (NumDivisions > 0)
+	{
+		divided_mesh = InitialMesh->SubdivideN(NumDivisions);
+	}
+	else
+	{
+		// can have some seriously non-planar faces without subdivision,
+		// this splits them around a central point, rather than fan from an random edge vertex
+		divided_mesh = InitialMesh->Triangularise();
+	}
 
 	FPGCMeshResult ret;
 

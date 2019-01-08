@@ -14,7 +14,6 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 		new_node->Position = n->Position.GetLocation();
 		new_node->Up = n->Position.GetUnitAxis(EAxis::Z);
 		new_node->Forwards = n->Position.GetUnitAxis(EAxis::X);
-		new_node->LayoutNode = n;					// nodes directly from the input note their input node so they can make the right mesh for it
 		Nodes.Add(new_node);
 	}
 
@@ -28,7 +27,7 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 		// these will be the same edge indices in new_node as the connectors in n
 		for (const auto& conn : n->Connectors)
 		{
-			auto conn_node = MakeShared<SNode>(Nodes.Num(), &conn->Definition);
+			auto conn_node = MakeShared<SNode>(Nodes.Num(), &conn->Definition.Profile);
 
 			auto tot_trans = conn->Transform * n->Position;
 
@@ -76,12 +75,10 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 
 void SGraph::RefreshTransforms() const
 {
-	// first node is defined as having a unit transform
-	CachedTransforms.Add(Nodes[0].Get()) = FTransform::Identity;
-
 	for(const auto& n : Nodes)
 	{
-		CachedTransforms.Add(n.Get()) = Util::MakeTransform(n->Position, n->Up, n->Forwards);
+		n->CachedTransform = Util::MakeTransform(n->Position, n->Up, n->Forwards);
+		n->Flipped = false;
 	}
 }
 
@@ -96,8 +93,16 @@ void SGraph::Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, dou
 
 void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode> from_c, const TSharedPtr<SNode> to_n, TSharedPtr<SNode> to_c,
 	int divs, int twists, 
-	float D0, const LayoutGraph::ConnectorDef* profile)
+	float D0, const LayoutGraph::ParameterisedProfile* profile)
 {
+	// in order to divide an edge once we need three "frames"
+	// the start node
+	// the division
+	// the end node
+	// adding one to give us an interpolation range of 0 -> divs + 1
+	// which for one div means start @ 0, div @ 1, end @ 2 etc
+	divs += 1;
+
 	auto from_forward = from_c->Position - from_n->Position;
 	auto to_forward = to_c->Position - to_n->Position;
 
@@ -125,6 +130,9 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 
 	TArray<Frame> frames;
 
+	// we're not going to use frames.Last() (it corresponds to to_c)
+	// we just use it to calculate, correct and check up-drift...
+
 	for (auto i = 0; i <= divs; i++) {
 		float t = (float)i / divs;
 
@@ -145,17 +153,11 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 		frames.Add({pos, current_up, forward});
 	}
 
-	auto angle_mismatch = FMath::Acos(FVector::DotProduct(current_up, to_up));
-
-	auto sign_check = FVector::CrossProduct(current_up, to_up);
-
-	// forward and this plane would be facing different ways
-	if (FVector::DotProduct(sign_check, to_forward) > 0)
-	{
-		angle_mismatch = -angle_mismatch;
-	}
+	auto angle_mismatch = Util::SignedAngle(to_up, frames.Last().up, frames.Last().forwards);
 
 	angle_mismatch += twists * PI;
+
+	FVector temp;
 
 	//// take this one further than required, so we can assert we arrived the right way up
 	for (auto i = 0; i <= divs; i++) {
@@ -168,16 +170,18 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 		forward.Normalize();
 
 		frames[i].up = FTransform(FQuat(forward, angle_correct)).TransformVector(frames[i].up);
+
+		temp = FTransform(FQuat(forward, -angle_correct)).TransformVector(frames[i].up);
 	}
 
 	auto check_up = frames.Last().up;
 
-	auto angle_check = FVector::DotProduct(check_up, to_up);
+	auto angle_check = FVector::DotProduct(frames.Last().up, to_up);
 
-	bool flipping = (twists & 1) != 0;
+	bool rolling = (twists & 1) != 0;
 
 	// we expect to come out either 100% up or 100% down, according to whether we have an odd number of half-twists or not
-	if (flipping)
+	if (rolling)
 	{
 		check(angle_check < -0.99f);
 	}
@@ -190,31 +194,26 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 
 	// i = 0 is the from-connector
 	// i = divs is the to-connector
-	for (auto i = 1; i <= divs; i++) {
+	for (auto i = 1; i < divs; i++) {
 		float t = (float)i / divs;
 
 		TSharedPtr<SNode> next_node;
 		
-		if (i < divs)
-		{
-			next_node = MakeShared<SNode>(Nodes.Num(), profile);
-			next_node->Position = frames[i].pos;
-			next_node->Up = frames[i].up;
-			next_node->Forwards = frames[i].forwards;
+		next_node = MakeShared<SNode>(Nodes.Num(), profile);
+		next_node->Position = frames[i].pos;
+		next_node->Up = frames[i].up;
+		next_node->Forwards = frames[i].forwards;
 
-			Nodes.Add(next_node);
-		}
-		else
-		{
-			next_node = to_c;
-		}
+		Nodes.Add(next_node);
 
 		// the last connection needs to rotate the mapping onto the target connector 180 degrees if we've
 		// accumulated a half-twist along the connection
-		Connect(curr_node, next_node, D0, flipping && i == divs);
+		Connect(curr_node, next_node, D0, false);
 		
 		curr_node = next_node;
 	}
+
+	Connect(curr_node, to_c, D0, rolling);
 }
 
 int SGraph::FindNodeIdx(const TSharedPtr<SNode>& node) const
@@ -236,11 +235,6 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh)
 
 	RefreshTransforms();
 
-	//for (const auto& node : Nodes)
-	//{
-	//	node->AddToMesh(mesh);
-	//}
-
 	for (const auto& e : Edges)
 	{
 		auto from_n = e->FromNode.Pin();
@@ -251,8 +245,8 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh)
 			TArray<FVector> verts_to;
 			TArray<FVector> verts_from;
 
-			auto to_trans = CachedTransforms[to_n.Get()];
-			const auto from_trans = CachedTransforms[from_n.Get()];
+			auto to_trans = to_n->CachedTransform;
+			const auto from_trans = from_n->CachedTransform;
 
 			// if the two forward vectors are not within 180 degrees, because the
 			// dest profile will be the wrong way around (not doing this will cause the connection to "bottle neck" and
@@ -263,49 +257,59 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh)
 			if (FVector::DotProduct(to_forwards, from_forwards) < 0)
 			{
 				to_trans = FTransform(FRotator(0, 180, 0)) * to_trans;
+				// so that the node construction can know we did this...
+				to_n->Flipped = true;
 			}
 
-			int to_vert_offset = 0;
-			if (e->Flipping)
+			if (e->Rolling)
 			{
-				// if we have a half-twist in the overall sequence of edges, then we need to allow for that when connecting the last set of polys
-				// for the moment assuming only 1/2 twists, but square or triangular profiles could make use of 1/3 or 1/4 twists,
-				// so if we upgrade to that may want to replace "Flipping" with a "NumberOfPartTurns" which is between 0 and N-1, when N
-				// if the order of symmetry in the connector
-				check(to_n->Profile->NumVerts() % 2 == 0);
+				// if we have a half-twist in the overall sequence of edges, we need to apply the same thing here
+				// as the profile need not be symmetrical
+				to_trans = FTransform(FRotator(0, 0, 180)) * to_trans;
 
-				to_vert_offset = to_n->Profile->NumVerts() / 2;
+				to_n->Rolled = true;
 			}
 
-			for (int i = 0; i < to_n->Profile->NumVerts(); i++)
+			// so that node meshing can use it without re-rotating
+			to_n->CachedTransform = to_trans;
+
+			for (int i = 0; i < to_n->Profile->NumVerts; i++)
 			{
-				verts_to.Add(to_n->Profile->GetTransformedVert((i + to_vert_offset) % to_n->Profile->NumVerts(), to_trans) /* + to_forwards * 0.01f */);
-				verts_from.Add(from_n->Profile->GetTransformedVert(i, from_trans) /* - from_forwards * 0.01f */);
+				verts_to.Add(to_n->Profile->GetTransformedVert(i, to_trans));
+				verts_from.Add(from_n->Profile->GetTransformedVert(i, from_trans));
 			}
 
-			int prev_vert = to_n->Profile->NumVerts() - 1;
+			int prev_vert = to_n->Profile->NumVerts - 1;
 
-			//Util::AddPolyToMesh(mesh, verts_from);
-			//Util::AddPolyToMesh(mesh, verts_to);
-
-			for (int i = 0; i < to_n->Profile->NumVerts(); i++)
+			for (int i = 0; i < to_n->Profile->NumVerts; i++)
 			{
 				TArray<FVector> poly{ verts_from[i], verts_from[prev_vert], verts_to[prev_vert], verts_to[i] };
 
-				TSet<FVector> test{ poly };
-
 				// skip redundant faces generated by zero lengths in profile parameterization
-				if (test.Num() > 2)
-					Util::AddPolyToMesh(mesh, poly);
+				// INSIDE AddPolyToMesh
+				Util::AddPolyToMesh(mesh, poly);
 
 				prev_vert = i;
 			}
 		}
 	}
+
+	for (const auto& node : Nodes)
+	{
+		// may need better control of this, currently complex junction nodes have no profile (due to potentially having more than two connections)
+		// junction nodes have one adjoining node for each connection, and each connection has (if present) a chain of nodes leading off from the other side
+		// so Edges (below) are meshed using the profile from either end
+		//
+		// the central node in a junction gets meshed to fill the rest in, and that is the one with no profile...
+		if (!node->Profile)
+		{
+			node->AddToMesh(mesh);
+		}
+	}
 }
 
-SEdge::SEdge(TWeakPtr<SNode> fromNode, TWeakPtr<SNode> toNode, double d0, bool flipping)
-	: FromNode(fromNode), ToNode(toNode), D0(d0), Flipping(flipping) {
+SEdge::SEdge(TWeakPtr<SNode> fromNode, TWeakPtr<SNode> toNode, double d0, bool rolling)
+	: FromNode(fromNode), ToNode(toNode), D0(d0), Rolling(rolling) {
 }
 
 //double OptFunction::CalcGrad(const double* x, int n) const
@@ -536,6 +540,175 @@ void OptFunction::SetState(const double* x, int n)
 	ApplyParams(x, n);
 }
 
-#pragma optimize ("", on)
+// connects the same edge between two connectors around a node
+// does this twice, once on the top and once on the bottom
+static void C2CFacePair(TSharedPtr<Mesh>& mesh,
+	const LayoutGraph::ParameterisedProfile* from_profile, const LayoutGraph::ParameterisedProfile* to_profile,
+	const int from_quarters_map[4], const int to_quarters_map[4],
+	const FTransform& from_trans, const FTransform& to_trans,
+	LayoutGraph::ParameterisedProfile::VertTypes first_vert, LayoutGraph::ParameterisedProfile::VertTypes second_vert)
+{
+	{
+		TArray<FVector> verts;
+
+		verts.Push(to_profile->GetTransformedVert(first_vert, to_quarters_map[3], to_trans));
+		verts.Push(from_profile->GetTransformedVert(first_vert, from_quarters_map[0], from_trans));
+		verts.Push(from_profile->GetTransformedVert(second_vert, from_quarters_map[0], from_trans));
+		verts.Push(to_profile->GetTransformedVert(second_vert, to_quarters_map[3], to_trans));
+
+		Util::AddPolyToMesh(mesh, verts);
+	}
+
+	{
+		TArray<FVector> verts;
+
+		verts.Push(to_profile->GetTransformedVert(second_vert, to_quarters_map[2], to_trans));
+		verts.Push(from_profile->GetTransformedVert(second_vert, from_quarters_map[1], from_trans));
+		verts.Push(from_profile->GetTransformedVert(first_vert, from_quarters_map[1], from_trans));
+		verts.Push(to_profile->GetTransformedVert(first_vert, to_quarters_map[2], to_trans));
+
+		Util::AddPolyToMesh(mesh, verts);
+	}
+}
+
+inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) {
+	// unused nodes disappear for the moment...
+	if (Edges.Num() == 0)
+		return;
+
+	// order connectors by angle around up vector
+
+	struct OrdCon {
+		TSharedPtr<SNode> ConNode;
+		float Angle;
+		FVector Axis;
+
+		int QuartersMap[4]{ 0, 1, 2, 3 };		// if the connector is Flipped and/or Rolled its quarters change relative location
+	};
+
+	TArray<OrdCon> connectors;
+
+	{
+		OrdCon oe;
+		oe.ConNode = Edges[0].Pin()->ToNode.Pin();
+		oe.Angle = 0;
+		oe.Axis = (oe.ConNode->Position - Position).GetSafeNormal();
+
+		connectors.Push(oe);
+	}
+
+	for (int i = 1; i < Edges.Num(); i++)
+	{
+		OrdCon oc;
+		oc.ConNode = Edges[i].Pin()->ToNode.Pin();
+		oc.Axis = (oc.ConNode->Position - Position).GetSafeNormal();
+		oc.Angle = Util::SignedAngle(connectors[0].Axis, oc.Axis, Up);
+
+		if (oc.Angle < 0) oc.Angle += PI * 2;
+
+		bool found = false;
+
+		for(int j = 0; j < connectors.Num(); j++)
+		{
+			if (connectors[j].Angle > oc.Angle)
+			{
+				connectors.Insert(oc, j);
+				found = true;
+
+				break;
+			}
+		}
+
+		if (!found)
+		{
+			connectors.Push(oc);
+		}
+	}
+
+	for (auto& oc : connectors)
+	{
+		if (oc.ConNode->Flipped)
+		{
+			Swap(oc.QuartersMap[0], oc.QuartersMap[3]);
+			Swap(oc.QuartersMap[1], oc.QuartersMap[2]);
+		}
+
+		if (oc.ConNode->Rolled)
+		{
+			Swap(oc.QuartersMap[0], oc.QuartersMap[2]);
+			Swap(oc.QuartersMap[1], oc.QuartersMap[3]);
+		}
+	}
+
+	{
+		// roadbed surface
+		TArray<FVector> verts_top;
+		TArray<FVector> verts_bot;
+
+		for (const auto& oc : connectors)
+		{
+			verts_top.Push(oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::RoadbedInner, oc.QuartersMap[3], oc.ConNode->CachedTransform));
+			verts_top.Push(oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::RoadbedInner, oc.QuartersMap[0], oc.ConNode->CachedTransform));
+
+			verts_bot.Push(oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::RoadbedInner, oc.QuartersMap[2], oc.ConNode->CachedTransform));
+			verts_bot.Push(oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::RoadbedInner, oc.QuartersMap[1], oc.ConNode->CachedTransform));
+		}
+
+		Util::AddPolyToMesh(mesh, verts_top);
+		Util::AddPolyToMeshReversed(mesh, verts_bot);
+	}
+
+	{
+		// faces between connectors around the outside
+		auto prev_oc = connectors.Last();
+
+		for (const auto& oc : connectors)
+		{
+			{
+				TArray<FVector> verts;
+
+				verts.Push(oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::BarrierTopOuter, oc.QuartersMap[3], oc.ConNode->CachedTransform));
+				verts.Push(prev_oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::BarrierTopOuter, prev_oc.QuartersMap[0], prev_oc.ConNode->CachedTransform));
+				verts.Push(prev_oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::RoadbedOuter, prev_oc.QuartersMap[0], prev_oc.ConNode->CachedTransform));
+				verts.Push(prev_oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::RoadbedOuter, prev_oc.QuartersMap[1], prev_oc.ConNode->CachedTransform));
+				verts.Push(prev_oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::BarrierTopOuter, prev_oc.QuartersMap[1], prev_oc.ConNode->CachedTransform));
+				verts.Push(oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::BarrierTopOuter, oc.QuartersMap[2], oc.ConNode->CachedTransform));
+				verts.Push(oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::RoadbedOuter, oc.QuartersMap[2], oc.ConNode->CachedTransform));
+				verts.Push(oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::RoadbedOuter, oc.QuartersMap[3], oc.ConNode->CachedTransform));
+
+				Util::AddPolyToMesh(mesh, verts);
+			}
+
+			C2CFacePair(mesh,
+				prev_oc.ConNode->Profile, oc.ConNode->Profile,
+				prev_oc.QuartersMap, oc.QuartersMap,
+				prev_oc.ConNode->CachedTransform, oc.ConNode->CachedTransform,
+				LayoutGraph::ParameterisedProfile::VertTypes::OverhangEndOuter, LayoutGraph::ParameterisedProfile::VertTypes::BarrierTopOuter);
+
+			C2CFacePair(mesh,
+				prev_oc.ConNode->Profile, oc.ConNode->Profile,
+				prev_oc.QuartersMap, oc.QuartersMap,
+				prev_oc.ConNode->CachedTransform, oc.ConNode->CachedTransform,
+				LayoutGraph::ParameterisedProfile::VertTypes::OverhangEndInner, LayoutGraph::ParameterisedProfile::VertTypes::OverhangEndOuter);
+
+			C2CFacePair(mesh,
+				prev_oc.ConNode->Profile, oc.ConNode->Profile,
+				prev_oc.QuartersMap, oc.QuartersMap,
+				prev_oc.ConNode->CachedTransform, oc.ConNode->CachedTransform,
+				LayoutGraph::ParameterisedProfile::VertTypes::BarrierTopInner, LayoutGraph::ParameterisedProfile::VertTypes::OverhangEndInner);
+
+			C2CFacePair(mesh,
+				prev_oc.ConNode->Profile, oc.ConNode->Profile,
+				prev_oc.QuartersMap, oc.QuartersMap,
+				prev_oc.ConNode->CachedTransform, oc.ConNode->CachedTransform,
+				LayoutGraph::ParameterisedProfile::VertTypes::RoadbedInner, LayoutGraph::ParameterisedProfile::VertTypes::BarrierTopInner);
+
+			prev_oc = oc;
+		}
+	}
+}
 
 }
+
+#pragma optimize ("", on)
+

@@ -111,9 +111,9 @@ struct MeshVertRaw {
 		return MeshVertRaw{ Pos / rhs, UV / rhs };
 	}
 
-	//bool operator==(const MeshVertRaw& rhs) const {
-	//	return Pos == rhs.Pos && UV == rhs.UV;
-	//}
+	bool operator==(const MeshVertRaw& rhs) const {
+		return Pos == rhs.Pos && UV == rhs.UV;
+	}
 
 	bool ToleranceCompare(const MeshVertRaw& other, float tolerance) const;
 
@@ -376,6 +376,10 @@ class Mesh : public TSharedFromThis<Mesh>
 public:	
 	// Sets default values for this actor's properties
 	Mesh() {}
+
+	// if we are viewing a starting mesh, some faces can be very non-planar, and the arbitrary meshing of Bake isn't easy to look at
+	// so can do a pass of this, but on a divided mesh all faces should be smaller and flatter and that not matter...
+	TSharedPtr<Mesh> Triangularise();
 
 	TSharedPtr<Mesh> Subdivide();
 
