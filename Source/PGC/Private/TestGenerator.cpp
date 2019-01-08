@@ -15,7 +15,7 @@ const static ParameterisedProfile FullRoadbedProfile
 const ConnectorDef StandardRoadbed_CD
 {
 	TestConnectorTypes::StandardRoad,
-	FullRoadbedProfile
+	MakeShared<LayoutGraph::ParameterisedProfile>(FullRoadbedProfile)
 };
 
 const YJunction::ConnectorArray YJunction::ConnectorData

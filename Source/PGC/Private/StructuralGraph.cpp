@@ -27,7 +27,7 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 		// these will be the same edge indices in new_node as the connectors in n
 		for (const auto& conn : n->Connectors)
 		{
-			auto conn_node = MakeShared<SNode>(Nodes.Num(), &conn->Definition.Profile);
+			auto conn_node = MakeShared<SNode>(Nodes.Num(), conn->Definition.Profile);
 
 			auto tot_trans = conn->Transform * n->Position;
 
@@ -93,7 +93,7 @@ void SGraph::Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, dou
 
 void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode> from_c, const TSharedPtr<SNode> to_n, TSharedPtr<SNode> to_c,
 	int divs, int twists, 
-	float D0, const LayoutGraph::ParameterisedProfile* profile)
+	float D0, const TSharedPtr<LayoutGraph::ParameterisedProfile> profile)
 {
 	// in order to divide an edge once we need three "frames"
 	// the start node
@@ -543,7 +543,7 @@ void OptFunction::SetState(const double* x, int n)
 // connects the same edge between two connectors around a node
 // does this twice, once on the top and once on the bottom
 static void C2CFacePair(TSharedPtr<Mesh>& mesh,
-	const LayoutGraph::ParameterisedProfile* from_profile, const LayoutGraph::ParameterisedProfile* to_profile,
+	const TSharedPtr<LayoutGraph::ParameterisedProfile> from_profile, const TSharedPtr<LayoutGraph::ParameterisedProfile> to_profile,
 	const int from_quarters_map[4], const int to_quarters_map[4],
 	const FTransform& from_trans, const FTransform& to_trans,
 	LayoutGraph::ParameterisedProfile::VertTypes first_vert, LayoutGraph::ParameterisedProfile::VertTypes second_vert)

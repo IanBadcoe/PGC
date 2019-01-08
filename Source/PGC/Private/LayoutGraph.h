@@ -98,13 +98,13 @@ namespace LayoutGraph {
 
 	class ConnectorDef {
 	public:
-		const int Id;
-		const ParameterisedProfile& Profile;
+		const int Id2;
+		const TSharedPtr<ParameterisedProfile> Profile;
 
 		// any identified type that reasonably casts to int
 		template <typename IdType>
-		ConnectorDef(IdType id, const ParameterisedProfile& profile)
-			: Id(static_cast<int>(id)),
+		ConnectorDef(IdType id, const TSharedPtr<ParameterisedProfile>& profile)
+			: Id2(static_cast<int>(id)),
 			Profile(profile) {}
 		ConnectorDef() = delete;
 		ConnectorDef(const ConnectorDef&) = delete;

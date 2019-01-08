@@ -34,13 +34,13 @@ namespace StructuralGraph {
 
 		const int Idx;
 
-		const LayoutGraph::ParameterisedProfile* Profile;
+		const TSharedPtr<LayoutGraph::ParameterisedProfile> Profile;
 
 		mutable FTransform CachedTransform;
 		mutable bool Flipped;
 		mutable bool Rolled;
 
-		SNode(int idx, const LayoutGraph::ParameterisedProfile* profile) : Idx(idx), Profile(profile), Flipped(false), Rolled(false) {}
+		SNode(int idx, const TSharedPtr<LayoutGraph::ParameterisedProfile> profile) : Idx(idx), Profile(profile), Flipped(false), Rolled(false) {}
 
 		SNode(const SNode&) = delete;
 		const SNode& operator=(const SNode&) = delete;
@@ -63,7 +63,7 @@ namespace StructuralGraph {
 		void ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode> from_c,
 			const TSharedPtr<SNode> to_n, TSharedPtr<SNode> to_c,
 			int divs, int twists,
-			float D0, const LayoutGraph::ParameterisedProfile* profile);
+			float D0, const TSharedPtr<LayoutGraph::ParameterisedProfile> profile);
 
 		int FindNodeIdx(const TSharedPtr<SNode>& node) const;
 
