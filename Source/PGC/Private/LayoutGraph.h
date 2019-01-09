@@ -10,20 +10,6 @@ namespace LayoutGraph {
 	class Node;
 	class ConnectorInst;
 
-	class Edge {
-	public:
-		const TWeakPtr<Node> FromNode;
-		const TWeakPtr<Node> ToNode;
-		const TWeakPtr<ConnectorInst> FromConnector;
-		const TWeakPtr<ConnectorInst> ToConnector;
-
-		int Divs;					// how many points along the spline required for smoothness, swivels etc...
-		int Twists;					// how many +ve or -ve half-twists to make along the edge
-
-		Edge(TWeakPtr<Node> fromNode, TWeakPtr<Node> toNode,
-			TWeakPtr<ConnectorInst> fromConnector, TWeakPtr<ConnectorInst> toConnector);
-	};
-
 	struct ParameterisedProfile {
 		static constexpr int VertsPerQuarter = 6;
 		static constexpr int NumVerts = VertsPerQuarter * 4;
@@ -94,6 +80,24 @@ namespace LayoutGraph {
 
 		FVector GetTransformedVert(int vert_idx, const FTransform& total_trans) const;
 		FVector GetTransformedVert(VertTypes type, int quarter_idx, const FTransform& total_trans) const;
+	};
+
+	class Edge {
+	public:
+		const TWeakPtr<Node> FromNode;
+		const TWeakPtr<Node> ToNode;
+		const TWeakPtr<ConnectorInst> FromConnector;
+		const TWeakPtr<ConnectorInst> ToConnector;
+
+		int Divs;					// how many points along the spline required for smoothness, swivels etc...
+		int Twists;					// how many +ve or -ve half-twists to make along the edge
+
+		// empty means use profile of start node
+		// otherwise divide these profiles evenly over the length of the connection
+		TArray <TSharedPtr<ParameterisedProfile>> Profiles;
+
+			Edge(TWeakPtr<Node> fromNode, TWeakPtr<Node> toNode,
+				TWeakPtr<ConnectorInst> fromConnector, TWeakPtr<ConnectorInst> toConnector);
 	};
 
 	class ConnectorDef {
@@ -199,7 +203,8 @@ namespace LayoutGraph {
 		// connect "from" to "to" directly with an edge and no regard to geometry...
 		void Connect(int nodeFrom, int nodeFromconnector,
 			int nodeTo, int nodeToconnector,
-			int divs = 10, int twists = 0);
+			int divs = 10, int twists = 0,
+			const TArray<TSharedPtr<ParameterisedProfile>>& profiles = TArray<TSharedPtr<ParameterisedProfile>>());
 
 		int FindNodeIdx(const TSharedPtr<Node>& node) const;
 

@@ -65,9 +65,17 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 				auto here_to_node = Nodes[to_idx];
 				auto here_to_conn_node = here_to_node->Edges[to_conn_idx].Pin()->ToNode.Pin();
 
+				auto profiles = edge->Profiles;
+
+				if (profiles.Num() == 0)
+				{
+					profiles.Push(here_conn_node->Profile);
+					profiles.Push(here_to_conn_node->Profile);
+				}
+
 				ConnectAndFillOut(here_node, here_conn_node, here_to_node, here_to_conn_node,
 					edge->Divs, edge->Twists,
-					input->SegLength, here_conn_node->Profile);
+					input->SegLength, profiles);
 			}
 		}
 	}
@@ -93,7 +101,7 @@ void SGraph::Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, dou
 
 void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode> from_c, const TSharedPtr<SNode> to_n, TSharedPtr<SNode> to_c,
 	int divs, int twists, 
-	float D0, const TSharedPtr<LayoutGraph::ParameterisedProfile> profile)
+	float D0, const TArray<TSharedPtr<LayoutGraph::ParameterisedProfile>>& profiles)
 {
 	// in order to divide an edge once we need three "frames"
 	// the start node
@@ -196,6 +204,12 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 	// i = divs is the to-connector
 	for (auto i = 1; i < divs; i++) {
 		float t = (float)i / divs;
+
+		// as with rotations, i = 0 would be the profile of the start node
+		// i = divs would be the profile off the end node
+		// if the first and last entries in the "profiles" are also set to those
+		// then we will get even distribution of each profile along the sequence:
+		const auto& profile = profiles[profiles.Num() * t];
 
 		TSharedPtr<SNode> next_node;
 		

@@ -57,7 +57,8 @@ Graph::Graph(float segLength) : SegLength(segLength)
 }
 
 void Graph::Connect(int nodeFrom, int nodeFromConnector, int nodeTo, int nodeToConnector,
-	int divs /* = 10 */, int twists /* = 0 */)
+	int divs /* = 10 */, int twists /* = 0 */,
+	const TArray<TSharedPtr<ParameterisedProfile>>& profiles)
 {
 	check(!Nodes[nodeFrom]->Edges[nodeFromConnector].IsValid());
 	check(!Nodes[nodeTo]->Edges[nodeToConnector].IsValid());
@@ -75,6 +76,7 @@ void Graph::Connect(int nodeFrom, int nodeFromConnector, int nodeTo, int nodeToC
 
 	edge->Divs = divs;
 	edge->Twists = twists;
+	edge->Profiles = profiles;
 }
 
 int Graph::FindNodeIdx(const TSharedPtr<Node>& node) const

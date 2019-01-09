@@ -63,7 +63,7 @@ namespace StructuralGraph {
 		void ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode> from_c,
 			const TSharedPtr<SNode> to_n, TSharedPtr<SNode> to_c,
 			int divs, int twists,
-			float D0, const TSharedPtr<LayoutGraph::ParameterisedProfile> profile);
+			float D0, const TArray<TSharedPtr<LayoutGraph::ParameterisedProfile>>& profiles);
 
 		int FindNodeIdx(const TSharedPtr<SNode>& node) const;
 
