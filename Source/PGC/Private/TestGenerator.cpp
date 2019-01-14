@@ -5,56 +5,28 @@
 using namespace LayoutGraph;
 using namespace StructuralGraph;
 
-const static ParameterisedProfile FullRoadbedProfile
+const static TSharedPtr<ParameterisedProfile> FullRoadbedProfile = MakeShared<ParameterisedProfile>
 (
 	4.0f,
-	{ 0.0f, 4.0f, 6.0f, 1.0f },
-	{ 0.0f, 1.0f, 1.0f, 0.0f }
+	0.0f, 4.0f, 6.0f, 1.0f,
+	0.0f, 1.0f, 1.0f, 0.0f
 );
-
-const ConnectorDef StandardRoadbed_CD
-{
-	TestConnectorTypes::StandardRoad,
-	MakeShared<LayoutGraph::ParameterisedProfile>(FullRoadbedProfile)
-};
 
 const YJunction::ConnectorArray YJunction::ConnectorData
 {
-	// speeds shouldn't come from here?  should be set by generation needs?  pass into ctor?  just overwrite later?
-	MakeShared<ConnectorInst>(StandardRoadbed_CD, FVector{ 0, -3.46f, 0 }, FVector{ 0, -1, 0 }, FVector{ 0, 0, 1 }),
-	MakeShared<ConnectorInst>(StandardRoadbed_CD, FVector{ 3, 1.73f, 0 }, FVector{ 0.866f, 0.5f, 0 }, FVector{ 0, 0, 1 }),
-	MakeShared<ConnectorInst>(StandardRoadbed_CD, FVector{ -3, 1.73f, 0 }, FVector{ -0.866f, 0.5f, 0 }, FVector{ 0, 0, 1 }),
-};
-const YJunction::VertexArray YJunction::VertexData
-{
-	//FVector { 3, -1.73f, 0.5f },
-	//FVector { 3, -1.73f, -0.5f },
-	//FVector { 0, 3.46f, 0.5f },
-	//FVector { 0, 3.46f, -0.5f },
-	//FVector { -3, -1.73f, 0.5f },
-	//FVector { -3, -1.73f, -0.5f },
-};
-const YJunction::PolygonArray YJunction::PolygonData
-{
-	Polygon { {  0, 1 }, /*{ -1, 0 },*/ {  1, 0 }, {  1, 3 }, /*{ -1, 1 },*/ {  0, 2 }, },			// between C0 and C1
-	Polygon { {  1, 1 }, /*{ -1, 2 },*/ {  2, 0 }, {  2, 3 }, /*{ -1, 3 },*/ {  1, 2 }, },			// between C1 and C2
-	Polygon { {  2, 1 }, /*{ -1, 4 },*/ {  0, 0 }, {  0, 3 }, /*{ -1, 5 },*/ {  2, 2 }, },			// between C2 and C0
-	Polygon { {  0, 1 }, {  0, 0 }, /*{ -1, 4 },*/
-			  {  2, 1 }, {  2, 0 }, /*{ -1, 2 },*/
-			  {  1, 1 }, {  1, 0 }, /*{ -1, 0 },*/ },			// top
-	Polygon { {  0, 3 }, {  0, 2 }, /*{ -1, 1 },*/
-			  {  1, 3 }, {  1, 2 }, /*{ -1, 3 },*/
-			  {  2, 3 }, {  2, 2 }, /*{ -1, 5 },*/ },			// bottom
+	MakeShared<ConnectorInst>(FullRoadbedProfile, FVector{ 0, -3.46f, 0 }, FVector{ 0, -1, 0 }, FVector{ 0, 0, 1 }),
+	MakeShared<ConnectorInst>(FullRoadbedProfile, FVector{ 3, 1.73f, 0 }, FVector{ 0.866f, 0.5f, 0 }, FVector{ 0, 0, 1 }),
+	MakeShared<ConnectorInst>(FullRoadbedProfile, FVector{ -3, 1.73f, 0 }, FVector{ -0.866f, 0.5f, 0 }, FVector{ 0, 0, 1 }),
 };
 
 YJunction::YJunction()
-	: Node(ConnectorData, VertexData, PolygonData)
+	: YJunction({})
 {
 }
 
-Node * YJunction::FactoryMethod() const
+YJunction::YJunction(TSharedPtr<ParameterisedProfile> profiles[3])
+	: Node(ConnectorData)
 {
-	return new YJunction();
 }
 
 // Sets default values
@@ -135,17 +107,13 @@ void TestGraph::Generate()
 	//Nodes[2]->Position.SetLocation(FVector(20, 0, 0));
 	//Nodes[3]->Position.SetLocation(FVector(0, 20, 10));
 
-	ParameterisedProfile test_profile{
+	TSharedPtr<ParameterisedProfile> test_profile = MakeShared<ParameterisedProfile>(
 		2.0f,
-		{ 0.0f, 4.0f, 6.0f, 0.0f },
-		{ 0.0f, 0.0f, 0.0f, 0.0f }
-	};
+		0.0f, 4.0f, 6.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 0.0f
+	);
 
-	Connect(0, 0, 1, 0, 20, 0, TArray<TSharedPtr<ParameterisedProfile>> {
-		MakeShared<ParameterisedProfile>(FullRoadbedProfile),
-		MakeShared<ParameterisedProfile>(test_profile),
-		MakeShared<ParameterisedProfile>(FullRoadbedProfile),
-	});
+	Connect(0, 0, 1, 0, 20, 0, TArray<TSharedPtr<ParameterisedProfile>> { FullRoadbedProfile, test_profile, FullRoadbedProfile, });
 	Connect(0, 1, 1, 2, 20, 1);
 	Connect(1, 1, 0, 2, 20, -1);
 	//Connect(0, 1, 2, 1, 10);

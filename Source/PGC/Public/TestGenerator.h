@@ -12,24 +12,20 @@
 
 #include "TestGenerator.generated.h"
 
+using namespace LayoutGraph;
+
 enum class TestConnectorTypes {
 	StandardRoad,
 };
 
-extern const LayoutGraph::ConnectorDef StandardRoadbed_CD;
-
 class YJunction : public LayoutGraph::Node {
 public:
 	YJunction();
+	YJunction(TSharedPtr<ParameterisedProfile> profiles[3]);
 	virtual ~YJunction() = default;
-
-	// Creates an empty Node of the same type...
-	virtual Node* FactoryMethod() const override;
 
 private:
 	static const ConnectorArray ConnectorData;
-	static const VertexArray VertexData;
-	static const PolygonArray PolygonData;
 };
 
 class TestGraph : public LayoutGraph::Graph {

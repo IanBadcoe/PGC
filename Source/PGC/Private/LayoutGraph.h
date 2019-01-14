@@ -44,13 +44,16 @@ namespace LayoutGraph {
 		static const bool IsXOuter[NumVerts];
 		static const bool IsYOuter[NumVerts];
 
-		ParameterisedProfile(float width, const TArray<float>& barriers, const TArray<float> overhangs)
+		ParameterisedProfile(float width,
+			float b0, float b1, float b2, float b3,
+			float o0, float o1, float o2, float o3)
 			: Width{ width }
-			, BarrierHeights{ barriers[0], barriers[1], barriers[2], barriers[3] }
-			, OverhangWidths{ overhangs[0], overhangs[1], overhangs[2], overhangs[3] }
+			, BarrierHeights{ b0, b1, b2, b3 }
+			, OverhangWidths{ o0, o1, o2, o3 }
 		{
 			CheckConsistent();
 		}
+		ParameterisedProfile(const ParameterisedProfile& rhs) = default;
 
 		void CheckConsistent() const;
 
@@ -100,69 +103,26 @@ namespace LayoutGraph {
 				TWeakPtr<ConnectorInst> fromConnector, TWeakPtr<ConnectorInst> toConnector);
 	};
 
-	class ConnectorDef {
-	public:
-		const int Id2;
-		const TSharedPtr<ParameterisedProfile> Profile;
-
-		// any identified type that reasonably casts to int
-		template <typename IdType>
-		ConnectorDef(IdType id, const TSharedPtr<ParameterisedProfile>& profile)
-			: Id2(static_cast<int>(id)),
-			Profile(profile) {}
-		ConnectorDef() = delete;
-		ConnectorDef(const ConnectorDef&) = delete;
-		const ConnectorDef& operator=(const ConnectorDef&) = delete;
-
-//		FVector GetTransformedVert(int vert_idx, const FTransform& total_trans) const;
-		int NumVerts() const { return ParameterisedProfile::NumVerts; }
-	};
-
 	class ConnectorInst {
 	public:
-		const ConnectorDef& Definition;
+		const TSharedPtr<ParameterisedProfile> Profile;
 
 		FTransform Transform;
 
-		ConnectorInst(const ConnectorDef& definition, const FVector& pos, const FVector& normal, const FVector& up);
-	};
-
-	class Polygon {
-	public:
-		struct Idx {
-			Idx(int c, int v) : Connector(c), Vertex(v) {}
-
-			int Connector;		// index into the Node's Connector array, or -1 for the Node's own vertex array
-			int Vertex;			// index into whichever vertex array we specified above
-		};
-
-		const TArray<Idx> VertexIndices;
-
-		Polygon(TArray<Idx>&& vert_idxs)
-			: VertexIndices(vert_idxs) {}
-		Polygon(std::initializer_list<Idx>&& vert_idxs)
-			: VertexIndices(vert_idxs) {}
+		ConnectorInst(const TSharedPtr<ParameterisedProfile>& profile, const FVector& pos, FVector forward, FVector up);
 	};
 
 	class Node {
 	public:
 		using ConnectorArray = TArray<TSharedRef<ConnectorInst>>;
-		using VertexArray = TArray<FVector>;
-		using PolygonArray = TArray<Polygon>;
 
 		TArray<TWeakPtr<Edge>> Edges;
 		const ConnectorArray Connectors;
-		const VertexArray Vertices;
-		const PolygonArray Polygons;
 
 		FTransform Position;
 
-		Node(const ConnectorArray& connectors,
-			 const VertexArray& vertices,
-			 const PolygonArray& polygons)
-			: Connectors(connectors),
-		      Vertices(vertices),
-		      Polygons(polygons)
+		Node(const ConnectorArray& connectors)
+			: Connectors(connectors)
 		{
 			// every connector is potentially the start of an edge
 			Edges.AddDefaulted(Connectors.Num());
@@ -173,24 +133,17 @@ namespace LayoutGraph {
 		const Node& operator=(const Node&) = delete;
 		virtual ~Node() = default;
 
-		virtual Node* FactoryMethod() const = 0;
-
 		int FindConnectorIdx(const TSharedPtr<ConnectorInst>& conn) const;
 	};
 
 	// built-in node type, used to connect edges end-to-end when filling-out their geometry
 	class BackToBack : public Node {
 	public:
-		BackToBack(const ConnectorDef& def);
+		BackToBack(const TSharedPtr<ParameterisedProfile>& profile);
 		virtual ~BackToBack() = default;
-
-		// Creates an empty Node of the same type...
-		virtual Node* FactoryMethod() const override;
 
 	private:
 		static const ConnectorArray ConnectorData;
-		static const VertexArray VertexData;
-		static const PolygonArray PolygonData;
 	};
 
 	class Graph {

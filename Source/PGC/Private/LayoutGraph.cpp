@@ -37,17 +37,10 @@ const bool ParameterisedProfile::IsYOuter[ParameterisedProfile::NumVerts]{
 
 
 
-BackToBack::BackToBack(const ConnectorDef& def)
-	: Node({ MakeShared<ConnectorInst>(def, FVector{ 0, 0, 0 }, FVector{ 1, 0, 0 }, FVector{ 0, 0, 1 }),
-			 MakeShared<ConnectorInst>(def, FVector{ 0, 0, 0 }, FVector{ -1, 0, 0 }, FVector{ 0, 0, 1 }),},
-		   {},
-		   {})
+BackToBack::BackToBack(const TSharedPtr<ParameterisedProfile>& profile)
+	: Node({ MakeShared<ConnectorInst>(profile, FVector{ 0, 0, 0 }, FVector{ 1, 0, 0 }, FVector{ 0, 0, 1 }),
+			 MakeShared<ConnectorInst>(profile, FVector{ 0, 0, 0 }, FVector{ -1, 0, 0 }, FVector{ 0, 0, 1 }),})
 {
-}
-
-Node* BackToBack::FactoryMethod() const
-{
-	return new BackToBack(Connectors[0]->Definition);
 }
 
 
@@ -62,9 +55,6 @@ void Graph::Connect(int nodeFrom, int nodeFromConnector, int nodeTo, int nodeToC
 {
 	check(!Nodes[nodeFrom]->Edges[nodeFromConnector].IsValid());
 	check(!Nodes[nodeTo]->Edges[nodeToConnector].IsValid());
-
-	// for the moment, for simplicity, support only the same connector type at either end...
-	check(&(Nodes[nodeFrom]->Connectors[nodeFromConnector]->Definition) == &(Nodes[nodeTo]->Connectors[nodeToConnector]->Definition));
 
 	auto edge = MakeShared<Edge>(Nodes[nodeFrom], Nodes[nodeTo],
 		Nodes[nodeFrom]->Connectors[nodeFromConnector], Nodes[nodeTo]->Connectors[nodeToConnector]);
@@ -105,14 +95,12 @@ int Node::FindConnectorIdx(const TSharedPtr<ConnectorInst>& conn) const
 	return -1;
 }
 
-inline ConnectorInst::ConnectorInst(const ConnectorDef& definition,
-	const FVector& pos, const FVector& normal, const FVector& up)
-	: Definition(definition)
+inline ConnectorInst::ConnectorInst(const TSharedPtr<ParameterisedProfile>& profile,
+	const FVector& pos, FVector forward, FVector up)
+	: Profile(profile)
 {
-	FVector right = FVector::CrossProduct(up, normal);
-
 	// untransformed has the normal on X, the right on Y and Z up...
-	Transform = FTransform(normal, right, up, pos);
+	Transform = Util::MakeTransform(pos, up, forward);
 }
 
 Edge::Edge(TWeakPtr<Node> fromNode, TWeakPtr<Node> toNode, TWeakPtr<ConnectorInst> fromConnector, TWeakPtr<ConnectorInst> toConnector)

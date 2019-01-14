@@ -2,6 +2,8 @@
 
 #include "Mesh.h"
 
+#pragma optimize ("", off)
+
 namespace Util {
 
 // temp util to gloss over awkwardness of UVs and edge-types
@@ -57,11 +59,11 @@ inline void MakeAxisSet(FVector& forward, FVector& right, FVector& up)
 {
 	forward.Normalize();
 
-	right = FVector::CrossProduct(forward, up);
+	right = FVector::CrossProduct(up, forward);
 
 	right.Normalize();
 
-	up = FVector::CrossProduct(right, forward);
+	up = FVector::CrossProduct(forward, right);
 
 	up.Normalize();
 }
@@ -72,7 +74,11 @@ inline FTransform MakeTransform(const FVector& pos, FVector local_up, FVector fo
 
 	MakeAxisSet(forward, right, local_up);
 
-	return FTransform(forward, right, local_up, pos);
+	auto ret = FTransform(forward, right, local_up, pos);
+
+	check(FVector::Dist(ret.GetScale3D(), FVector(1, 1, 1)) < 1.0E-6);
+
+	return ret;
 }
 
 inline FVector ProjectOntoPlane(const FVector& vect, const FVector& plane_normal)
@@ -104,3 +110,5 @@ inline float SignedAngle(const FVector& from, const FVector& to, const FVector& 
 }
 
 }
+
+#pragma optimize ("", on)
