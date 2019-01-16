@@ -8,8 +8,8 @@ using namespace StructuralGraph;
 const static TSharedPtr<ParameterisedProfile> FullRoadbedProfile = MakeShared<ParameterisedProfile>
 (
 	4.0f,
-	0.0f, 4.0f, 6.0f, 1.0f,
-	0.0f, 1.0f, 1.0f, 0.0f
+	0.0f, 6.0f, 6.0f, 1.0f,
+	0.0f, 2.0f, 2.0f, 0.0f
 );
 
 const YJunction::ConnectorArray YJunction::ConnectorData
@@ -20,12 +20,7 @@ const YJunction::ConnectorArray YJunction::ConnectorData
 };
 
 YJunction::YJunction()
-	: YJunction({})
-{
-}
-
-YJunction::YJunction(TSharedPtr<ParameterisedProfile> profiles[3])
-	: Node(ConnectorData)
+	: Node(TArray<TSharedPtr<ParameterisedProfile>>{ FullRoadbedProfile, FullRoadbedProfile, FullRoadbedProfile })
 {
 }
 
@@ -102,8 +97,9 @@ void TestGraph::Generate()
 	//Nodes.Add(MakeShared<YJunction>());
 	//Nodes.Add(MakeShared<YJunction>());
 
+	Nodes[0]->Position.SetRotation(FQuat(FVector(0, 0, 1), PI));
+
 	Nodes[1]->Position.SetLocation(FVector(0, -40, 10));
-	Nodes[1]->Position.SetRotation(FQuat(FVector(0, 0, 1), PI));
 	//Nodes[2]->Position.SetLocation(FVector(20, 0, 0));
 	//Nodes[3]->Position.SetLocation(FVector(0, 20, 10));
 
@@ -113,9 +109,9 @@ void TestGraph::Generate()
 		0.0f, 0.0f, 0.0f, 0.0f
 	);
 
-	Connect(0, 0, 1, 0, 20, 0, TArray<TSharedPtr<ParameterisedProfile>> { FullRoadbedProfile, test_profile, FullRoadbedProfile, });
-	Connect(0, 1, 1, 2, 20, 1);
-	Connect(1, 1, 0, 2, 20, -1);
+	Connect(0, 0, 1, 0, 20, 1, TArray<TSharedPtr<ParameterisedProfile>> { FullRoadbedProfile, test_profile, FullRoadbedProfile, });
+	Connect(0, 1, 1, 2, 20, 0);
+	Connect(0, 2, 1, 1, 20, 0);
 	//Connect(0, 1, 2, 1, 10);
 	//Connect(0, 2, 3, 2, 10);
 	//Connect(2, 2, 1, 2, 10);

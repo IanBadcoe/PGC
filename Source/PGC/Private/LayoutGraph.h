@@ -14,14 +14,17 @@ namespace LayoutGraph {
 		static constexpr int VertsPerQuarter = 6;
 		static constexpr int NumVerts = VertsPerQuarter * 4;
 
-		//   3----4
-		//   |    |
-		//   2-1  |
-		//     |  |
-		//  ---0  |
-		//		  |
-		//		  |
-		//		  5
+		//               <--overhang
+		//                 length-><-1.0->
+		//            ^  3---------------4 ^
+		//        1.0 |  |               | |
+		//            |  |               | |
+		//            v  2--------1      | |
+		//                        |      | (barrier height)
+		// -----------------------0      | |
+		// <--  width/2) -->             | |
+		//                               | |
+		//              	             5 v
 
 		enum class VertTypes {
 			RoadbedInner = 0,
@@ -35,6 +38,9 @@ namespace LayoutGraph {
 		const float Width;					// width of roadbed
 		const float BarrierHeights[4];		// height of side-barriers: upper-right, lower-right, lower-left, upper-left
 		const float OverhangWidths[4];		// width of overhangs: upper-right, lower-right, lower-left, upper-left
+
+
+		const FVector2D AbsoluteBound;		// +ve corner of a rectangle large enough to just contain all
 
 		//const PGCEdgeType FollowingEdgeType[24];
 		//const PGCEdgeType ExtrudedEdgeType[24];
@@ -50,6 +56,7 @@ namespace LayoutGraph {
 			: Width{ width }
 			, BarrierHeights{ b0, b1, b2, b3 }
 			, OverhangWidths{ o0, o1, o2, o3 }
+			, AbsoluteBound{ width, FMath::Max(FMath::Max(b0, b1), FMath::Max(b2, b3))}
 		{
 			CheckConsistent();
 		}
@@ -83,6 +90,8 @@ namespace LayoutGraph {
 
 		FVector GetTransformedVert(int vert_idx, const FTransform& total_trans) const;
 		FVector GetTransformedVert(VertTypes type, int quarter_idx, const FTransform& total_trans) const;
+
+		float Radius() const { return AbsoluteBound.Size(); }
 	};
 
 	class Edge {
@@ -127,6 +136,7 @@ namespace LayoutGraph {
 			// every connector is potentially the start of an edge
 			Edges.AddDefaulted(Connectors.Num());
 		}
+		Node(const TArray<TSharedPtr<ParameterisedProfile>>& profiles);
 
 		Node() = delete;
 		Node(const Node&) = delete;
@@ -134,6 +144,8 @@ namespace LayoutGraph {
 		virtual ~Node() = default;
 
 		int FindConnectorIdx(const TSharedPtr<ConnectorInst>& conn) const;
+
+		static const ConnectorArray MakeConnectorsFromProfiles(const TArray<TSharedPtr<ParameterisedProfile>>& profiles);
 	};
 
 	// built-in node type, used to connect edges end-to-end when filling-out their geometry

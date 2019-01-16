@@ -21,7 +21,8 @@ enum class TestConnectorTypes {
 class YJunction : public LayoutGraph::Node {
 public:
 	YJunction();
-	YJunction(TSharedPtr<ParameterisedProfile> profiles[3]);
+	YJunction(TArray<TSharedPtr<ParameterisedProfile>> profiles)
+		: Node(profiles) {}
 	virtual ~YJunction() = default;
 
 private:
