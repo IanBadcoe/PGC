@@ -99,10 +99,41 @@ void SGraph::Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, dou
 	n2->Edges.Add(Edges.Last());
 }
 
+//// calculate the distance to the intersection with a plane along a line
+//// return false if there is no intersection of it the  convergence is small enough than
+//// numerical precision might be a problem
+//static bool dist_to_plane(const FVector& line_start, const FVector& line_dir, const FVector& plane_point, const FVector& plane_normal, float& out)
+//{
+//	auto normals_ratio = FVector::DotProduct(line_dir, plane_normal);
+//
+//	// quite a loose tolerance but I'm only interested in broadly close collisions at the moment
+//	if (FMath::Abs(normals_ratio) < 1.0E-6f)
+//	{
+//		return false;
+//	}
+//
+//	auto rel_pos = line_start - plane_point;
+//
+//	// project vector between the two points onto the plane normal
+//
+//	auto proj = FVector::DotProduct(rel_pos, plane_normal);
+//
+//	// the distance along the line is longer than this in the ratio of normals_ratio
+//
+//	auto line_dist = proj / normals_ratio;
+//
+//	out = line_dist;
+//
+//	return true;
+//}
+
 void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode> from_c, const TSharedPtr<SNode> to_n, TSharedPtr<SNode> to_c,
 	int divs, int twists, 
 	float D0, const TArray<TSharedPtr<LayoutGraph::ParameterisedProfile>>& profiles)
 {
+	// profiles.Num() is generally less than divs since we need lots of divs to give us a smooth curve but the profile does not change
+	// that often...
+
 	// in order to divide an edge once we need three "frames"
 	// the start node
 	// the division
@@ -111,19 +142,51 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 	// which for one div means start @ 0, div @ 1, end @ 2 etc
 	divs += 1;
 
-	auto from_forward = from_c->Position - from_n->Position;
-	auto to_forward = to_c->Position - to_n->Position;
+	const auto from_pos = from_c->Position;
+	const auto to_pos = to_c->Position;
+
+	auto dist = FVector::Distance(from_pos, to_pos);
+
+	// if the end points are further apart than our nominal length
+	// take the actual distance as the working length so as to get suitable curvy curves
+	// otherwise use the nominal length so as not to build something sillily compressed
+	//
+	// actually we have to take the actual length, otherwise we can just get silly curves
+	auto working_length = dist; // FMath::Max(D0 * divs, dist);
+
+	auto from_forward = from_pos - from_n->Position;
+	auto to_forward = to_pos - to_n->Position;
 
 	from_forward.Normalize();
 	to_forward.Normalize();
 
-	const auto in_pos = from_c->Position;
-	const auto out_pos = to_c->Position;
 
-	const auto dist = FVector::Distance(in_pos, out_pos);
+	// we need at least a small distance to work in...
+	check(FVector::DistSquared(from_pos, to_pos) > 1.0f);
 
-	const auto in_dir = from_forward * dist / 3;		// dividing by 3 means if the two connectors are pointing at each other
-	const auto out_dir = -to_forward * dist / 3;		// then we divide the space evenly
+	// the curve is shorter than the line: from_pos -> intermediate1 -> intermetiate2 -> to_pos
+	// and anyway the distance intermediate1 -> intermediate2 is unknown
+	// so halving this is a complete guess :-)
+	auto intermediate1 = from_pos + from_forward * working_length;
+	auto intermediate2 = to_pos + to_forward * working_length;
+
+	// an intermediate point hits to_pos, we get a silly curve
+	// (in the extreme case, if the arrangement is like this
+	// from --->  <--- to
+	// then the curve can run forwards and backwards along the line, which breaks coordinate frame interpolation
+	//
+	// so if either intermediate point is too close to the end point that wasn't used to calculate it
+	// try backing it off a bit...
+	//
+	// "too close" is arbitrarily defined here...
+	if (FVector::Distance(to_pos, intermediate1) < working_length / 2)
+	{
+		intermediate1 = from_pos + from_forward * working_length / 2;
+	}
+	if (FVector::Distance(from_pos, intermediate2) < working_length / 2)
+	{
+		intermediate2 = to_pos + to_forward * working_length / 2;
+	}
 
 	const auto from_up = from_c->Up;
 	const auto to_up = to_c->Up;
@@ -144,9 +207,9 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 	for (auto i = 0; i <= divs; i++) {
 		float t = (float)i / divs;
 
-		FVector pos = SplineUtil::CubicBezier(t, in_pos, in_pos + in_dir, out_pos - out_dir, out_pos);
+		FVector pos = SplineUtil::CubicBezier(t, from_pos, intermediate1, intermediate2, to_pos);
 
-		FVector forward = SplineUtil::CubicBezierTangent(t, in_pos, in_pos + in_dir, out_pos - out_dir, out_pos);
+		FVector forward = SplineUtil::CubicBezierTangent(t, from_pos, intermediate1, intermediate2, to_pos);
 
 		forward.Normalize();
 
@@ -173,7 +236,7 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 
 		auto angle_correct = t * angle_mismatch;
 
-		FVector forward = SplineUtil::HermiteTangent(t, in_pos, out_pos, in_dir, out_dir);
+		FVector forward = SplineUtil::CubicBezierTangent(t, from_pos, intermediate1, intermediate2, to_pos);
 
 		forward.Normalize();
 
