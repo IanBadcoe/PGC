@@ -129,14 +129,18 @@ namespace LayoutGraph {
 		const ConnectorArray Connectors;
 
 		FTransform Position;
+		FRotator bob;
 
-		Node(const ConnectorArray& connectors)
+		Node(const ConnectorArray& connectors, const FVector& pos, const FVector& rot)
 			: Connectors(connectors)
 		{
+			Position.SetLocation(pos);
+			Position.SetRotation(FQuat(FRotator(rot.Y, rot.Z, rot.X)));
 			// every connector is potentially the start of an edge
 			Edges.AddDefaulted(Connectors.Num());
 		}
-		Node(const TArray<TSharedPtr<ParameterisedProfile>>& profiles);
+//		Node(const TArray<TSharedPtr<ParameterisedProfile>>& profiles) : Node(profiles, FVector(), FVector()) {}
+		Node(const TArray<TSharedPtr<ParameterisedProfile>>& profiles, const FVector& pos, const FVector& rot);
 
 		Node() = delete;
 		Node(const Node&) = delete;
@@ -151,11 +155,8 @@ namespace LayoutGraph {
 	// built-in node type, used to connect edges end-to-end when filling-out their geometry
 	class BackToBack : public Node {
 	public:
-		BackToBack(const TSharedPtr<ParameterisedProfile>& profile);
+		BackToBack(const TSharedPtr<ParameterisedProfile>& profile, const FVector& pos, const FVector& rot);
 		virtual ~BackToBack() = default;
-
-	private:
-		static const ConnectorArray ConnectorData;
 	};
 
 	class Graph {

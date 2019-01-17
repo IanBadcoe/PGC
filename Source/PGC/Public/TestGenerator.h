@@ -20,13 +20,12 @@ enum class TestConnectorTypes {
 
 class YJunction : public LayoutGraph::Node {
 public:
-	YJunction();
-	YJunction(TArray<TSharedPtr<ParameterisedProfile>> profiles)
-		: Node(profiles) {}
+	YJunction(const FVector& pos, const FVector& rot);
+	YJunction(TArray<TSharedPtr<ParameterisedProfile>> profiles, const FVector& pos, const FVector& rot)
+		: Node(profiles, pos, rot) {
+		check(profiles.Num() == 3);
+	}
 	virtual ~YJunction() = default;
-
-private:
-	static const ConnectorArray ConnectorData;
 };
 
 class TestGraph : public LayoutGraph::Graph {

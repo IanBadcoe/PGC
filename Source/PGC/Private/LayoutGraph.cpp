@@ -37,9 +37,10 @@ const bool ParameterisedProfile::IsYOuter[ParameterisedProfile::NumVerts]{
 
 
 
-BackToBack::BackToBack(const TSharedPtr<ParameterisedProfile>& profile)
+BackToBack::BackToBack(const TSharedPtr<ParameterisedProfile>& profile, const FVector& pos, const FVector& rot)
 	: Node({ MakeShared<ConnectorInst>(profile, FVector{ 0, 3, 0 }, FVector{ 1, 0, 0 }, FVector{ 0, 0, 1 }),
-			 MakeShared<ConnectorInst>(profile, FVector{ 0, -3, 0 }, FVector{ -1, 0, 0 }, FVector{ 0, 0, 1 }),})
+			 MakeShared<ConnectorInst>(profile, FVector{ 0, -3, 0 }, FVector{ -1, 0, 0 }, FVector{ 0, 0, 1 }),},
+		pos, rot)
 {
 }
 
@@ -82,8 +83,8 @@ int Graph::FindNodeIdx(const TSharedPtr<Node>& node) const
 	return -1;
 }
 
-Node::Node(const TArray<TSharedPtr<ParameterisedProfile>>& profiles)
-	: Node(MakeConnectorsFromProfiles(profiles))
+Node::Node(const TArray<TSharedPtr<ParameterisedProfile>>& profiles, const FVector& pos, const FVector& rot)
+	: Node(MakeConnectorsFromProfiles(profiles), pos, rot)
 {
 }
 
