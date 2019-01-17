@@ -31,7 +31,7 @@ private:
 
 class TestGraph : public LayoutGraph::Graph {
 public:
-	TestGraph() : LayoutGraph::Graph(0.5f) {}
+	TestGraph() : LayoutGraph::Graph(1.5f) {}
 
 	void Generate();
 };

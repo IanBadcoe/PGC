@@ -38,8 +38,8 @@ const bool ParameterisedProfile::IsYOuter[ParameterisedProfile::NumVerts]{
 
 
 BackToBack::BackToBack(const TSharedPtr<ParameterisedProfile>& profile)
-	: Node({ MakeShared<ConnectorInst>(profile, FVector{ 0, 0, 0 }, FVector{ 1, 0, 0 }, FVector{ 0, 0, 1 }),
-			 MakeShared<ConnectorInst>(profile, FVector{ 0, 0, 0 }, FVector{ -1, 0, 0 }, FVector{ 0, 0, 1 }),})
+	: Node({ MakeShared<ConnectorInst>(profile, FVector{ 0, 3, 0 }, FVector{ 1, 0, 0 }, FVector{ 0, 0, 1 }),
+			 MakeShared<ConnectorInst>(profile, FVector{ 0, -3, 0 }, FVector{ -1, 0, 0 }, FVector{ 0, 0, 1 }),})
 {
 }
 

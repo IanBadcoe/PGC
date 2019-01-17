@@ -59,6 +59,10 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 
 				auto to_conn_idx = to_node->FindConnectorIdx(edge->ToConnector.Pin());
 
+				// loop-back edges should only be considered in one direction
+				if (edge->ToNode == edge->FromNode && to_conn_idx == j)
+					continue;
+
 				auto here_edge = here_node->Edges[j].Pin();
 				auto here_conn_node = here_edge->ToNode.Pin();
 
@@ -150,9 +154,7 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 	// if the end points are further apart than our nominal length
 	// take the actual distance as the working length so as to get suitable curvy curves
 	// otherwise use the nominal length so as not to build something sillily compressed
-	//
-	// actually we have to take the actual length, otherwise we can just get silly curves
-	auto working_length = dist; // FMath::Max(D0 * divs, dist);
+	auto working_length = FMath::Max(D0 * divs, dist);
 
 	auto from_forward = from_pos - from_n->Position;
 	auto to_forward = to_pos - to_n->Position;
