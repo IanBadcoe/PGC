@@ -7,6 +7,7 @@
 
 #include "LayoutGraph.h"
 #include "StructuralGraph.h"
+#include "OptFunction.h"
 #include "PGCGenerator.h"
 #include "NlOptWrapper.h"
 

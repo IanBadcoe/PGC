@@ -51,7 +51,7 @@ void ATestGenerator::EnsureOptimizer()
 	{
 		check(!OptimizerInterface.IsValid());
 
-		OptimizerInterface = MakeShared<OptFunction>(StructuralGraph);
+		OptimizerInterface = MakeShared<Opt::OptFunction>(StructuralGraph);
 
 		Optimizer = MakeShared<NlOptWrapper>(OptimizerInterface);
 	}
@@ -75,7 +75,24 @@ void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh)
 {
 	EnsureGraphs();
 
-	StructuralGraph->MakeMesh(mesh);
+	EnsureOptimizer();
+
+	//int sz = OptimizerInterface->GetSize();
+	//TArray<double> state;
+	//state.AddDefaulted(sz);
+	//OptimizerInterface->GetState(state.GetData(), sz);
+	//OptimizerInterface->SetState(state.GetData(), sz);
+
+	if (Optimizer->RunOptimization())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Converged"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Not converged"));
+	}
+
+	StructuralGraph->MakeMesh(mesh, false);
 }
 
 bool ATestGenerator::NeedsRefinement()
@@ -85,52 +102,33 @@ bool ATestGenerator::NeedsRefinement()
 
 void ATestGenerator::Refine()
 {
-	EnsureOptimizer();
+	//EnsureOptimizer();
 
-	Optimizer->Optimize();
+	//Optimizer->RunOptimization();
 }
 
 void TestGraph::Generate()
 {
-	Nodes.Add(MakeShared<Node>(TArray<TSharedPtr<ParameterisedProfile>>{ HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, }, FVector::ZeroVector, FVector::ZeroVector));
-	Nodes.Add(MakeShared<Node>(TArray<TSharedPtr<ParameterisedProfile>>{ HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, }, FVector(0, 0, 20), FVector(180, 0, 0)));
+	Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 0 }, FVector{ 0, 0, 90 }));
+	Nodes.Add(MakeShared<YJunction>(FVector{ 0, 100, 0 }, FVector{ 0, 0, -90 }));
 
-	Nodes.Add(MakeShared<YJunction>(FVector{ 50, 40, 0 }, FVector::ZeroVector));
-	Nodes.Add(MakeShared<YJunction>(FVector{ 50, 20, 0 }, FVector::ZeroVector));
+	Connect(0, 0, 1, 0, 20, 0);
+	Connect(0, 1, 0, 2, 20, 0);
+	Connect(1, 2, 1, 1, 20, 0);
 
-	Connect(0, 1, 2, 1, 20, 0);
-	Connect(0, 2, 3, 1, 20, 0);
-	Connect(0, 4, 0, 5, 20, 0);
-	Connect(1, 1, 1, 2, 20, 0);
-	Connect(1, 4, 1, 5, 20, 0);
-	Connect(0, 0, 1, 3, 20, 1);
-	Connect(0, 3, 1, 0, 20, 0);
-	Connect(2, 0, 2, 2, 20, 0);
-	Connect(3, 0, 3, 2, 20, 0);
+	//Nodes.Add(MakeShared<Node>(TArray<TSharedPtr<ParameterisedProfile>>{ HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, }, FVector::ZeroVector, FVector::ZeroVector));
+	//Nodes.Add(MakeShared<Node>(TArray<TSharedPtr<ParameterisedProfile>>{ HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, }, FVector(0, 0, 20), FVector(180, 0, 0)));
 
-	//Nodes.Add(MakeShared<YJunction>());
-	//Nodes.Add(MakeShared<BackToBack>(StandardRoadbed_CD));
-	//Nodes.Add(MakeShared<YJunction>());
-	//Nodes.Add(MakeShared<YJunction>());
+	//Nodes.Add(MakeShared<YJunction>(FVector{ 50, 40, 0 }, FVector::ZeroVector));
+	//Nodes.Add(MakeShared<YJunction>(FVector{ 50, 20, 0 }, FVector::ZeroVector));
 
-	//Nodes[0]->Position.SetRotation(FQuat(FVector(0, 0, 1), PI));
-
-	//Nodes[1]->Position.SetLocation(FVector(0, -40, 10));
-	////Nodes[2]->Position.SetLocation(FVector(20, 0, 0));
-	////Nodes[3]->Position.SetLocation(FVector(0, 20, 10));
-
-	//TSharedPtr<ParameterisedProfile> test_profile = MakeShared<ParameterisedProfile>(
-	//	2.0f,
-	//	0.0f, 4.0f, 6.0f, 0.0f,
-	//	0.0f, 0.0f, 0.0f, 0.0f
-	//);
-
-	//Connect(0, 0, 1, 0, 20, 1, TArray<TSharedPtr<ParameterisedProfile>> { FullRoadbedProfile, test_profile, FullRoadbedProfile, });
-	//Connect(0, 1, 0, 2, 20, 0);
+	//Connect(0, 1, 2, 1, 20, 0);
+	//Connect(0, 2, 3, 1, 20, 0);
+	//Connect(0, 4, 0, 5, 20, 0);
 	//Connect(1, 1, 1, 2, 20, 0);
-	////Connect(0, 1, 2, 1, 10);
-	////Connect(0, 2, 3, 2, 10);
-	////Connect(2, 2, 1, 2, 10);
-	////Connect(2, 0, 3, 0, 10);
-	////Connect(3, 1, 1, 1, 10);
+	//Connect(1, 4, 1, 5, 20, 0);
+	//Connect(0, 0, 1, 3, 20, 1);
+	//Connect(0, 3, 1, 0, 20, 0);
+	//Connect(2, 0, 2, 2, 20, 0);
+	//Connect(3, 0, 3, 2, 20, 0);
 }

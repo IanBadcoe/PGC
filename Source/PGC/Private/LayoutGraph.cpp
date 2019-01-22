@@ -142,8 +142,8 @@ const Node::ConnectorArray Node::MakeConnectorsFromProfiles(const TArray<TShared
 	for (const auto& profile : profiles)
 	{
 		ret.Emplace(MakeShared<ConnectorInst>(profile, 
-			FVector{FMath::Sin(angle) * node_radius, FMath::Cos(angle) * node_radius, 0},
-			FVector{FMath::Sin(angle), FMath::Cos(angle), 0},
+			FVector{FMath::Cos(angle) * node_radius, FMath::Sin(angle) * node_radius, 0},
+			FVector{FMath::Cos(angle), FMath::Sin(angle), 0},
 			FVector{0, 0, 1}));
 
 		angle += angle_step;

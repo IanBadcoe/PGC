@@ -22,6 +22,22 @@ namespace StructuralGraph {
 		const bool Rolling;
 
 		SEdge(TWeakPtr<SNode> fromNode, TWeakPtr<SNode> toNode, double d0, bool rolling);
+
+		TWeakPtr<SNode> OtherNode(const SNode* n) const
+		{
+			if (FromNode.Pin().Get() == n)
+			{
+				return ToNode;
+			}
+
+			check(n == ToNode.Pin().Get());
+			return FromNode;
+		}
+
+		TWeakPtr<SNode> OtherNode(const TWeakPtr<SNode>& n) const
+		{
+			return OtherNode(n.Pin().Get());
+		}
 	};
 
 	class SNode {
@@ -40,7 +56,31 @@ namespace StructuralGraph {
 		mutable bool Flipped;
 		mutable bool Rolled;
 
-		SNode(int idx, const TSharedPtr<LayoutGraph::ParameterisedProfile> profile) : Idx(idx), Profile(profile), Flipped(false), Rolled(false) {}
+		float Radius = 0.0f;
+
+		SNode(int idx, const TSharedPtr<LayoutGraph::ParameterisedProfile> profile) : Idx(idx), Profile(profile), Flipped(false), Rolled(false)
+		{
+		}
+
+		void FindRadius() {
+			if (Profile.IsValid())
+			{
+				Radius = Profile->Radius();
+			}
+			else
+			{
+				for (const auto& e : Edges)
+				{
+					auto ep = e.Pin();
+
+					// take our longest connector position
+					Radius = FMath::Max(Radius, (Position - ep->OtherNode(this).Pin()->Position).Size());
+				}
+
+				// and back non-connected stuff off a little further
+				Radius *= 1.5f;
+			}
+		}
 
 		SNode(const SNode&) = delete;
 		const SNode& operator=(const SNode&) = delete;
@@ -67,69 +107,9 @@ namespace StructuralGraph {
 
 		int FindNodeIdx(const TSharedPtr<SNode>& node) const;
 
-		void MakeMesh(TSharedPtr<Mesh> mesh);
+		void MakeMesh(TSharedPtr<Mesh> mesh, bool skeleton_only);
 
 		TArray<TSharedPtr<SNode>> Nodes;
 		TArray<TSharedPtr<SEdge>> Edges;
 	};
-
-	struct JoinIdxs {
-		int i;
-		int j;
-		double D0;
-
-		static inline friend uint32 GetTypeHash(const JoinIdxs& j) {
-			return ::GetTypeHash(j.i) ^ ::GetTypeHash(j.j);
-		}
-
-		bool operator==(const JoinIdxs& rhs) const {
-			return i == rhs.i && j == rhs.j;
-		}
-	};
-
-	struct AngleIdxs {
-		int i;
-		int j;
-		int k;
-
-		static inline friend uint32 GetTypeHash(const AngleIdxs& a) {
-			return ::GetTypeHash(a.i) ^ ::GetTypeHash(a.j) ^ ::GetTypeHash(a.k);
-		}
-
-		bool operator==(const AngleIdxs& rhs) const {
-			return i == rhs.i && j == rhs.j && k == rhs.k;
-		}
-	};
-
-	class OptFunction : public NlOptIface {
-		TSharedPtr<SGraph> G;
-		TSet<JoinIdxs> Connected;
-		TSet<AngleIdxs> Angles;
-
-		void ApplyParams(const double* x, int n);
-
-		double UnconnectedNodeNodeVal(const FVector& p1, const FVector& p2, float D0) const;
-		// i is the index of one of the parameters of pGrad
-		double UnconnectedNodeNodeGrad(int i, const FVector& pGrad, const FVector& pOther, float D0) const;
-
-		double ConnectedNodeNodeVal(const FVector& p1, const FVector& p2, float D0) const;
-		// i is the index of one of the parameters of pGrad
-		double ConnectedNodeNodeGrad(int i, const FVector& pGrad, const FVector& pOther, float D0) const;
-
-		// R = distance, D = optimal distance, N = power
-		double LeonardJonesVal(double R, double D, int N) const;
-		double LeonardJonesGrad(double R, double D, int N) const;
-
-	public:
-		OptFunction(TSharedPtr<SGraph> g);
-		virtual ~OptFunction() = default;
-
-		// Inherited via NlOptIface
-		int GetSize() const;
-		virtual double f(int n, const double * x, double * grad) override;
-		virtual void GetInitialStepSize(double* steps, int n) const override;
-		virtual void GetState(double* x, int n) const override;
-		virtual void SetState(const double* x, int n) override;
-	};
-
 }

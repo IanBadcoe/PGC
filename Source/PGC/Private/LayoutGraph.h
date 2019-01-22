@@ -128,17 +128,18 @@ namespace LayoutGraph {
 		TArray<TWeakPtr<Edge>> Edges;
 		const ConnectorArray Connectors;
 
-		FTransform Position;
+		FTransform Transform;
 		FRotator bob;
 
 		Node(const ConnectorArray& connectors, const FVector& pos, const FVector& rot)
 			: Connectors(connectors)
 		{
-			Position.SetLocation(pos);
-			Position.SetRotation(FQuat(FRotator(rot.Y, rot.Z, rot.X)));
+			Transform.SetLocation(pos);
+			Transform.SetRotation(FQuat(FRotator(rot.Y, rot.Z, rot.X)));
 			// every connector is potentially the start of an edge
 			Edges.AddDefaulted(Connectors.Num());
 		}
+
 //		Node(const TArray<TSharedPtr<ParameterisedProfile>>& profiles) : Node(profiles, FVector(), FVector()) {}
 		Node(const TArray<TSharedPtr<ParameterisedProfile>>& profiles, const FVector& pos, const FVector& rot);
 
