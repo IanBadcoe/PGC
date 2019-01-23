@@ -40,13 +40,14 @@ class OptFunction : public NlOptIface {
 	TMap<JoinIdxs, double> Connected;
 	TSet<AngleIdxs> Angles;
 
-	static double UnconnectedNodeNodeVal(const FVector& p1, const FVector& p2, float D0);
-	// i is the index of one of the parameters of pGrad
-	static double UnconnectedNodeNodeGrad(const FVector& pGrad, const FVector& pOther, float D0, int axis);
+	static double UnconnectedNodeNodeDist_Val(const FVector& p1, const FVector& p2, float D0);
+	static double UnconnectedNodeNodeDist_Grad(const FVector& pGrad, const FVector& pOther, float D0, int axis);
 
-	static double ConnectedNodeNodeVal(const FVector& p1, const FVector& p2, float D0);
-	// i is the index of one of the parameters of pGrad
-	static double ConnectedNodeNodeGrad(const FVector& pGrad, const FVector& pOther, float D0, int axis);
+	static double ConnectedNodeNodeTorsion_Val(const FVector& up1, const FVector& up2);
+	static double ConnectedNodeNodeTorsion_Grad(const FVector& upGrad, const FVector& upOther, int axis);
+
+	static double ConnectedNodeNodeDist_Val(const FVector& p1, const FVector& p2, float D0);
+	static double ConnectedNodeNodeDist_Grad(const FVector& pGrad, const FVector& pOther, float D0, int axis);
 
 	// R = distance, D = optimal distance, N = power
 	double LeonardJonesVal(double R, double D, int N) const;
@@ -60,6 +61,7 @@ public:
 	int GetSize() const;
 	virtual double f(int n, const double * x, double * grad) override;
 	virtual void GetInitialStepSize(double* steps, int n) const override;
+	virtual void GetLimits(double * lower, double * upper, int n) const override;
 	virtual void GetState(double* x, int n) const override;
 	virtual void SetState(const double* x, int n) override;
 

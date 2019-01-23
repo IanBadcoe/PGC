@@ -11,9 +11,9 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 	for (const auto& n : input->GetNodes())
 	{
 		auto new_node = MakeShared<SNode>(Nodes.Num(), nullptr);
-		new_node->Position = n->Transform.GetLocation();
-		new_node->Up = n->Transform.GetUnitAxis(EAxis::Z);
-		new_node->Forwards = n->Transform.GetUnitAxis(EAxis::X);
+		new_node->SetPosition(n->Transform.GetLocation());
+		new_node->SetUp(n->Transform.GetUnitAxis(EAxis::Z));
+		new_node->SetForward(n->Transform.GetUnitAxis(EAxis::X));
 		Nodes.Add(new_node);
 	}
 
@@ -31,13 +31,13 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 
 			auto tot_trans = conn->Transform * n->Transform;
 
-			conn_node->Position = tot_trans.GetLocation();
-			conn_node->Up = tot_trans.GetUnitAxis(EAxis::Z);
-			conn_node->Forwards = tot_trans.GetUnitAxis(EAxis::X);
+			conn_node->SetPosition(tot_trans.GetLocation());
+			conn_node->SetUp(tot_trans.GetUnitAxis(EAxis::Z));
+			conn_node->SetForward(tot_trans.GetUnitAxis(EAxis::X));
 
 			Nodes.Add(conn_node);
 
-			Connect(here_node, conn_node, FVector::Dist(here_node->Position, conn_node->Position), false);
+			Connect(here_node, conn_node, FVector::Dist(here_node->GetPosition(), conn_node->GetPosition()), false);
 		}
 	}
 
@@ -95,7 +95,7 @@ void SGraph::RefreshTransforms() const
 {
 	for(const auto& n : Nodes)
 	{
-		n->CachedTransform = Util::MakeTransform(n->Position, n->Up, n->Forwards);
+		n->CachedTransform = Util::MakeTransform(n->GetPosition(), n->GetUp(), n->GetForward());
 		n->Flipped = false;
 	}
 }
@@ -152,8 +152,8 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 	// which for one div means start @ 0, div @ 1, end @ 2 etc
 	divs += 1;
 
-	const auto from_pos = from_c->Position;
-	const auto to_pos = to_c->Position;
+	const auto from_pos = from_c->GetPosition();
+	const auto to_pos = to_c->GetPosition();
 
 	auto dist = FVector::Distance(from_pos, to_pos);
 
@@ -162,8 +162,8 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 	// otherwise use the nominal length so as not to build something sillily compressed
 	auto working_length = FMath::Max(D0 * divs, dist);
 
-	auto from_forward = from_pos - from_n->Position;
-	auto to_forward = to_pos - to_n->Position;
+	auto from_forward = from_pos - from_n->GetPosition();
+	auto to_forward = to_pos - to_n->GetPosition();
 
 	from_forward.Normalize();
 	to_forward.Normalize();
@@ -181,7 +181,7 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 	// an intermediate point hits to_pos, we get a silly curve
 	// (in the extreme case, if the arrangement is like this
 	// from --->  <--- to
-	// then the curve can run forwards and backwards along the line, which breaks coordinate frame interpolation
+	// then the curve can run forward and backwards along the line, which breaks coordinate frame interpolation
 	//
 	// so if either intermediate point is too close to the end point that wasn't used to calculate it
 	// try backing it off a bit...
@@ -196,15 +196,15 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 		intermediate2 = to_pos + to_forward * working_length / 2;
 	}
 
-	const auto from_up = from_c->Up;
-	const auto to_up = to_c->Up;
+	const auto from_up = from_c->GetUp();
+	const auto to_up = to_c->GetUp();
 
 	auto current_up = from_up;
 
 	struct Frame {
 		FVector pos;
 		FVector up;
-		FVector forwards;
+		FVector forward;
 	};
 
 	TArray<Frame> frames;
@@ -229,10 +229,10 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 
 		current_up.Normalize();
 
-		frames.Add({pos, current_up, forward});
+		frames.Add({pos, current_up, forward });
 	}
 
-	auto angle_mismatch = Util::SignedAngle(to_up, frames.Last().up, frames.Last().forwards);
+	auto angle_mismatch = Util::SignedAngle(to_up, frames.Last().up, frames.Last().forward);
 
 	angle_mismatch += twists * PI;
 
@@ -285,9 +285,9 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 		TSharedPtr<SNode> next_node;
 		
 		next_node = MakeShared<SNode>(Nodes.Num(), profile);
-		next_node->Position = frames[i].pos;
-		next_node->Up = frames[i].up;
-		next_node->Forwards = frames[i].forwards;
+		next_node->SetPosition(frames[i].pos);
+		next_node->SetUp(frames[i].up);
+		next_node->SetForward(frames[i].forward);
 
 		Nodes.Add(next_node);
 
@@ -327,12 +327,12 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh, bool skeleton_only)
 			auto from_n = e->FromNode.Pin();
 			auto to_n = e->ToNode.Pin();
 
-			auto from_p = from_n->Position;
-			auto to_p = to_n->Position;
+			auto from_p = from_n->GetPosition();
+			auto to_p = to_n->GetPosition();
 
 			auto vec = to_p - from_p;
 
-			auto orth1 = FVector::CrossProduct(vec, from_n->Up);
+			auto orth1 = FVector::CrossProduct(vec, from_n->GetUp());
 
 			orth1.Normalize();
 
@@ -393,6 +393,54 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh, bool skeleton_only)
 				Util::AddPolyToMesh(mesh, poly);
 			}
 		}
+
+		for (const auto& n : Nodes)
+		{
+			auto p1 = n->GetPosition();
+			auto p2 = p1 + n->GetForward();
+			auto p3 = p1 + n->GetUp() * 5;
+			auto p4 = p1 + FVector::CrossProduct(n->GetForward(), n->GetUp());
+
+			{
+				TArray<FVector> poly;
+
+				poly.Add(p1);
+				poly.Add(p2);
+				poly.Add(p3);
+
+				Util::AddPolyToMesh(mesh, poly);
+			}
+
+			{
+				TArray<FVector> poly;
+
+				poly.Add(p2);
+				poly.Add(p4);
+				poly.Add(p3);
+
+				Util::AddPolyToMesh(mesh, poly);
+			}
+
+			{
+				TArray<FVector> poly;
+
+				poly.Add(p4);
+				poly.Add(p1);
+				poly.Add(p3);
+
+				Util::AddPolyToMesh(mesh, poly);
+			}
+
+			{
+				TArray<FVector> poly;
+
+				poly.Add(p1);
+				poly.Add(p4);
+				poly.Add(p2);
+
+				Util::AddPolyToMesh(mesh, poly);
+			}
+		}
 	}
 	else
 	{
@@ -412,10 +460,10 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh, bool skeleton_only)
 				// if the two forward vectors are not within 180 degrees, because the
 				// dest profile will be the wrong way around (not doing this will cause the connection to "bottle neck" and
 				// also crash mesh generation since we'll be trying to add two faces rotating the same way to one edge)
-				FVector to_forwards = to_trans.GetUnitAxis(EAxis::X);
-				FVector from_forwards = from_trans.GetUnitAxis(EAxis::X);
+				FVector to_forward = to_trans.GetUnitAxis(EAxis::X);
+				FVector from_forward = from_trans.GetUnitAxis(EAxis::X);
 
-				if (FVector::DotProduct(to_forwards, from_forwards) < 0)
+				if (FVector::DotProduct(to_forward, from_forward) < 0)
 				{
 					to_trans = FTransform(FRotator(0, 180, 0)) * to_trans;
 					// so that the node construction can know we did this...

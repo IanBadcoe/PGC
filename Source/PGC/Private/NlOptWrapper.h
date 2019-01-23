@@ -11,6 +11,7 @@ public:
 	virtual double f(int n, const double* x, double* grad) = 0;
 	virtual int GetSize() const = 0;
 	virtual void GetInitialStepSize(double* steps, int n) const = 0;
+	virtual void GetLimits(double* lower, double* upper, int n) const = 0;
 	virtual void GetState(double* x, int n) const = 0;
 	virtual void SetState(const double* x, int n) = 0;
 

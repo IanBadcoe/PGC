@@ -59,6 +59,14 @@ bool NlOptWrapper::RunOptimization(nlopt_algorithm alg, int steps)
 	NlIface->GetInitialStepSize(initial_step.GetData(), NlIface->GetSize());
 	nlopt_set_initial_step(NlOpt, initial_step.GetData());
 
+	TArray<double> upper, lower;
+	upper.AddDefaulted(NlIface->GetSize());
+	lower.AddDefaulted(NlIface->GetSize());
+
+	NlIface->GetLimits(lower.GetData(), upper.GetData(), NlIface->GetSize());
+	nlopt_set_lower_bounds(NlOpt, lower.GetData());
+	nlopt_set_upper_bounds(NlOpt, upper.GetData());
+
 	TArray<double> state;
 	state.AddDefaulted(NlIface->GetSize());
 	NlIface->GetState(state.GetData(), NlIface->GetSize());

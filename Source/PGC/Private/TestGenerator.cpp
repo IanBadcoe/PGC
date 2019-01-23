@@ -92,7 +92,7 @@ void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh)
 		UE_LOG(LogTemp, Warning, TEXT("Not converged"));
 	}
 
-	StructuralGraph->MakeMesh(mesh, false);
+	StructuralGraph->MakeMesh(mesh, true);
 }
 
 bool ATestGenerator::NeedsRefinement()
@@ -112,7 +112,7 @@ void TestGraph::Generate()
 	Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 0 }, FVector{ 0, 0, 90 }));
 	Nodes.Add(MakeShared<YJunction>(FVector{ 0, 100, 0 }, FVector{ 0, 0, -90 }));
 
-	Connect(0, 0, 1, 0, 20, 0);
+	Connect(0, 0, 1, 0, 20, 1);
 	Connect(0, 1, 0, 2, 20, 0);
 	Connect(1, 2, 1, 1, 20, 0);
 

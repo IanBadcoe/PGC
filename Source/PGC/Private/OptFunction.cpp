@@ -5,23 +5,25 @@ using namespace StructuralGraph;
 
 #pragma optimize ("", off)
 
-#define PARAMS_PER_NODE 3
+#define PARAMS_PER_NODE 6
 
 static int ParamToNode(int vect_idx)
 {
 	return vect_idx / PARAMS_PER_NODE;
 }
 
-static int NodeToParamStart(int vect_idx, int axis)
+static int NodeToParam(int node_idx, int param_in_node, int n)
 {
-	check(axis >= 0 && axis < PARAMS_PER_NODE);
+	check(param_in_node >= 0 && param_in_node < PARAMS_PER_NODE);
+	check(node_idx * PARAMS_PER_NODE + param_in_node < n);
+	check(node_idx >= 0);
 
-	return vect_idx * PARAMS_PER_NODE + axis;
+	return node_idx * PARAMS_PER_NODE + param_in_node;
 }
 
-static int ParamToAxis(int vect_idx)
+static int ParamToParamInNode(int param_idx)
 {
-	return vect_idx % 3;
+	return param_idx % PARAMS_PER_NODE;
 }
 
 #define HISTO_SIZE 20
@@ -77,7 +79,7 @@ static void print_histo() {
 }
 
 
-double OptFunction::UnconnectedNodeNodeVal(const FVector& p1, const FVector& p2, float D)
+double OptFunction::UnconnectedNodeNodeDist_Val(const FVector& p1, const FVector& p2, float D)
 {
 	float dist = FVector::Dist(p1, p2);
 
@@ -87,7 +89,7 @@ double OptFunction::UnconnectedNodeNodeVal(const FVector& p1, const FVector& p2,
 	return FMath::Pow(dist - D, 2) * 0.01;		//LeonardJonesVal(dist, D, 1);
 }
 
-double OptFunction::UnconnectedNodeNodeGrad(const FVector & pGrad, const FVector & pOther, float D0, int axis)
+double OptFunction::UnconnectedNodeNodeDist_Grad(const FVector & pGrad, const FVector & pOther, float D0, int axis)
 {
 	check(axis >= 0 && axis < 3);
 
@@ -99,7 +101,42 @@ double OptFunction::UnconnectedNodeNodeGrad(const FVector & pGrad, const FVector
 	return 2 * (pGrad[axis] - pOther[axis]) * (dist - D0) / dist * 0.01;
 }
 
-double OptFunction::ConnectedNodeNodeVal(const FVector & p1, const FVector & p2, float D0)
+double Opt::OptFunction::ConnectedNodeNodeTorsion_Val(const FVector& up1, const FVector& up2)
+{
+	// we have to take non-normalized up1 here for gradient-check purposes (perturbing a normalised vector is very different
+	// to perturbing a non-normal one...)
+	check(up2.IsNormalized());
+
+	auto len_up1 = up1.Size();
+
+	auto dp = FVector::DotProduct(up1 / len_up1, up2);
+
+	return 1 / (1.1 + dp)
+		+ FMath::Pow(1 - len_up1, 2);		// extra term to keep he vector roughly normal, since getting near the origin makes things terribly unstable...
+
+	//return FMath::Pow(1 - dp, 2)
+	//	+ FMath::Pow(1 - len_up1, 2);		// extra term to keep he vector roughly normal, since getting near the origin makes things terribly unstable...
+}
+
+double Opt::OptFunction::ConnectedNodeNodeTorsion_Grad(const FVector& upGrad, const FVector& upOther, int axis)
+{
+	// up1 is non-normal as we need the actual parameter values
+	check(upOther.IsNormalized());
+
+	auto par = upGrad[axis];
+
+	auto dist = upGrad.Size();
+
+	auto dp = FVector::DotProduct(upGrad, upOther);
+
+	return -(upOther[axis] / dist - par * dp / FMath::Pow(dist, 3)) / FMath::Pow(dp / dist + 1.1, 2)
+		+ par * (2 - 2 / dist);
+
+	//return 2 * (par * dp / FMath::Pow(dist, 3) - upOther[axis] / dist) * (1 - dp / dist)
+	//	+ par * (2 - 2 / dist);
+}
+
+double OptFunction::ConnectedNodeNodeDist_Val(const FVector& p1, const FVector& p2, float D0)
 {
 	float dist = FVector::Dist(p1, p2);
 
@@ -108,7 +145,7 @@ double OptFunction::ConnectedNodeNodeVal(const FVector & p1, const FVector & p2,
 	return pow(dist - D0, 2); //LeonardJonesVal(dist, D0, 2);
 }
 
-double OptFunction::ConnectedNodeNodeGrad(const FVector & pGrad, const FVector & pOther, float D0, int axis)
+double OptFunction::ConnectedNodeNodeDist_Grad(const FVector& pGrad, const FVector& pOther, float D0, int axis)
 {
 	check(axis >= 0 && axis < 3);
 		
@@ -131,26 +168,20 @@ double OptFunction::LeonardJonesVal(double R, double D, int N) const
 //	return 2 * N * (FMath::Pow(rat, N) - 1) * FMath::Pow(rat, N) / R;
 //}
 
-static FVector GetVector(const double* x, int x_size, int vect_idx) {
-	check(vect_idx >= 0);
-	check(NodeToParamStart(vect_idx, 2) < x_size);
-
+static FVector GetVector(const double* x, int x_size, int node_idx, int vect_idx) {
 	return FVector
 	{
-		(float)x[NodeToParamStart(vect_idx, 0)],
-		(float)x[NodeToParamStart(vect_idx, 1)],
-		(float)x[NodeToParamStart(vect_idx, 2)]
+		(float)x[NodeToParam(node_idx, vect_idx * 3 + 0, x_size)],
+		(float)x[NodeToParam(node_idx, vect_idx * 3 + 1, x_size)],
+		(float)x[NodeToParam(node_idx, vect_idx * 3 + 2, x_size)]
 	};
 }
 
-static void SetVector(double* x, int x_size, int vect_idx, const FVector& v)
+static void SetVector(double* x, int x_size, int node_idx, int vect_idx, const FVector& v)
 {
-	check(vect_idx >= 0);
-	check(NodeToParamStart(vect_idx, 2) < x_size);
-
-	x[NodeToParamStart(vect_idx, 0)] = v.X;
-	x[NodeToParamStart(vect_idx, 1)] = v.Y;
-	x[NodeToParamStart(vect_idx, 2)] = v.Z;
+	x[NodeToParam(node_idx, 0 + vect_idx * 3, x_size)] = v.X;
+	x[NodeToParam(node_idx, 1 + vect_idx * 3, x_size)] = v.Y;
+	x[NodeToParam(node_idx, 2 + vect_idx * 3, x_size)] = v.Z;
 }
 
 OptFunction::OptFunction(TSharedPtr<SGraph> g) : G(g)
@@ -194,21 +225,23 @@ int OptFunction::GetSize() const
 	return G->Nodes.Num() * PARAMS_PER_NODE;
 }
 
-typedef double (*ValueFunction)(const FVector&, const FVector&, float D0);
+template <typename... OtherArgs>
+using CheckFunPtr = double(*)(const FVector&, const FVector&, OtherArgs...);
 
-double check_grad(const FVector& pGrad, const FVector& pOther, float D0, int par, ValueFunction pFun)
+template <typename... OtherArgs>
+double check_grad(const FVector& pGrad, const FVector& pOther, int axis, double delta, OtherArgs... other_args, CheckFunPtr<OtherArgs...> pFun)
 {
 	FVector offset{ 0, 0, 0 };
 
-	offset[par] = 1e-3;
+	offset[axis] = delta;
 
 	auto pGradPlus = pGrad + offset;
 	auto pGradMinus = pGrad - offset;
 
-	auto valPlus = pFun(pGradPlus, pOther, D0);
-	auto valMinus = pFun(pGradMinus, pOther, D0);
+	auto valPlus = pFun(pGradPlus, pOther, other_args...);
+	auto valMinus = pFun(pGradMinus, pOther, other_args...);
 
-	return (valPlus - valMinus) / 2E-3;
+	return (valPlus - valMinus) / (2 * delta);
 }
 
 double OptFunction::f(int n, const double* x, double* grad)
@@ -226,11 +259,13 @@ double OptFunction::f(int n, const double* x, double* grad)
 			auto idxs = JoinIdxs{ i, j };
 			if (Connected.Contains(idxs))
 			{
-				ret += ConnectedNodeNodeVal(G->Nodes[i]->Position, G->Nodes[j]->Position, Connected[idxs]);
+				ret += ConnectedNodeNodeDist_Val(G->Nodes[i]->GetPosition(), G->Nodes[j]->GetPosition(), Connected[idxs]);
+
+				ret += ConnectedNodeNodeTorsion_Val(G->Nodes[i]->GetUp(), G->Nodes[j]->GetUp());
 			}
 			else
 			{
-				ret += UnconnectedNodeNodeVal(G->Nodes[i]->Position, G->Nodes[j]->Position, G->Nodes[i]->Radius + G->Nodes[j]->Radius);
+				ret += UnconnectedNodeNodeDist_Val(G->Nodes[i]->GetPosition(), G->Nodes[j]->GetPosition(), G->Nodes[i]->Radius + G->Nodes[j]->Radius);
 			}
 		}
 	}
@@ -242,7 +277,7 @@ double OptFunction::f(int n, const double* x, double* grad)
 			grad[par] = 0;
 
 			auto i = ParamToNode(par);
-			auto axis = ParamToAxis(par);
+			auto axis = ParamToParamInNode(par);
 			TSharedPtr<SNode> node_i = G->Nodes[i];
 
 			for (int j = 0; j < G->Nodes.Num(); j++)
@@ -252,30 +287,52 @@ double OptFunction::f(int n, const double* x, double* grad)
 					auto idxs = JoinIdxs{ i, j };
 					TSharedPtr<SNode> node_j = G->Nodes[j];
 
-					// the node whose gradient we are calculating always gets passed first into the gradient function
-					if (Connected.Contains(idxs))
+					if (axis < 3)
 					{
-						auto here_grad = ConnectedNodeNodeGrad(node_i->Position, node_j->Position, Connected[idxs], axis);
+						// node distances depend only on positions
+						// the node whose gradient we are calculating always gets passed first into the gradient function
+						if (Connected.Contains(idxs))
+						{
+							{
+								auto here_grad = ConnectedNodeNodeDist_Grad(node_i->GetPosition(), node_j->GetPosition(), Connected[idxs], axis);
 
 #ifndef UE_BUILD_RELEASE
-						double diff = here_grad - check_grad(node_i->Position, node_j->Position, Connected[idxs], axis, ConnectedNodeNodeVal);
-						check(abs(diff) < 1E-2);
+								double diff = here_grad - check_grad(node_i->GetPosition(), node_j->GetPosition(), axis, 1e-3, Connected[idxs], ConnectedNodeNodeDist_Val);
+								check(abs(diff) < 1E-2);
 #endif
 
-						grad[par] += here_grad;
+								grad[par] += here_grad;
+							}
+						}
+						else
+						{
+							float radius = node_i->Radius + node_j->Radius;
+
+							auto here_grad = UnconnectedNodeNodeDist_Grad(node_i->GetPosition(), node_j->GetPosition(), radius, axis);
+
+#ifndef UE_BUILD_RELEASE
+							double diff = here_grad - check_grad(node_i->GetPosition(), node_j->GetPosition(), axis, 1e-3, radius, UnconnectedNodeNodeDist_Val);
+							check(abs(diff) < 1E-2);
+#endif
+
+							grad[par] += here_grad;
+						}
 					}
 					else
 					{
-						float radius = node_i->Radius + node_j->Radius;
-
-						auto here_grad = UnconnectedNodeNodeGrad(node_i->Position, node_j->Position, radius, axis);
+						// torsions depend only on normals
+						if (Connected.Contains(idxs))
+						{
+							// we need the raw up for the actual param value of the one we're getting the gradient for...
+							auto here_grad = ConnectedNodeNodeTorsion_Grad(node_i->GetRawUp(), node_j->GetUp(), axis - 3);
 
 #ifndef UE_BUILD_RELEASE
-						double diff = here_grad - check_grad(node_i->Position, node_j->Position, radius, axis, UnconnectedNodeNodeVal);
-						check(abs(diff) < 1E-2);
+							double check = check_grad(node_i->GetRawUp(), node_j->GetUp(), axis - 3, 1e-4, ConnectedNodeNodeTorsion_Val);
+							check(abs(check - here_grad) < 2E-2);
 #endif
 
-						grad[par] += here_grad;
+							grad[par] += here_grad;
+						}
 					}
 				}
 			}
@@ -301,10 +358,8 @@ void OptFunction::GetState(double* x, int n) const
 
 	for (int i = 0; i < G->Nodes.Num(); i++)
 	{
-		SetVector(x, n, i + 0, G->Nodes[i]->Position);
-
-		//SetVector(x, i * 2 + 0, G->Nodes[i]->Position);
-		//SetVector(x, i * 2 + 1, G->Nodes[i]->Up);
+		SetVector(x, n, i, 0, G->Nodes[i]->GetPosition());
+		SetVector(x, n, i, 1, G->Nodes[i]->GetRawUp());
 	}
 }
 
@@ -316,13 +371,10 @@ void OptFunction::SetState(const double* x, int n)
 	{
 		auto& node = G->Nodes[i];
 
-		//auto up = GetVector(x, i * 2 + 1);
-		//up.Normalize();
-		//node->SetPosition(GetVector(x, i * 2), up);
+		node->SetPosition(GetVector(x, n, i, 0));
+		node->SetUp(GetVector(x, n, i, 1));
 
-		node->SetPosition(GetVector(x, n, i), node->Up);
-
-		FVector forwards;
+		FVector forward;
 
 		check(node->Edges.Num() > 0);
 
@@ -333,17 +385,17 @@ void OptFunction::SetState(const double* x, int n)
 			const auto& n2 = node->Edges[1].Pin()->OtherNode(node).Pin();
 
 			// we "grow" these linkages away from an existing node, so
-			// "forwards" is towards the second node added
-			forwards = n2->Position - n1->Position;
+			// "forward" is towards the second node added
+			forward = n2->GetPosition() - n1->GetPosition();
 		}
 		else
 		{
-			forwards = n1->Position - node->Position;
+			forward = n1->GetPosition() - node->GetPosition();
 		}
 
-		forwards.Normalize();
+		forward.Normalize();
 
-		node->Forwards = forwards;
+		node->SetForward(forward);
 	}
 }
 
@@ -357,79 +409,27 @@ void OptFunction::print_histo()
 	::print_histo();
 }
 
-//double ConnectedEnergy::Value(const TSharedPtr<StructuralGraph::SGraph>& graph) const
-//{
-//	const auto& p1 = graph->Nodes[Nodes[0]]->Position;
-//	const auto& p2 = graph->Nodes[Nodes[1]]->Position;
-//
-//	float dist = FVector::Dist(p1, p2);
-//
-//	add_hist(dist / D0);
-//
-//	return pow(dist - D0, 2); //LeonardJonesVal(dist, D0, 2);
-//}
-//
-//double ConnectedEnergy::Derivative(const TSharedPtr<StructuralGraph::SGraph>& graph, int node, int axis) const
-//{
-//	check(NumNodes == 2);
-//	check(node >= 0 && node < NumNodes);
-//	check(axis <= 0 && axis < 3);
-//
-//	const auto& p1 = graph->Nodes[Nodes[0]]->Position;
-//	const auto& p2 = graph->Nodes[Nodes[1]]->Position;
-//
-//	FVector ps[2] = { p1, p2 };
-//
-//	float dist = FVector::Dist(p1, p2);
-//
-//	return 2 * (ps[node][axis] - ps[1 - node][axis]) * (dist - D0) / dist;
-//}
-//
-//bool ConnectedEnergy::UsesNode(int idx) const
-//{
-//	return Nodes[0] == idx || Nodes[1] == idx;
-//}
-//
-//double UnconnectedEnergy::Value(const TSharedPtr<StructuralGraph::SGraph>& graph) const
-//{
-//	const auto& p1 = graph->Nodes[Nodes[0]]->Position;
-//	const auto& p2 = graph->Nodes[Nodes[1]]->Position;
-//
-//	float dist = FVector::Dist(p1, p2);
-//
-//	if (dist >= D0)
-//	{
-//		return 0.0;
-//	}
-//
-//	add_hist(dist / D0);
-//
-//	return pow(dist - D0, 2); //LeonardJonesVal(dist, D0, 2);
-//}
-//
-//double UnconnectedEnergy::Derivative(const TSharedPtr<StructuralGraph::SGraph>& graph, int node, int axis) const
-//{
-//	check(NumNodes == 2);
-//	check(node >= 0 && node < NumNodes);
-//	check(axis <= 0 && axis < 3);
-//
-//	const auto& p1 = graph->Nodes[Nodes[0]]->Position;
-//	const auto& p2 = graph->Nodes[Nodes[1]]->Position;
-//
-//	FVector ps[2] = { p1, p2 };
-//
-//	float dist = FVector::Dist(p1, p2);
-//
-//	if (dist >= D0)
-//		return 0.0;
-//
-//	return 2 * (ps[node][axis] - ps[1 - node][axis]) * (dist - D0) / dist;
-//}
-//
-//bool UnconnectedEnergy::UsesNode(int idx) const
-//{
-//	return Nodes[0] == idx || Nodes[1] == idx;
-//}
+void Opt::OptFunction::GetLimits(double* lower, double* upper, int n) const
+{
+	for (int i = 0; i < G->Nodes.Num(); i++)
+	{
+		lower[NodeToParam(i, 0, n)] = G->Nodes[i]->GetPosition().X - 10000;
+		lower[NodeToParam(i, 1, n)] = G->Nodes[i]->GetPosition().Y - 10000;
+		lower[NodeToParam(i, 2, n)] = G->Nodes[i]->GetPosition().Z - 10000;
+
+		lower[NodeToParam(i, 3, n)] = -1;
+		lower[NodeToParam(i, 4, n)] = -1;
+		lower[NodeToParam(i, 5, n)] = -1;
+
+		upper[NodeToParam(i, 0, n)] = G->Nodes[i]->GetPosition().X + 10000;
+		upper[NodeToParam(i, 1, n)] = G->Nodes[i]->GetPosition().Y + 10000;
+		upper[NodeToParam(i, 2, n)] = G->Nodes[i]->GetPosition().Z + 10000;
+
+		upper[NodeToParam(i, 3, n)] = 1;
+		upper[NodeToParam(i, 4, n)] = 1;
+		upper[NodeToParam(i, 5, n)] = 1;
+	}
+}
 
 #pragma optimize ("", on)
 

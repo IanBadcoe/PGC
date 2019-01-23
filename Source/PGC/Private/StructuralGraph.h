@@ -44,10 +44,6 @@ namespace StructuralGraph {
 	public:
 		TArray<TWeakPtr<SEdge>> Edges;
 
-		FVector Position;
-		FVector Up;
-		FVector Forwards;
-
 		const int Idx;
 
 		const TSharedPtr<LayoutGraph::ParameterisedProfile> Profile;
@@ -86,9 +82,46 @@ namespace StructuralGraph {
 		const SNode& operator=(const SNode&) = delete;
 		virtual ~SNode() = default;
 
-		void SetPosition(const FVector& pos, const FVector& up) { Position = pos; Up = up; }
+		void SetPosition(const FVector& pos)
+		{
+			Position = pos;
+		}
+
+		void SetUp(const FVector& up)
+		{
+			Up = up;
+			Up.Normalize();
+			RawUp = up;
+		}
+
+		void SetForward(const FVector& forward)
+		{
+			Forward = forward;
+		}
+
+		const FVector& GetPosition() const {
+			return Position;
+		}
+
+		const FVector& GetUp() const {
+			return Up;
+		}
+
+		const FVector& GetRawUp() const {
+			return RawUp;
+		}
+
+		const FVector& GetForward() const {
+			return Forward;
+		}
 
 		void AddToMesh(TSharedPtr<Mesh> mesh);
+
+	private:
+		FVector Position;
+		FVector Up;
+		FVector RawUp;			// this one may not be normalised, but is needed by optimisation for gradient calculations
+		FVector Forward;
 	};
 
 	class SGraph {

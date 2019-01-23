@@ -234,7 +234,7 @@ struct MeshEdge {
 	Idx<MeshVert> StartVertIdx = Idx<MeshVert>::None;
 	Idx<MeshVert> EndVertIdx = Idx<MeshVert>::None;
 
-	Idx<MeshFace> ForwardsFaceIdx = Idx<MeshFace>::None;
+	Idx<MeshFace> ForwardFaceIdx = Idx<MeshFace>::None;
 	Idx<MeshFace> BackwardsFaceIdx = Idx<MeshFace>::None;
 
 	PGCEdgeType Type = PGCEdgeType::Rounded;
@@ -243,8 +243,8 @@ struct MeshEdge {
 	{
 		if (start_vert_idx == StartVertIdx)
 		{
-			check(!ForwardsFaceIdx.Valid());
-			ForwardsFaceIdx = face_idx;
+			check(!ForwardFaceIdx.Valid());
+			ForwardFaceIdx = face_idx;
 		}
 		else
 		{
@@ -260,14 +260,14 @@ struct MeshEdge {
 	}
 
 	bool Contains(Idx<MeshFace> face_idx) const {
-		return ForwardsFaceIdx == face_idx || BackwardsFaceIdx == face_idx;
+		return ForwardFaceIdx == face_idx || BackwardsFaceIdx == face_idx;
 	}
 
 	Idx<MeshFace> OtherFace(Idx<MeshFace> face_idx) const
 	{
 		check(Contains(face_idx));
 
-		return face_idx == BackwardsFaceIdx ? ForwardsFaceIdx : BackwardsFaceIdx;
+		return face_idx == BackwardsFaceIdx ? ForwardFaceIdx : BackwardsFaceIdx;
 	}
 
 	Idx<MeshVert> OtherVert(Idx<MeshVert> vert_idx) const
@@ -355,7 +355,7 @@ class Mesh : public TSharedFromThis<Mesh>
 
 	// the function of these was driven by the AddFace requirement of finding and canceling an existing face
 	// which is the reverse of these, so the arguments here take a face winding the opposite wat to the one we are removing
-	// if we need a "forwards" version of either of these it would be trivial to write...
+	// if we need a "forward" version of either of these it would be trivial to write...
 	bool CancelExistingReverseFace(const TArray<Idx<MeshVert>>& face);
 	bool CancelExistingReverseFaceFromVects(const TArray<FVector>& vertices);
 

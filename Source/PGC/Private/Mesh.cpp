@@ -117,15 +117,15 @@ void Mesh::CheckConsistent(bool closed)
 
 		check(e.StartVertIdx.Valid() && e.StartVertIdx < Vertices.Num());
 		check(e.EndVertIdx.Valid() && e.EndVertIdx < Vertices.Num());
-		check(e.ForwardsFaceIdx < Faces.Num());
+		check(e.ForwardFaceIdx < Faces.Num());
 		check(e.BackwardsFaceIdx < Faces.Num());
 		// we should have both edges if we're closed
 		// (redundant edges should have been removed...)
-		check(!closed || e.ForwardsFaceIdx.Valid());
+		check(!closed || e.ForwardFaceIdx.Valid());
 		check(!closed || e.BackwardsFaceIdx.Valid());
 		check(Vertices[e.StartVertIdx].EdgeIdxs.Contains(edge_idx));
 		check(Vertices[e.EndVertIdx].EdgeIdxs.Contains(edge_idx));
-		check(!e.ForwardsFaceIdx.Valid() || Faces[e.ForwardsFaceIdx].EdgeIdxs.Contains(edge_idx));
+		check(!e.ForwardFaceIdx.Valid() || Faces[e.ForwardFaceIdx].EdgeIdxs.Contains(edge_idx));
 		check(!e.BackwardsFaceIdx.Valid() || Faces[e.BackwardsFaceIdx].EdgeIdxs.Contains(edge_idx));
 	}
 
@@ -169,9 +169,9 @@ void Mesh::CheckConsistent(bool closed)
 			// should have us as a face on one or the other side
 			check(edge.Contains(face_idx));
 
-			// if the edge starts with our previous vert, then we are the forwards face of this edge,
+			// if the edge starts with our previous vert, then we are the forward face of this edge,
 			// otherwise we are its backwards face
-			check((edge.StartVertIdx == prev_vert_idx) == (edge.ForwardsFaceIdx == face_idx));
+			check((edge.StartVertIdx == prev_vert_idx) == (edge.ForwardFaceIdx == face_idx));
 			check((edge.EndVertIdx == prev_vert_idx) == (edge.BackwardsFaceIdx == face_idx));
 
 			auto v = Vertices[vert_idx];
@@ -428,13 +428,13 @@ void Mesh::RemoveFace(Idx<MeshFace> face_idx)
 
 	for (auto& e : Edges)
 	{
-		if (e.ForwardsFaceIdx == face_idx)
+		if (e.ForwardFaceIdx == face_idx)
 		{
-			e.ForwardsFaceIdx = Idx<MeshFace>::None;
+			e.ForwardFaceIdx = Idx<MeshFace>::None;
 		}
-		else if (e.ForwardsFaceIdx > face_idx)
+		else if (e.ForwardFaceIdx > face_idx)
 		{
-			e.ForwardsFaceIdx--;
+			e.ForwardFaceIdx--;
 		}
 
 		if (e.BackwardsFaceIdx== face_idx)
@@ -458,7 +458,7 @@ void Mesh::RemoveEdge(Idx<MeshEdge> edge_idx)
 {
 	auto e = Edges[edge_idx];
 
-	check(!e.ForwardsFaceIdx.Valid() && !e.BackwardsFaceIdx.Valid());
+	check(!e.ForwardFaceIdx.Valid() && !e.BackwardsFaceIdx.Valid());
 
 	for (auto& v : Vertices)
 	{
@@ -569,14 +569,14 @@ void Mesh::MergeEdges(Idx<MeshEdge> merge_to, Idx<MeshEdge> merge_from)
 	if (edge2.StartVertIdx == edge1.StartVertIdx)
 	{
 		// if the edges run the same way
-		if (edge2.ForwardsFaceIdx.Valid())
+		if (edge2.ForwardFaceIdx.Valid())
 		{
-			check(!edge1.ForwardsFaceIdx.Valid());
+			check(!edge1.ForwardFaceIdx.Valid());
 
-			Faces[edge2.ForwardsFaceIdx].EdgeIdxs.Remove(merge_from);
-			Faces[edge2.ForwardsFaceIdx].EdgeIdxs.Push(merge_to);
-			edge1.ForwardsFaceIdx = edge2.ForwardsFaceIdx;
-			edge2.ForwardsFaceIdx = Idx<MeshFace>::None;
+			Faces[edge2.ForwardFaceIdx].EdgeIdxs.Remove(merge_from);
+			Faces[edge2.ForwardFaceIdx].EdgeIdxs.Push(merge_to);
+			edge1.ForwardFaceIdx = edge2.ForwardFaceIdx;
+			edge2.ForwardFaceIdx = Idx<MeshFace>::None;
 		}
 		else
 		{
@@ -592,23 +592,23 @@ void Mesh::MergeEdges(Idx<MeshEdge> merge_to, Idx<MeshEdge> merge_from)
 	else
 	{
 		// if the edges run opposite ways
-		if (edge2.ForwardsFaceIdx.Valid())
+		if (edge2.ForwardFaceIdx.Valid())
 		{
 			check(!edge1.BackwardsFaceIdx.Valid());
 
-			Faces[edge2.ForwardsFaceIdx].EdgeIdxs.Remove(merge_from);
-			Faces[edge2.ForwardsFaceIdx].EdgeIdxs.Push(merge_to);
-			edge1.BackwardsFaceIdx = edge2.ForwardsFaceIdx;
-			edge2.ForwardsFaceIdx = Idx<MeshFace>::None;
+			Faces[edge2.ForwardFaceIdx].EdgeIdxs.Remove(merge_from);
+			Faces[edge2.ForwardFaceIdx].EdgeIdxs.Push(merge_to);
+			edge1.BackwardsFaceIdx = edge2.ForwardFaceIdx;
+			edge2.ForwardFaceIdx = Idx<MeshFace>::None;
 		}
 		else
 		{
 			check(edge2.BackwardsFaceIdx.Valid());
-			check(!edge1.ForwardsFaceIdx.Valid());
+			check(!edge1.ForwardFaceIdx.Valid());
 
 			Faces[edge2.BackwardsFaceIdx].EdgeIdxs.Remove(merge_from);
 			Faces[edge2.BackwardsFaceIdx].EdgeIdxs.Push(merge_to);
-			edge1.ForwardsFaceIdx = edge2.BackwardsFaceIdx;
+			edge1.ForwardFaceIdx = edge2.BackwardsFaceIdx;
 			edge2.BackwardsFaceIdx = Idx<MeshFace>::None;
 		}
 	}
@@ -626,7 +626,7 @@ void Mesh::CleanUpRedundantEdges()
 	{
 		const auto& e = Edges[i];
 
-		if (!e.ForwardsFaceIdx.Valid() && !e.BackwardsFaceIdx.Valid())
+		if (!e.ForwardFaceIdx.Valid() && !e.BackwardsFaceIdx.Valid())
 		{
 			any = true;
 			RemoveEdge(i);
@@ -881,9 +881,9 @@ void Mesh::SplitPyramids(const TArray<TArray<Idx<MeshFace>>>& pyramids, Idx<Mesh
 
 			auto& edge = Edges[edge_idx];
 
-			// only need to check one out of the forwards and backwards faces
+			// only need to check one out of the forward and backwards faces
 			// since the edges around this vert connect either two or zero faces from this pyramid
-			if (pyramid.Contains(edge.ForwardsFaceIdx))
+			if (pyramid.Contains(edge.ForwardFaceIdx))
 			{
 				edges_found++;
 
@@ -1098,7 +1098,7 @@ TSharedPtr<Mesh> Mesh::SubdivideInner()
 		if (e.Type == PGCEdgeType::Rounded)
 		{
 			e.WorkingEdgeVertex.Pos = (Vertices[e.StartVertIdx].Pos + Vertices[e.EndVertIdx].Pos
-				+ Faces[e.ForwardsFaceIdx].WorkingFaceVertex.Pos + Faces[e.BackwardsFaceIdx].WorkingFaceVertex.Pos) / 4;
+				+ Faces[e.ForwardFaceIdx].WorkingFaceVertex.Pos + Faces[e.BackwardsFaceIdx].WorkingFaceVertex.Pos) / 4;
 		}
 		else
 		{
