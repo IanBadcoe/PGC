@@ -12,6 +12,13 @@ static int ParamToNode(int vect_idx)
 	return vect_idx / PARAMS_PER_NODE;
 }
 
+static int NodeToParamStart(int vect_idx, int axis)
+{
+	check(axis >= 0 && axis < PARAMS_PER_NODE);
+
+	return vect_idx * PARAMS_PER_NODE + axis;
+}
+
 static int ParamToAxis(int vect_idx)
 {
 	return vect_idx % 3;
@@ -126,24 +133,24 @@ double OptFunction::LeonardJonesVal(double R, double D, int N) const
 
 static FVector GetVector(const double* x, int x_size, int vect_idx) {
 	check(vect_idx >= 0);
-	check(ParamToNode(vect_idx) + 2 < x_size);
+	check(NodeToParamStart(vect_idx, 2) < x_size);
 
 	return FVector
 	{
-		(float)x[ParamToNode(vect_idx) + 0],
-		(float)x[ParamToNode(vect_idx) + 1],
-		(float)x[ParamToNode(vect_idx) + 2]
+		(float)x[NodeToParamStart(vect_idx, 0)],
+		(float)x[NodeToParamStart(vect_idx, 1)],
+		(float)x[NodeToParamStart(vect_idx, 2)]
 	};
 }
 
 static void SetVector(double* x, int x_size, int vect_idx, const FVector& v)
 {
 	check(vect_idx >= 0);
-	check(ParamToNode(vect_idx) + 2 < x_size);
+	check(NodeToParamStart(vect_idx, 2) < x_size);
 
-	x[ParamToNode(vect_idx) + 0] = v.X;
-	x[ParamToNode(vect_idx) + 1] = v.Y;
-	x[ParamToNode(vect_idx) + 2] = v.Z;
+	x[NodeToParamStart(vect_idx, 0)] = v.X;
+	x[NodeToParamStart(vect_idx, 1)] = v.Y;
+	x[NodeToParamStart(vect_idx, 2)] = v.Z;
 }
 
 OptFunction::OptFunction(TSharedPtr<SGraph> g) : G(g)
