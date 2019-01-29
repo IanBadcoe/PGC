@@ -502,7 +502,6 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh, bool skeleton_only)
 	}
 	else
 	{
-		bool seen_flip = false;
 		for (const auto& e : Edges)
 		{
 			auto from_n = e->FromNode.Pin();

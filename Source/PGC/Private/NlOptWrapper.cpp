@@ -14,14 +14,16 @@ NlOptWrapper::~NlOptWrapper()
 
 bool NlOptWrapper::RunOptimization()
 {
-	if (RunOptimization(NLOPT_LN_SBPLX, 10000))
-	{
-		return true;
-	}
+	return RunOptimization(NLOPT_LN_SBPLX, 10000);
 
-	UE_LOG(LogTemp, Warning, TEXT("Simplex Completed"));
+	//if (RunOptimization(NLOPT_LN_SBPLX, 10000))
+	//{
+	//	return true;
+	//}
 
-	return RunOptimization(NLOPT_LD_SLSQP, 10000);
+	//UE_LOG(LogTemp, Warning, TEXT("Simplex Completed"));
+
+	//return RunOptimization(NLOPT_LD_SLSQP, 10000);
 }
 
 double NlOptWrapper::f_callback(unsigned n, const double* x, double* grad, void* data)
@@ -63,9 +65,9 @@ bool NlOptWrapper::RunOptimization(nlopt_algorithm alg, int steps)
 	upper.AddDefaulted(NlIface->GetSize());
 	lower.AddDefaulted(NlIface->GetSize());
 
-	NlIface->GetLimits(lower.GetData(), upper.GetData(), NlIface->GetSize());
-	nlopt_set_lower_bounds(NlOpt, lower.GetData());
-	nlopt_set_upper_bounds(NlOpt, upper.GetData());
+	//NlIface->GetLimits(lower.GetData(), upper.GetData(), NlIface->GetSize());
+	//nlopt_set_lower_bounds(NlOpt, lower.GetData());
+	//nlopt_set_upper_bounds(NlOpt, upper.GetData());
 
 	TArray<double> state;
 	state.AddDefaulted(NlIface->GetSize());

@@ -83,14 +83,14 @@ void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh)
 	//OptimizerInterface->GetState(state.GetData(), sz);
 	//OptimizerInterface->SetState(state.GetData(), sz);
 
-	//if (Optimizer->RunOptimization())
-	//{
-	//	UE_LOG(LogTemp, Warning, TEXT("Converged"));
-	//}
-	//else
-	//{
-	//	UE_LOG(LogTemp, Warning, TEXT("Not converged"));
-	//}
+	if (Optimizer->RunOptimization())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Converged"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Not converged"));
+	}
 
 	StructuralGraph->MakeMesh(mesh, false);
 }
