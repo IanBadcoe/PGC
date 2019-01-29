@@ -85,7 +85,12 @@ inline FVector ProjectOntoPlane(const FVector& vect, const FVector& plane_normal
 {
 	check(plane_normal.IsUnit());
 
-	return (vect - FVector::DotProduct(plane_normal, vect) * vect.Size()).GetSafeNormal();
+	auto proj_dist = FVector::DotProduct(plane_normal, vect);
+
+	// check there's a reasonable amount of precision left for the in-plane component
+	check(FMath::Abs(proj_dist) < 0.99f);
+
+	return vect - proj_dist * plane_normal;
 }
 
 // measures the angle to "to" from "from" about the axis axis...
@@ -94,12 +99,12 @@ inline FVector ProjectOntoPlane(const FVector& vect, const FVector& plane_normal
 // return in radians, looking down "axis" clockwise is a +ve angle
 inline float SignedAngle(const FVector& from, const FVector& to, const FVector& axis)
 {
-	auto from_proj = ProjectOntoPlane(from, axis);
-	auto to_proj = ProjectOntoPlane(to, axis);
+	auto from_proj_norm = ProjectOntoPlane(from, axis).GetSafeNormal();
+	auto to_proj_norm = ProjectOntoPlane(to, axis).GetSafeNormal();
 
-	auto angle = FMath::Acos(FVector::DotProduct(from_proj, to_proj));
+	auto angle = FMath::Acos(FVector::DotProduct(from_proj_norm, to_proj_norm));
 
-	auto sign_check = FVector::CrossProduct(to_proj, from_proj);
+	auto sign_check = FVector::CrossProduct(from_proj_norm, to_proj_norm);
 
 	if (FVector::DotProduct(sign_check, axis) < 0)
 	{
@@ -107,6 +112,18 @@ inline float SignedAngle(const FVector& from, const FVector& to, const FVector& 
 	}
 
 	return angle;
+}
+
+inline FQuat AxisAngleToQuaternion(FVector Axis, float Angle)
+{
+	FQuat q;
+
+	q.X = Axis.X * sin(Angle / 2);
+	q.Y = Axis.Y * sin(Angle / 2);
+	q.Z = Axis.Z * sin(Angle / 2);
+	q.W = cos(Angle / 2);
+
+	return q;
 }
 
 }

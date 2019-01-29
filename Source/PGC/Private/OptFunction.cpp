@@ -259,13 +259,13 @@ double OptFunction::f(int n, const double* x, double* grad)
 			auto idxs = JoinIdxs{ i, j };
 			if (Connected.Contains(idxs))
 			{
-				ret += ConnectedNodeNodeDist_Val(G->Nodes[i]->GetPosition(), G->Nodes[j]->GetPosition(), Connected[idxs]);
+				ret += ConnectedNodeNodeDist_Val(G->Nodes[i]->Position, G->Nodes[j]->Position, Connected[idxs]);
 
-				ret += ConnectedNodeNodeTorsion_Val(G->Nodes[i]->GetUp(), G->Nodes[j]->GetUp());
+				//ret += ConnectedNodeNodeTorsion_Val(G->Nodes[i]->Up, G->Nodes[j]->Up);
 			}
 			else
 			{
-				ret += UnconnectedNodeNodeDist_Val(G->Nodes[i]->GetPosition(), G->Nodes[j]->GetPosition(), G->Nodes[i]->Radius + G->Nodes[j]->Radius);
+				ret += UnconnectedNodeNodeDist_Val(G->Nodes[i]->Position, G->Nodes[j]->Position, G->Nodes[i]->Radius + G->Nodes[j]->Radius);
 			}
 		}
 	}
@@ -294,10 +294,10 @@ double OptFunction::f(int n, const double* x, double* grad)
 						if (Connected.Contains(idxs))
 						{
 							{
-								auto here_grad = ConnectedNodeNodeDist_Grad(node_i->GetPosition(), node_j->GetPosition(), Connected[idxs], axis);
+								auto here_grad = ConnectedNodeNodeDist_Grad(node_i->Position, node_j->Position, Connected[idxs], axis);
 
 #ifndef UE_BUILD_RELEASE
-								double diff = here_grad - check_grad(node_i->GetPosition(), node_j->GetPosition(), axis, 1e-3, Connected[idxs], ConnectedNodeNodeDist_Val);
+								double diff = here_grad - check_grad(node_i->Position, node_j->Position, axis, 1e-3, Connected[idxs], ConnectedNodeNodeDist_Val);
 								check(abs(diff) < 1E-2);
 #endif
 
@@ -308,10 +308,10 @@ double OptFunction::f(int n, const double* x, double* grad)
 						{
 							float radius = node_i->Radius + node_j->Radius;
 
-							auto here_grad = UnconnectedNodeNodeDist_Grad(node_i->GetPosition(), node_j->GetPosition(), radius, axis);
+							auto here_grad = UnconnectedNodeNodeDist_Grad(node_i->Position, node_j->Position, radius, axis);
 
 #ifndef UE_BUILD_RELEASE
-							double diff = here_grad - check_grad(node_i->GetPosition(), node_j->GetPosition(), axis, 1e-3, radius, UnconnectedNodeNodeDist_Val);
+							double diff = here_grad - check_grad(node_i->Position, node_j->Position, axis, 1e-3, radius, UnconnectedNodeNodeDist_Val);
 							check(abs(diff) < 1E-2);
 #endif
 
@@ -324,14 +324,14 @@ double OptFunction::f(int n, const double* x, double* grad)
 						if (Connected.Contains(idxs))
 						{
 							// we need the raw up for the actual param value of the one we're getting the gradient for...
-							auto here_grad = ConnectedNodeNodeTorsion_Grad(node_i->GetRawUp(), node_j->GetUp(), axis - 3);
-
-#ifndef UE_BUILD_RELEASE
-							double check = check_grad(node_i->GetRawUp(), node_j->GetUp(), axis - 3, 1e-4, ConnectedNodeNodeTorsion_Val);
-							check(abs(check - here_grad) < 2E-2);
-#endif
-
-							grad[par] += here_grad;
+//							auto here_grad = ConnectedNodeNodeTorsion_Grad(node_i->Up, node_j->Up, axis - 3);
+//
+//#ifndef UE_BUILD_RELEASE
+//							double check = check_grad(node_i->Up, node_j->Up, axis - 3, 1e-4, ConnectedNodeNodeTorsion_Val);
+//							check(abs(check - here_grad) < 2E-2);
+//#endif
+//
+//							grad[par] += here_grad;
 						}
 					}
 				}
@@ -358,8 +358,8 @@ void OptFunction::GetState(double* x, int n) const
 
 	for (int i = 0; i < G->Nodes.Num(); i++)
 	{
-		SetVector(x, n, i, 0, G->Nodes[i]->GetPosition());
-		SetVector(x, n, i, 1, G->Nodes[i]->GetRawUp());
+		SetVector(x, n, i, 0, G->Nodes[i]->Position);
+//		SetVector(x, n, i, 1, G->Nodes[i]->Up);
 	}
 }
 
@@ -371,8 +371,8 @@ void OptFunction::SetState(const double* x, int n)
 	{
 		auto& node = G->Nodes[i];
 
-		node->SetPosition(GetVector(x, n, i, 0));
-		node->SetUp(GetVector(x, n, i, 1));
+		node->Position = GetVector(x, n, i, 0);
+//		node->Up = GetVector(x, n, i, 1);
 
 		FVector forward;
 
@@ -386,16 +386,16 @@ void OptFunction::SetState(const double* x, int n)
 
 			// we "grow" these linkages away from an existing node, so
 			// "forward" is towards the second node added
-			forward = n2->GetPosition() - n1->GetPosition();
+			forward = n2->Position - n1->Position;
 		}
 		else
 		{
-			forward = n1->GetPosition() - node->GetPosition();
+			forward = n1->Position - node->Position;
 		}
 
 		forward.Normalize();
 
-		node->SetForward(forward);
+		node->Forward = forward;
 	}
 }
 
@@ -413,17 +413,17 @@ void Opt::OptFunction::GetLimits(double* lower, double* upper, int n) const
 {
 	for (int i = 0; i < G->Nodes.Num(); i++)
 	{
-		lower[NodeToParam(i, 0, n)] = G->Nodes[i]->GetPosition().X - 10000;
-		lower[NodeToParam(i, 1, n)] = G->Nodes[i]->GetPosition().Y - 10000;
-		lower[NodeToParam(i, 2, n)] = G->Nodes[i]->GetPosition().Z - 10000;
+		lower[NodeToParam(i, 0, n)] = G->Nodes[i]->Position.X - 10000;
+		lower[NodeToParam(i, 1, n)] = G->Nodes[i]->Position.Y - 10000;
+		lower[NodeToParam(i, 2, n)] = G->Nodes[i]->Position.Z - 10000;
 
 		lower[NodeToParam(i, 3, n)] = -1;
 		lower[NodeToParam(i, 4, n)] = -1;
 		lower[NodeToParam(i, 5, n)] = -1;
 
-		upper[NodeToParam(i, 0, n)] = G->Nodes[i]->GetPosition().X + 10000;
-		upper[NodeToParam(i, 1, n)] = G->Nodes[i]->GetPosition().Y + 10000;
-		upper[NodeToParam(i, 2, n)] = G->Nodes[i]->GetPosition().Z + 10000;
+		upper[NodeToParam(i, 0, n)] = G->Nodes[i]->Position.X + 10000;
+		upper[NodeToParam(i, 1, n)] = G->Nodes[i]->Position.Y + 10000;
+		upper[NodeToParam(i, 2, n)] = G->Nodes[i]->Position.Z + 10000;
 
 		upper[NodeToParam(i, 3, n)] = 1;
 		upper[NodeToParam(i, 4, n)] = 1;

@@ -129,7 +129,6 @@ namespace LayoutGraph {
 		const ConnectorArray Connectors;
 
 		FTransform Transform;
-		FRotator bob;
 
 		Node(const ConnectorArray& connectors, const FVector& pos, const FVector& rot)
 			: Connectors(connectors)

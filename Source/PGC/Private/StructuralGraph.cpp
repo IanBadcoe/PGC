@@ -4,16 +4,16 @@
 
 #pragma optimize ("", off)
 
-namespace StructuralGraph {
+using namespace StructuralGraph;
 
 SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 {
 	for (const auto& n : input->GetNodes())
 	{
-		auto new_node = MakeShared<SNode>(Nodes.Num(), nullptr);
-		new_node->SetPosition(n->Transform.GetLocation());
-		new_node->SetUp(n->Transform.GetUnitAxis(EAxis::Z));
-		new_node->SetForward(n->Transform.GetUnitAxis(EAxis::X));
+		auto new_node = MakeShared<SNode>(Nodes.Num(), nullptr, SNode::Type::Junction);
+		new_node->Position = n->Transform.GetLocation();
+		new_node->CachedUp = n->Transform.GetUnitAxis(EAxis::Z);		// for the moment this is all we have, after MakeIntoDAG will calculate as an angle from parent Up and store in Rotation instead
+		new_node->Forward = n->Transform.GetUnitAxis(EAxis::X);
 		Nodes.Add(new_node);
 	}
 
@@ -27,17 +27,17 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 		// these will be the same edge indices in new_node as the connectors in n
 		for (const auto& conn : n->Connectors)
 		{
-			auto conn_node = MakeShared<SNode>(Nodes.Num(), conn->Profile);
+			auto conn_node = MakeShared<SNode>(Nodes.Num(), conn->Profile, SNode::Type::JunctionConnector);
 
 			auto tot_trans = conn->Transform * n->Transform;
 
-			conn_node->SetPosition(tot_trans.GetLocation());
-			conn_node->SetUp(tot_trans.GetUnitAxis(EAxis::Z));
-			conn_node->SetForward(tot_trans.GetUnitAxis(EAxis::X));
+			conn_node->Position = tot_trans.GetLocation();
+			conn_node->CachedUp = tot_trans.GetUnitAxis(EAxis::Z);		// for the moment this is all we have, after MakeIntoDAG will calculate as an angle from parent Up and store in Rotation instead
+			conn_node->Forward = tot_trans.GetUnitAxis(EAxis::X);
 
 			Nodes.Add(conn_node);
 
-			Connect(here_node, conn_node, FVector::Dist(here_node->GetPosition(), conn_node->GetPosition()), false);
+			Connect(here_node, conn_node, FVector::Dist(here_node->Position, conn_node->Position));
 		}
 	}
 
@@ -86,8 +86,65 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 
 	for (auto &n : Nodes)
 	{
-		// now it is all layed out set the node radii
+		// now it is all laid out set the node radii
 		n->FindRadius();
+	}
+
+	MakeIntoDAG();
+}
+
+void SGraph::MakeIntoDAG()
+{
+	if (!Nodes.Num())
+		return;
+
+	TSet<TSharedPtr<SNode>> Closed;
+
+	MakeIntoDagInner(Nodes[0], Closed);
+}
+
+// by doing this depth-first we ensure we traverse the whole of a unbranching sequence in one
+// which avoids any awkwardness around knowing which way around the profile should be
+// when examining an edge from the middle of it in isolation
+// (otherwise you can end up with -->-->--><--<--<-- and the profile orientation in the middle is ambiguous unless)
+void SGraph::MakeIntoDagInner(TSharedPtr<SNode> node, TSet<TSharedPtr<SNode>>& closed)
+{
+	closed.Add(node);
+
+	// this can be done when all connected node positions are known
+	// but since we aren't moving any nodes in this routine can do at any time...
+	node->RecalcForward();
+
+	// this can only be done after our parent's CachedUp has been updated
+	node->CalcRotation();
+
+	for (auto& edge : node->Edges)
+	{
+		auto ep = edge.Pin();
+
+		auto other = ep->OtherNode(node).Pin();
+
+		if (closed.Contains(other))
+			continue;
+
+		other->Parent = node;
+
+		if (ep->FromNode != node)
+		{
+			auto temp = ep->ToNode;
+			ep->ToNode = ep->FromNode;
+			ep->FromNode = temp;
+		}
+
+		for (int i = 1; i < other->Edges.Num(); i++)
+		{
+			if (other->Edges[i].Pin()->OtherNode(other) == node)
+			{
+				Swap(other->Edges[0], other->Edges[i]);
+			}
+		}
+
+		MakeIntoDagInner(other, closed);
 	}
 }
 
@@ -95,14 +152,15 @@ void SGraph::RefreshTransforms() const
 {
 	for(const auto& n : Nodes)
 	{
-		n->CachedTransform = Util::MakeTransform(n->GetPosition(), n->GetUp(), n->GetForward());
-		n->Flipped = false;
+		// currently use this in MakeMesh and CachedUp will have been set by any previous step
+		// could move this data out of SNode into something temporary to MakeMesh...
+		n->CachedTransform = Util::MakeTransform(n->Position, n->CachedUp, n->Forward);
 	}
 }
 
-void SGraph::Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, double D, bool flipping)
+void SGraph::Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, double D)
 {
-	Edges.Add(MakeShared<SEdge>(n1, n2, D, flipping));
+	Edges.Add(MakeShared<SEdge>(n1, n2, D));
 
 	// edges are no particular order in nodes
 	n1->Edges.Add(Edges.Last());
@@ -152,8 +210,8 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 	// which for one div means start @ 0, div @ 1, end @ 2 etc
 	divs += 1;
 
-	const auto from_pos = from_c->GetPosition();
-	const auto to_pos = to_c->GetPosition();
+	const auto from_pos = from_c->Position;
+	const auto to_pos = to_c->Position;
 
 	auto dist = FVector::Distance(from_pos, to_pos);
 
@@ -162,8 +220,8 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 	// otherwise use the nominal length so as not to build something sillily compressed
 	auto working_length = FMath::Max(D0 * divs, dist);
 
-	auto from_forward = from_pos - from_n->GetPosition();
-	auto to_forward = to_pos - to_n->GetPosition();
+	auto from_forward = from_pos - from_n->Position;
+	auto to_forward = to_pos - to_n->Position;
 
 	from_forward.Normalize();
 	to_forward.Normalize();
@@ -196,8 +254,9 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 		intermediate2 = to_pos + to_forward * working_length / 2;
 	}
 
-	const auto from_up = from_c->GetUp();
-	const auto to_up = to_c->GetUp();
+	// we haven't started using "Rotation" yet...
+	const auto from_up = from_c->CachedUp;
+	const auto to_up = to_c->CachedUp;
 
 	auto current_up = from_up;
 
@@ -236,13 +295,11 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 
 	angle_mismatch += twists * PI;
 
-	FVector temp;
-
 	//// take this one further than required, so we can assert we arrived the right way up
 	for (auto i = 0; i <= divs; i++) {
 		float t = (float)i / divs;
 
-		auto angle_correct = t * angle_mismatch;
+		auto angle_correct = t * -angle_mismatch;
 
 		FVector forward = SplineUtil::CubicBezierTangent(t, from_pos, intermediate1, intermediate2, to_pos);
 
@@ -250,7 +307,8 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 
 		frames[i].up = FTransform(FQuat(forward, angle_correct)).TransformVector(frames[i].up);
 
-		temp = FTransform(FQuat(forward, -angle_correct)).TransformVector(frames[i].up);
+		// up and forward really should still be normal...
+		check(FMath::Abs(FVector::DotProduct(frames[i].forward, frames[i].up)) < 1e-4f);
 	}
 
 	auto check_up = frames.Last().up;
@@ -284,21 +342,21 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 
 		TSharedPtr<SNode> next_node;
 		
-		next_node = MakeShared<SNode>(Nodes.Num(), profile);
-		next_node->SetPosition(frames[i].pos);
-		next_node->SetUp(frames[i].up);
-		next_node->SetForward(frames[i].forward);
+		next_node = MakeShared<SNode>(Nodes.Num(), profile, SNode::Type::Connection);
+		next_node->Position = frames[i].pos;
+		next_node->CachedUp = frames[i].up;
+		next_node->Forward = frames[i].forward;
 
 		Nodes.Add(next_node);
 
 		// the last connection needs to rotate the mapping onto the target connector 180 degrees if we've
 		// accumulated a half-twist along the connection
-		Connect(curr_node, next_node, D0, false);
+		Connect(curr_node, next_node, D0);
 		
 		curr_node = next_node;
 	}
 
-	Connect(curr_node, to_c, D0, rolling);
+	Connect(curr_node, to_c, D0);
 }
 
 int SGraph::FindNodeIdx(const TSharedPtr<SNode>& node) const
@@ -327,12 +385,12 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh, bool skeleton_only)
 			auto from_n = e->FromNode.Pin();
 			auto to_n = e->ToNode.Pin();
 
-			auto from_p = from_n->GetPosition();
-			auto to_p = to_n->GetPosition();
+			auto from_p = from_n->Position;
+			auto to_p = to_n->Position;
 
 			auto vec = to_p - from_p;
 
-			auto orth1 = FVector::CrossProduct(vec, from_n->GetUp());
+			auto orth1 = FVector::CrossProduct(vec, from_n->CachedUp);
 
 			orth1.Normalize();
 
@@ -396,10 +454,10 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh, bool skeleton_only)
 
 		for (const auto& n : Nodes)
 		{
-			auto p1 = n->GetPosition();
-			auto p2 = p1 + n->GetForward();
-			auto p3 = p1 + n->GetUp() * 5;
-			auto p4 = p1 + FVector::CrossProduct(n->GetForward(), n->GetUp());
+			auto p1 = n->Position;
+			auto p2 = p1 + n->Forward;
+			auto p3 = p1 + n->CachedTransform.GetUnitAxis(EAxis::Z) * 5;
+			auto p4 = p1 + FVector::CrossProduct(n->Forward, n->CachedUp);
 
 			{
 				TArray<FVector> poly;
@@ -444,6 +502,7 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh, bool skeleton_only)
 	}
 	else
 	{
+		bool seen_flip = false;
 		for (const auto& e : Edges)
 		{
 			auto from_n = e->FromNode.Pin();
@@ -455,7 +514,7 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh, bool skeleton_only)
 				TArray<FVector> verts_from;
 
 				auto to_trans = to_n->CachedTransform;
-				const auto from_trans = from_n->CachedTransform;
+				auto from_trans = from_n->CachedTransform;
 
 				// if the two forward vectors are not within 180 degrees, because the
 				// dest profile will be the wrong way around (not doing this will cause the connection to "bottle neck" and
@@ -467,20 +526,32 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh, bool skeleton_only)
 				{
 					to_trans = FTransform(FRotator(0, 180, 0)) * to_trans;
 					// so that the node construction can know we did this...
-					to_n->Flipped = true;
 				}
 
-				if (e->Rolling)
+				if (FVector::DotProduct(to_n->CachedUp, from_n->CachedUp) < 0)
 				{
-					// if we have a half-twist in the overall sequence of edges, we need to apply the same thing here
-					// as the profile need not be symmetrical
-					to_trans = FTransform(FRotator(0, 0, 180)) * to_trans;
+					// because we always keep all of a connection pointing the same way
+					// and also reserve accommodating the 1/2 turn to the point where we hit
+					// another junction, this can only happen at the point where the string of "Connection" type
+					// nodes hits a "JunctionConnector"
+					if (to_n->MyType == SNode::Type::JunctionConnector)
+					{
+						// if we have a half-twist in the overall sequence of edges, we need to apply the same thing here
+						// as the profile need not be symmetrical
+						to_trans = FTransform(FRotator(0, 0, 180)) * to_trans;
+					}
+					else
+					{
+						check(from_n->MyType == SNode::Type::JunctionConnector);
+						from_trans = FTransform(FRotator(0, 0, 180)) * from_trans;
+					}
 
-					to_n->Rolled = true;
+					//to_n->Rolled = true;
 				}
 
 				// so that node meshing can use it without re-rotating
 				to_n->CachedTransform = to_trans;
+				from_n->CachedTransform = from_trans;
 
 				for (int i = 0; i < to_n->Profile->NumVerts; i++)
 				{
@@ -518,9 +589,30 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh, bool skeleton_only)
 	}
 }
 
-SEdge::SEdge(TWeakPtr<SNode> fromNode, TWeakPtr<SNode> toNode, double d0, bool rolling)
-	: FromNode(fromNode), ToNode(toNode), D0(d0), Rolling(rolling) {
+SEdge::SEdge(TWeakPtr<SNode> fromNode, TWeakPtr<SNode> toNode, double d0)
+	: FromNode(fromNode), ToNode(toNode), D0(d0) {
 }
+
+inline void SNode::FindRadius() {
+	if (Profile.IsValid())
+	{
+		Radius = Profile->Radius();
+	}
+	else
+	{
+		for (const auto& e : Edges)
+		{
+			auto ep = e.Pin();
+
+			// take our longest connector position
+			Radius = FMath::Max(Radius, (Position - ep->OtherNode(this).Pin()->Position).Size());
+		}
+
+		// and back non-connected stuff off a little further
+		Radius *= 1.5f;
+	}
+}
+
 // connects the same edge between two connectors around a node
 // does this twice, once on the top and once on the bottom
 static void C2CFacePair(TSharedPtr<Mesh>& mesh,
@@ -563,6 +655,7 @@ inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) {
 		TSharedPtr<SNode> ConNode;
 		float Angle;
 		FVector Axis;
+		bool Flipped;
 
 		int QuartersMap[4]{ 3, 2, 1, 0 };		// if the connector is Flipped and/or Rolled its quarters change relative location
 	};
@@ -571,9 +664,10 @@ inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) {
 
 	{
 		OrdCon oe;
-		oe.ConNode = Edges[0].Pin()->ToNode.Pin();
+		oe.ConNode = Edges[0].Pin()->OtherNode(this).Pin();
 		oe.Angle = 0;
 		oe.Axis = (oe.ConNode->Position - Position).GetSafeNormal();
+		oe.Flipped = FVector::DotProduct(oe.ConNode->Forward, oe.Axis) < 0;
 
 		connectors.Push(oe);
 	}
@@ -581,9 +675,10 @@ inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) {
 	for (int i = 1; i < Edges.Num(); i++)
 	{
 		OrdCon oc;
-		oc.ConNode = Edges[i].Pin()->ToNode.Pin();
+		oc.ConNode = Edges[i].Pin()->OtherNode(this).Pin();
 		oc.Axis = (oc.ConNode->Position - Position).GetSafeNormal();
-		oc.Angle = Util::SignedAngle(connectors[0].Axis, oc.Axis, Up);
+		oc.Angle = Util::SignedAngle(oc.Axis, connectors[0].Axis, CachedUp);
+		oc.Flipped = FVector::DotProduct(oc.ConNode->Forward, oc.Axis) < 0;
 
 		if (oc.Angle < 0) oc.Angle += PI * 2;
 
@@ -608,13 +703,14 @@ inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) {
 
 	for (auto& oc : connectors)
 	{
-		if (oc.ConNode->Flipped)
+		if (oc.Flipped)
 		{
 			Swap(oc.QuartersMap[0], oc.QuartersMap[3]);
 			Swap(oc.QuartersMap[1], oc.QuartersMap[2]);
 		}
 
-		if (oc.ConNode->Rolled)
+		// if the incoming connection is the opposite way up
+		if (FVector::DotProduct(oc.ConNode->CachedTransform.GetUnitAxis(EAxis::Z), CachedTransform.GetUnitAxis(EAxis::Z)) < 0)
 		{
 			Swap(oc.QuartersMap[0], oc.QuartersMap[2]);
 			Swap(oc.QuartersMap[1], oc.QuartersMap[3]);
@@ -689,7 +785,107 @@ inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) {
 	}
 }
 
+void SNode::RecalcForward()
+{
+	// to avoid having to optimize a separate "forward" parameter
+	// (
+	//   which after some experimentation with doing that for up
+	//   seems to be a fraught activity due to the fact that it is a normal vector,
+	//   rather than trying to get the optimizer to keep it normal, I was letting it range over the whole
+	//   (-1 -> 1) ^ 3 space and normalizing, which means there is a singularity in the middle :-(
+	// )
+	// forward is defined as:
+	// - no edges							-> invariant (catch-all for incomplete graphs)
+	// - root node							-> towards first child
+	// - node with only one (parent) edge	-> away from parent
+	// - node with two edges				-> from parent towards the other connected node
+	// - node with > two edges				-> from parent towards average of the other nodes
+
+	if (!Edges.Num())
+		return;
+
+	if (!Parent.IsValid())
+	{
+		Forward = Edges[0].Pin()->OtherNode(this).Pin()->Position - Position;
+	}
+	else if (Edges.Num() == 1)
+	{
+		Forward = Position - Parent->Position;
+	}
+	else
+	{
+		FVector avg(0, 0, 0);
+
+		// Edges[0] points at the p
+		for (int i = 1; i < Edges.Num(); i++)
+		{
+			avg += Edges[i].Pin()->OtherNode(this).Pin()->Position;
+		}
+
+		avg /= (Edges.Num() - 1);
+
+		Forward = avg - Parent->Position;
+	}
+
+	Forward.Normalize();
+}
+
+void SNode::CalcRotation()
+{
+	// should we always start orthogonal?
+	// no, because we can have just changed forward
+	// and we wouldn't recalculate cached-up necessarily until now...
+	//check(FMath::Abs(FVector::DotProduct(CachedUp, Forward)) < 1e-4f);
+
+	auto here_up_ref = ProjectParentUp();
+
+	check(here_up_ref.IsNormalized());
+
+	auto plane_check = FVector::DotProduct(here_up_ref, Forward);
+
+	check(FMath::Abs(plane_check) < 1e-4f);
+
+	Rotation = Util::SignedAngle(here_up_ref, CachedUp, Forward);
+
+	FVector keep = CachedUp;
+	ApplyRotation();
+	check(FMath::Abs(FVector::DotProduct(CachedUp, Forward)) < 1e-4f);
+	check((keep - CachedUp).Size() < 1e-2f);
+}
+
+void SNode::ApplyRotation()
+{
+	auto rot = Util::AxisAngleToQuaternion(Forward, Rotation);
+
+	auto here_up_ref = ProjectParentUp();
+
+	CachedUp = rot.RotateVector(here_up_ref);
+}
+
+const FVector SNode::ProjectParentUp() const
+{
+	FVector ParentUp;
+
+	if (!Parent.IsValid())
+	{
+		// for the moment, trying to allow root node to rotate, but that has to be relative to something
+		// if we ever see it aligned up or down Z this will give us gimble-lock :-o
+		ParentUp.Set(0, 0, 1);
+	}
+	else
+	{
+		ParentUp = Parent->CachedUp;
+	}
+
+	// the component of parent up normal to our forwards vector
+	auto proj = Util::ProjectOntoPlane(ParentUp, Forward);
+
+	// if we get too orthogonal to parent
+	// (in that case I think we could start bringing this through an intermediate phase where we first an up normal to
+	//  the average of the parent and local forward vectors, and then come from that to our final up...)
+	check(proj.Size() > 1e-5f);
+
+	return proj.GetSafeNormal();
 }
 
 #pragma optimize ("", on)
-

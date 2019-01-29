@@ -243,6 +243,7 @@ struct MeshEdge {
 	{
 		if (start_vert_idx == StartVertIdx)
 		{
+
 			check(!ForwardFaceIdx.Valid());
 			ForwardFaceIdx = face_idx;
 		}

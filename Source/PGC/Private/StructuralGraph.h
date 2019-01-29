@@ -15,13 +15,12 @@ namespace StructuralGraph {
 
 	class SEdge {
 	public:
-		const TWeakPtr<SNode> FromNode;
-		const TWeakPtr<SNode> ToNode;
+		TWeakPtr<SNode> FromNode;
+		TWeakPtr<SNode> ToNode;
 
 		const double D0;
-		const bool Rolling;
 
-		SEdge(TWeakPtr<SNode> fromNode, TWeakPtr<SNode> toNode, double d0, bool rolling);
+		SEdge(TWeakPtr<SNode> fromNode, TWeakPtr<SNode> toNode, double d0);
 
 		TWeakPtr<SNode> OtherNode(const SNode* n) const
 		{
@@ -44,94 +43,68 @@ namespace StructuralGraph {
 	public:
 		TArray<TWeakPtr<SEdge>> Edges;
 
+		enum class Type {
+			Junction,			// three types of node (so far) "Junction" is the centre of an original node from the layout graph
+			JunctionConnector,	// "JunctionConnector" are the extra nodes we place around a junction to replace the layout connectors
+			Connection			// "Connection" are the nodes inserted along each edge
+		};
+
 		const int Idx;
+		const Type MyType;
 
 		const TSharedPtr<LayoutGraph::ParameterisedProfile> Profile;
 
 		mutable FTransform CachedTransform;
-		mutable bool Flipped;
-		mutable bool Rolled;
 
 		float Radius = 0.0f;
 
-		SNode(int idx, const TSharedPtr<LayoutGraph::ParameterisedProfile> profile) : Idx(idx), Profile(profile), Flipped(false), Rolled(false)
+		FVector Position;
+		float Rotation;			// from the parent's up vector, projected into our "forward" plane
+		FVector CachedUp;		// our up, initially just set, but after "MakeIntoDAG" calculated from parent up and "Rotation"
+		FVector Forward;
+
+		TSharedPtr<SNode> Parent;		// for the purposes of the DAG only...
+
+		SNode(int idx, const TSharedPtr<LayoutGraph::ParameterisedProfile> profile, Type type) : Idx(idx), Profile(profile), MyType(type)
 		{
 		}
 
-		void FindRadius() {
-			if (Profile.IsValid())
-			{
-				Radius = Profile->Radius();
-			}
-			else
-			{
-				for (const auto& e : Edges)
-				{
-					auto ep = e.Pin();
-
-					// take our longest connector position
-					Radius = FMath::Max(Radius, (Position - ep->OtherNode(this).Pin()->Position).Size());
-				}
-
-				// and back non-connected stuff off a little further
-				Radius *= 1.5f;
-			}
-		}
+		void FindRadius();
 
 		SNode(const SNode&) = delete;
 		const SNode& operator=(const SNode&) = delete;
 		virtual ~SNode() = default;
 
-		void SetPosition(const FVector& pos)
-		{
-			Position = pos;
-		}
-
-		void SetUp(const FVector& up)
-		{
-			Up = up;
-			Up.Normalize();
-			RawUp = up;
-		}
-
-		void SetForward(const FVector& forward)
-		{
-			Forward = forward;
-		}
-
-		const FVector& GetPosition() const {
-			return Position;
-		}
-
-		const FVector& GetUp() const {
-			return Up;
-		}
-
-		const FVector& GetRawUp() const {
-			return RawUp;
-		}
-
-		const FVector& GetForward() const {
-			return Forward;
-		}
-
 		void AddToMesh(TSharedPtr<Mesh> mesh);
 
-	private:
-		FVector Position;
-		FVector Up;
-		FVector RawUp;			// this one may not be normalised, but is needed by optimisation for gradient calculations
-		FVector Forward;
+		// after initial layout, forward is defined as a function of our, our parent's and other connected node positions
+		void RecalcForward();
+		void CalcRotation();
+		void ApplyRotation();
+
+		const FVector ProjectParentUp() const;
 	};
 
 	class SGraph {
 		void RefreshTransforms() const;
 
+		// for the purpose of propagating up vectors when optimizing, we need every node in the graph to have a unambiguous parent
+		// to achieve this we:
+		// 1) use Nodes[0] as the root
+		// 2) set a parent pointer in all nodes except that one
+		// 3) move the parent connection to be the first connection (where there is one...)
+		// 4) reverse the parent <-> child connection, if appropriate, so that the forwards direction is towards the child
+		// 5) recalculate the node forwards vectors for all nodes (which is part of what we want to do when interpreting
+		//    optimization parameters, and hence part of the point of doing this...)
+		void MakeIntoDAG();
+
+		void MakeIntoDagInner(TSharedPtr<SNode> node, TSet<TSharedPtr<SNode>>& closed);
+
 	public:
 		SGraph(TSharedPtr<LayoutGraph::Graph> input);
 
 		// connect "from" to "to" directly with an edge and no regard to geometry...
-		void Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, double D0, bool flipping);
+		void Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, double D0);
 		// connect "from" to "to" via "Divs" intermediate back-to-back nodes
 		void ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode> from_c,
 			const TSharedPtr<SNode> to_n, TSharedPtr<SNode> to_c,
