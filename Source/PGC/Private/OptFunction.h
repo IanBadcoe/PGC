@@ -31,6 +31,14 @@ class OptFunction : public NlOptIface {
 	TSharedPtr<StructuralGraph::SGraph> G;
 	TMap<JoinIdxs, JoinData> Connected;
 
+	double ConnectedEnergy;
+	double UnconnectedEnergy;
+	double TorsionEnergy;
+
+	const double ConnectedScale;
+	const double UnconnectedScale;
+	const double TorsionScale;
+
 	static double UnconnectedNodeNodeDist_Val(const FVector& p1, const FVector& p2, float D0);
 	//static double UnconnectedNodeNodeDist_Grad(const FVector& pGrad, const FVector& pOther, float D0, int axis);
 
@@ -44,7 +52,7 @@ class OptFunction : public NlOptIface {
 	//static double ConnectedNodeNodeDist_Grad(const FVector& pGrad, const FVector& pOther, float D0, int axis);
 
 public:
-	OptFunction(TSharedPtr<StructuralGraph::SGraph> g);
+	OptFunction(TSharedPtr<StructuralGraph::SGraph> g, double connected_scale, double unconnected_scale, double torsion_scale);
 	virtual ~OptFunction() = default;
 
 	// Inherited via NlOptIface
@@ -54,9 +62,11 @@ public:
 	virtual void GetState(double* x, int n) const override;
 	virtual void SetState(const double* x, int n) override;
 
-	// Inherited via NlOptIface
-	virtual void reset_histo() override;
-	virtual void print_histo() override;
+	virtual TArray<FString> GetEnergyTermNames() const override;
+	virtual TArray<double> GetLastEnergyTerms() const override;
+
+	//virtual void reset_histo() override;
+	//virtual void print_histo() override;
 };
 
 }

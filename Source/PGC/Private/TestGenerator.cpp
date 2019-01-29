@@ -51,7 +51,7 @@ void ATestGenerator::EnsureOptimizer()
 	{
 		check(!OptimizerInterface.IsValid());
 
-		OptimizerInterface = MakeShared<Opt::OptFunction>(StructuralGraph);
+		OptimizerInterface = MakeShared<Opt::OptFunction>(StructuralGraph, 1.0, 1.0, 100.0);
 
 		Optimizer = MakeShared<NlOptWrapper>(OptimizerInterface);
 	}

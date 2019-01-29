@@ -14,17 +14,19 @@ public:
 	virtual void GetState(double* x, int n) const = 0;
 	virtual void SetState(const double* x, int n) = 0;
 
-	virtual void reset_histo() = 0;
-	virtual void print_histo() = 0;
+	virtual TArray<FString> GetEnergyTermNames() const = 0;
+	virtual TArray<double> GetLastEnergyTerms() const = 0;
+
+	//virtual void reset_histo() = 0;
+	//virtual void print_histo() = 0;
 };
 
 class NlOptWrapper
 {
-	friend double f_callback(int, const double*, double*, void*);
-
 	const TSharedPtr<NlOptIface> NlIface;
 
 	static double f_callback(unsigned n, const double* x, double* grad, void* data);
+	double f_callback_inner(unsigned n, const double* x, double* grad);
 
 	bool RunOptimization(nlopt_algorithm alg, int steps);
 

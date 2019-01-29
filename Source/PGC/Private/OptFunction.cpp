@@ -55,7 +55,7 @@ static void SetParam(double* x, int x_size, int node_idx, int start_param_in_nod
 	x[NodeToParam(node_idx, start_param_in_node, x_size)] = v;
 }
 
-#define HISTO_SIZE 20
+//#define HISTO_SIZE 20
 
 #ifdef HISTO_SIZE
 
@@ -130,7 +130,7 @@ double OptFunction::UnconnectedNodeNodeDist_Val(const FVector& p1, const FVector
 //	return 2 * (pGrad[axis] - pOther[axis]) * (dist - D0) / dist * 0.01;
 //}
 
-double Opt::OptFunction::ConnectedNodeNodeTorsion_Val(const FVector & up1, const FVector & up2, const FVector & p1, const FVector & p2, bool flipped)
+double OptFunction::ConnectedNodeNodeTorsion_Val(const FVector & up1, const FVector & up2, const FVector & p1, const FVector & p2, bool flipped)
 {
 	auto axis = (p2 - p1).GetSafeNormal();
 
@@ -147,7 +147,7 @@ double Opt::OptFunction::ConnectedNodeNodeTorsion_Val(const FVector & up1, const
 	return FMath::Pow(1 - cos, 2);
 }
 
-//double Opt::OptFunction::ConnectedNodeNodeTorsion_Grad(const FVector & upGrad, const FVector & upOther, const FVector & pGrad, const FVector & pOther, bool flipped, int axis)
+//double OptFunction::ConnectedNodeNodeTorsion_Grad(const FVector & upGrad, const FVector & upOther, const FVector & pGrad, const FVector & pOther, bool flipped, int axis)
 //{
 //	return 0.0;
 //}
@@ -170,7 +170,8 @@ double OptFunction::ConnectedNodeNodeDist_Val(const FVector& p1, const FVector& 
 //	return 2 * (pGrad[axis] - pOther[axis]) * (dist - D0) / dist;
 //}
 
-OptFunction::OptFunction(TSharedPtr<SGraph> g) : G(g)
+OptFunction::OptFunction(TSharedPtr<SGraph> g, double connected_scale, double unconnected_scale, double torsion_scale)
+	: G(g), ConnectedScale(connected_scale), UnconnectedScale(unconnected_scale), TorsionScale(torsion_scale)
 {
 	for (const auto& n : G->Nodes)
 	{
@@ -221,9 +222,11 @@ double OptFunction::f(int n, const double* x, double* grad)
 {
 	check(n == GetSize());
 
-	SetState(x, n);
+	ConnectedEnergy = 0;
+	UnconnectedEnergy = 0;
+	TorsionEnergy = 0;
 
-	double ret = 0;
+	SetState(x, n);
 
 	for(int i = 0; i < G->Nodes.Num() - 1; i++)
 	{
@@ -232,13 +235,13 @@ double OptFunction::f(int n, const double* x, double* grad)
 			auto idxs = JoinIdxs{ i, j };
 			if (Connected.Contains(idxs))
 			{
-				ret += ConnectedNodeNodeDist_Val(G->Nodes[i]->Position, G->Nodes[j]->Position, Connected[idxs].D0);
+				ConnectedEnergy += ConnectedNodeNodeDist_Val(G->Nodes[i]->Position, G->Nodes[j]->Position, Connected[idxs].D0) * ConnectedScale;
 
-				ret += ConnectedNodeNodeTorsion_Val(G->Nodes[i]->CachedUp, G->Nodes[j]->CachedUp, G->Nodes[i]->Position, G->Nodes[j]->Position, Connected[idxs].Flipped);
+				TorsionEnergy += ConnectedNodeNodeTorsion_Val(G->Nodes[i]->CachedUp, G->Nodes[j]->CachedUp, G->Nodes[i]->Position, G->Nodes[j]->Position, Connected[idxs].Flipped) * TorsionScale;
 			}
 			else
 			{
-				ret += UnconnectedNodeNodeDist_Val(G->Nodes[i]->Position, G->Nodes[j]->Position, G->Nodes[i]->Radius + G->Nodes[j]->Radius);
+				UnconnectedEnergy += UnconnectedNodeNodeDist_Val(G->Nodes[i]->Position, G->Nodes[j]->Position, G->Nodes[i]->Radius + G->Nodes[j]->Radius) * UnconnectedScale;
 			}
 		}
 	}
@@ -313,7 +316,7 @@ double OptFunction::f(int n, const double* x, double* grad)
 //		}
 //	}
 
-	return ret;
+	return ConnectedEnergy + UnconnectedEnergy + TorsionEnergy;
 }
 
 void OptFunction::GetInitialStepSize(double* steps, int n) const
@@ -353,15 +356,25 @@ void OptFunction::SetState(const double* x, int n)
 	}
 }
 
-void OptFunction::reset_histo()
+TArray<FString> OptFunction::GetEnergyTermNames() const
 {
-	::reset_histo();
+	return TArray<FString> { "Connected", "Unconnected", "Torsion" };
 }
 
-void OptFunction::print_histo()
+TArray<double> OptFunction::GetLastEnergyTerms() const
 {
-	::print_histo();
+	return TArray<double> { ConnectedEnergy, UnconnectedEnergy, TorsionEnergy };
 }
+
+//void OptFunction::reset_histo()
+//{
+//	::reset_histo();
+//}
+//
+//void OptFunction::print_histo()
+//{
+//	::print_histo();
+//}
 
 #pragma optimize ("", on)
 

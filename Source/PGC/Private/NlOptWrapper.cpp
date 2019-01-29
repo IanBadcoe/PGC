@@ -30,9 +30,12 @@ double NlOptWrapper::f_callback(unsigned n, const double* x, double* grad, void*
 {
 	NlOptWrapper* This = reinterpret_cast<NlOptWrapper*>(data);
 
-	This->NlIface->reset_histo();
+	return This->f_callback_inner(n, x, grad);
+}
 
-	auto ret = This->NlIface->f(n, x, grad);
+double NlOptWrapper::f_callback_inner(unsigned n, const double * x, double * grad)
+{
+	auto ret = NlIface->f(n, x, grad);
 
 	static auto best = 0.0f;
 	static auto first = true;
@@ -42,7 +45,15 @@ double NlOptWrapper::f_callback(unsigned n, const double* x, double* grad, void*
 		first = false;
 
 		UE_LOG(LogTemp, Warning, TEXT("Target function best seen: %f"), best);
-		This->NlIface->print_histo();
+		//		This->NlIface->print_histo();
+
+		auto names = NlIface->GetEnergyTermNames();
+		auto energies = NlIface->GetLastEnergyTerms();
+
+		for (int i = 0; i < names.Num(); i++)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Energy: %s: %f"), *names[i], energies[i]);
+		}
 	}
 
 	return ret;
