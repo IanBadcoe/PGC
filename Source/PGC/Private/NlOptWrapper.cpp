@@ -14,7 +14,18 @@ NlOptWrapper::~NlOptWrapper()
 
 bool NlOptWrapper::RunOptimization()
 {
-	return RunOptimization(NLOPT_LN_SBPLX, 10000);
+	//TArray<double> state;
+	//state.AddDefaulted(NlIface->GetSize());
+	//NlIface->GetState(state.GetData(), state.Num());
+
+	//for (int i = 0; i < state.Num(); i++)
+	//{
+	//	state[i] += FMath::FRand() * 0.4 - 0.2;
+	//}
+
+	//NlIface->SetState(state.GetData(), state.Num());
+
+	return RunOptimization(NLOPT_LN_SBPLX, 1000000);
 
 	//if (RunOptimization(NLOPT_LN_SBPLX, 10000))
 	//{

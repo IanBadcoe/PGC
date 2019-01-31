@@ -115,7 +115,7 @@ double OptFunction::UnconnectedNodeNodeDist_Val(const FVector& p1, const FVector
 	if (dist >= D)
 		return 0;
 
-	return FMath::Pow(dist - D, 2) * 0.01;
+	return FMath::Pow(dist - D, 2) * 0.1;
 }
 
 //double OptFunction::UnconnectedNodeNodeDist_Grad(const FVector & pGrad, const FVector & pOther, float D0, int axis)

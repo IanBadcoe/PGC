@@ -87,9 +87,6 @@ inline FVector ProjectOntoPlane(const FVector& vect, const FVector& plane_normal
 
 	auto proj_dist = FVector::DotProduct(plane_normal, vect);
 
-	// check there's a reasonable amount of precision left for the in-plane component
-	check(FMath::Abs(proj_dist) < 0.99f);
-
 	return vect - proj_dist * plane_normal;
 }
 

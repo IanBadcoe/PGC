@@ -849,7 +849,7 @@ void SNode::CalcRotation()
 	FVector keep = CachedUp;
 	ApplyRotation();
 	check(FMath::Abs(FVector::DotProduct(CachedUp, Forward)) < 1e-4f);
-	check((keep - CachedUp).Size() < 1e-2f);
+	check((keep - CachedUp).Size() < 1e-1f);
 }
 
 void SNode::ApplyRotation()
@@ -863,28 +863,51 @@ void SNode::ApplyRotation()
 
 const FVector SNode::ProjectParentUp() const
 {
-	FVector ParentUp;
+	FVector parent_up;
+	FVector parent_forward;
 
 	if (!Parent.IsValid())
 	{
 		// for the moment, trying to allow root node to rotate, but that has to be relative to something
 		// if we ever see it aligned up or down Z this will give us gimble-lock :-o
-		ParentUp.Set(0, 0, 1);
+		parent_up.Set(0, 0, 1);
+		parent_forward.Set(0, 1, 0);
 	}
 	else
 	{
-		ParentUp = Parent->CachedUp;
+		parent_up = Parent->CachedUp;
+		parent_forward = Parent->Forward;
 	}
 
-	// the component of parent up normal to our forwards vector
-	auto proj = Util::ProjectOntoPlane(ParentUp, Forward);
+	auto proj_up = Util::ProjectOntoPlane(parent_up, Forward);
 
-	// if we get too orthogonal to parent
-	// (in that case I think we could start bringing this through an intermediate phase where we first an up normal to
-	//  the average of the parent and local forward vectors, and then come from that to our final up...)
-	check(proj.Size() > 1e-5f);
+	// 0.3 is an arbitrary number, we could probably go much closer to zero...
+	if (proj_up.GetAbsMax() < 0.3f)
+	{
+		// we know that parent_up is too close to orthogonal to our Forward
+		// so we want to step through an intermediate 45 degree vector compromising between the two forwards
+		// HOWEVER both (Forward + parent_forward) and (Forward - parent_forward) have that property
+		// (being roughly 45 degrees one way and 45 degrees the other way from Forward)
+		// one of them will flip the sign of up and one won't, we need to pick the right one
+		// or rather, if we picked the wrong one, we just need to negate our final answer
+		// see "correct sign"
+		auto av_forward = (Forward - parent_forward);
 
-	return proj.GetSafeNormal();
+		auto int_up = Util::ProjectOntoPlane(parent_up, av_forward.GetSafeNormal());
+		check(int_up.Size() > 0.3f);
+
+		// the component of parent up normal to our forwards vector
+		proj_up = Util::ProjectOntoPlane(int_up.GetSafeNormal(), Forward);
+		check(proj_up.Size() > 0.3f);
+	}
+
+	if (FVector::DotProduct(proj_up, CachedUp) < 0)
+	{
+		// correct sign...
+		proj_up = -proj_up;
+	}
+
+	return proj_up.GetSafeNormal();
 }
 
 #pragma optimize ("", on)
