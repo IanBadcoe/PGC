@@ -69,57 +69,6 @@ int Node::FindConnectorIdx(const TSharedPtr<ConnectorInst>& conn) const
 	return -1;
 }
 
-//const Node::ConnectorArray Node::MakeConnectorsFromProfiles(const TArray<TSharedPtr<ParameterisedProfile>>& profiles)
-//{
-//	auto max_profile_radius = 0.0f;
-//
-//	// using the radius is an exaggeration, as that would only apply if the profile was rotated exactly so that its diagonal lies in the
-//	// node plane, however since the profile could rotate later, allowing for that would require dynamic re-calculation of this, so lets take the
-//	// extreme case for the moment...
-//	for (const auto& profile : profiles)
-//	{
-//		max_profile_radius = FMath::Max(max_profile_radius, profile->Radius());
-//	}
-//
-//    // A regular polygon with this many lines max_profile_radius lines around it looks like this:
-//	//
-//	//  +---------------+
-//	//  |A\     |      X|
-//	//  |   \   |       |
-//	//  |     \ |       |
-//	//  |-------+-------|
-//	//  |       |       |
-//	//  |       |       |
-//	//  |       |       |
-//	//  +---------------+
-//	//
-//	// The angle X is (180 - 360 / N) / 2
-//	// and the angle A is half than.  The adjacent is max_profile_radius
-//	// so the line from the centre to the mid-point of the profile is of length:
-//	// max_profile_radius * tan((180 - 180 / N)/2) (in degrees)
-//	//
-//	// and throw in an extra 10% to allow for some space if the profile is oriented straight along its radius
-//
-//	auto corner_angle = PI - 2 * PI / profiles.Num();
-//	auto node_radius = max_profile_radius * FMath::Tan(corner_angle / 2) * 1.1f;
-//	auto angle_step = 2 * PI / profiles.Num();
-//	auto angle = 0.0f;
-//
-//	ConnectorArray ret;
-//
-//	for (const auto& profile : profiles)
-//	{
-//		ret.Emplace(MakeShared<Connector>(profile, 
-//			FVector{FMath::Cos(angle) * node_radius, FMath::Sin(angle) * node_radius, 0},
-//			FVector{FMath::Cos(angle), FMath::Sin(angle), 0},
-//			FVector{0, 0, 1}));
-//
-//		angle += angle_step;
-//	}
-//
-//	return ret;
-//}
-
 const Node::ConnectorArray Node::MakeRadialConnectors(int num)
 {
 	auto assumed_profile_radius = 2.0f;

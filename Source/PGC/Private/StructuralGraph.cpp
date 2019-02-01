@@ -25,11 +25,51 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_sour
 		auto here_node = Nodes[i];
 		auto n = input->GetNodes()[i];
 
-		// now add a node for each connector on the original node
-		// these will be the same edge indices in new_node as the connectors in n
-		for (const auto& conn : n->Connectors)
+		TArray<TSharedPtr<ParameterisedProfile>> node_profiles;
+		float max_profile_radius = 0.0f;
+
+		for (int i = 0; i < n->Edges.Num(); i++)
 		{
-			auto conn_node = MakeShared<SNode>(Nodes.Num(), profile_source->GetProfile(), SNode::Type::JunctionConnector);
+			node_profiles.Add(profile_source->GetProfile());
+
+			max_profile_radius = FMath::Max(max_profile_radius, node_profiles.Last()->Radius());
+		}
+
+		// using the radius is an exaggeration, as that would only apply if the profile was rotated exactly so that its diagonal lay in the
+		// node plane, however the profile could rotate later, and allowing for that would require dynamic re-calculation of this, so let's take the
+		// extreme case from the start...
+
+		// A regular polygon with this many lines max_profile_radius long around it looks like this:
+		//
+		//          ^  +---------------+
+		//          |  |A\     |      X|
+		// adjacent |  |   \   |       |
+		//          |  |     \ |       |
+		//          v  |-------+-------|
+		//             |       |       |
+		//             |       |       |
+		//             |       |       |
+		//             +---------------+
+		//
+		// The angle X is (180 - 360 / N) / 2
+		// and the angle A is half that.  The adjacent is max_profile_radius
+		// so the line from the centre to the mid-point of the profile is of length:
+		// max_profile_radius * tan((180 - 180 / N)/2) (in degrees)
+		//
+		// and throw in an extra 10% to allow for some space if the profile is oriented straight along its radius
+
+		auto corner_angle = PI - 2 * PI / n->Edges.Num();
+		auto node_radius = max_profile_radius * FMath::Tan(corner_angle / 2) * 1.1f;
+
+		// now add a node for each connector on the original node
+		// (giving them the profiles we just picked... could always do this later if we also fixed the D0 on the connectors)
+
+		// these will be the same edge indices in new_node as the connectors in n
+		for (int i = 0; i < n->Connectors.Num(); i++)
+		{
+			const auto& conn = n->Connectors[i];
+
+			auto conn_node = MakeShared<SNode>(Nodes.Num(), node_profiles[i], SNode::Type::JunctionConnector);
 
 			auto tot_trans = conn->Transform * n->Transform;
 
@@ -39,7 +79,9 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_sour
 
 			Nodes.Add(conn_node);
 
-			Connect(here_node, conn_node, FVector::Dist(here_node->Position, conn_node->Position));
+			// we have positioned this where the layout graph had it, at an assumed radius, but we'll
+			// tell the optimizer that we want it at our preferred radius
+			Connect(here_node, conn_node, node_radius);
 		}
 	}
 
@@ -596,16 +638,9 @@ inline void SNode::FindRadius() {
 	}
 	else
 	{
-		for (const auto& e : Edges)
-		{
-			auto ep = e.Pin();
-
-			// take our longest connector position
-			Radius = FMath::Max(Radius, (Position - ep->OtherNode(this).Pin()->Position).Size());
-		}
-
-		// and back non-connected stuff off a little further
-		Radius *= 1.5f;
+		// we have set all our edge radii the same, so just take the length of the first...
+		// and as this is for non-connected stuff, back-off a further 50%
+		Radius = Edges[0].Pin()->D0 * 1.5f;
 	}
 }
 
