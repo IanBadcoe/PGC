@@ -4,7 +4,7 @@ namespace Profile {
 
 // so that we can build a parameterized profile from separate top and bottom halves
 // since width needs to be the same for both halves, still specify that only for ParamaterizedProfile
-class ParameterizedRoadbedShape {
+class ParameterisedRoadbedShape {
 	//
 	//  1---------2           9---------10
 	//  |         |           |         |
@@ -38,7 +38,7 @@ class ParameterizedRoadbedShape {
 	float RightOverhang;
 
 public:
-	ParameterizedRoadbedShape(float leftBarrier, float rightBarrier,
+	ParameterisedRoadbedShape(float leftBarrier, float rightBarrier,
 		float leftOverhang, float rightOverhang,
 		int startSmooth,
 		int endSmooth)
@@ -46,8 +46,8 @@ public:
 		LeftBarrierHeight(leftBarrier), RightBarrierHeight(rightBarrier),
 		LeftOverhang(leftOverhang), RightOverhang(rightOverhang)
 	{}
-	ParameterizedRoadbedShape(const ParameterizedRoadbedShape& rhs) = default;
-	ParameterizedRoadbedShape& operator=(const ParameterizedRoadbedShape& rhs) = default;
+	ParameterisedRoadbedShape(const ParameterisedRoadbedShape& rhs) = default;
+	ParameterisedRoadbedShape& operator=(const ParameterisedRoadbedShape& rhs) = default;
 
 	float GetBarrierHeight(int idx) const {
 		check(idx >= 0 && idx < 2);
@@ -70,13 +70,34 @@ public:
 		return idx >= StartSmoothIdx && idx < EndSmoothIdx;
 	}
 
-	ParameterizedRoadbedShape Mirrored() const {
-		return ParameterizedRoadbedShape
+	ParameterisedRoadbedShape Mirrored() const {
+		return ParameterisedRoadbedShape
 		{
 			RightBarrierHeight, LeftBarrierHeight,
 			RightOverhang, LeftOverhang,
 			11 - EndSmoothIdx, 11 - StartSmoothIdx
 		};
+	}
+};
+
+template<typename T, int N>
+class TFixedSizeArray : public TArray<T, TFixedAllocator<N>> {
+public:
+	TFixedSizeArray()
+	{
+		AddDefaulted(N);
+	}
+	TFixedSizeArray(const TFixedSizeArray& rhs) = default;
+	TFixedSizeArray& operator=(const TFixedSizeArray& rhs) = default;
+
+	TFixedSizeArray(const TArray<T>& rhs) : TArray(rhs) { check(rhs.Num() == N); }
+	TFixedSizeArray& operator=(const TArray& rhs)
+	{
+		check(rhs.Num() == N);
+
+		static_cast<TArray<T>(*this) = rhs;
+
+		return *this;
 	}
 };
 
@@ -107,27 +128,33 @@ private:
 	//                               | |
 	//              	             5 v
 
-	float Width;					// width of roadbed
-	float BarrierHeights[4];		// height of side-barriers: upper-right, lower-right, lower-left, upper-left
-	float OverhangWidths[4];		// width of overhangs: upper-right, lower-right, lower-left, upper-left
-	bool OutgoingSharp[24];			// whether any edge leaving this vert for the next profile should be sharp
+	float Width;										// width of roadbed
+	TFixedSizeArray<float, 4> BarrierHeights;			// height of side-barriers: upper-right, lower-right, lower-left, upper-left
+	TFixedSizeArray<float, 4> OverhangWidths;			// width of overhangs: upper-right, lower-right, lower-left, upper-left
+	TFixedSizeArray<bool, NumVerts> OutgoingSharp;		// whether any edge leaving this vert for the next profile should be sharp
 
-	FVector2D AbsoluteBound;		// +ve corner of a rectangle large enough to just contain all
+	FVector2D AbsoluteBound;							// +ve corner of a rectangle large enough to just contain all
 
 	static const bool UsesBarrierHeight[NumVerts];
 	static const bool UsesOverhangWidth[NumVerts];
 	static const bool IsXOuter[NumVerts];
 	static const bool IsYOuter[NumVerts];
 
+	TSharedPtr<ParameterisedProfile> RawInterp(TSharedPtr<ParameterisedProfile> other, float frac) const;
+
+	// when interpolating, need to do wall-height and overhang changes in a particular order
+	// so that we don't end up with an overhang on wall it won't fit...
+	TSharedPtr<ParameterisedProfile> SafeIntermediate(TSharedPtr<ParameterisedProfile> other) const;
+
 public:
 	ParameterisedProfile(float width,
-		TArray<float> barriers,
-		TArray<float> overhangs,
-		TArray<bool> outgoingSharps);
+		const TArray<float> barriers,
+		const TArray<float> overhangs,
+		const TArray<bool> outgoingSharps);
 	ParameterisedProfile(const ParameterisedProfile& rhs) = default;
 	ParameterisedProfile& operator=(const ParameterisedProfile& rhs) = default;
 
-	ParameterisedProfile(float width, const TSharedPtr<ParameterizedRoadbedShape>& top, const TSharedPtr<ParameterizedRoadbedShape>& bottom);
+	ParameterisedProfile(float width, const TSharedPtr<ParameterisedRoadbedShape>& top, const TSharedPtr<ParameterisedRoadbedShape>& bottom);
 
 	void CheckConsistent() const;
 
@@ -144,6 +171,10 @@ public:
 	FVector GetTransformedVert(VertTypes type, int quarter_idx, const FTransform& total_trans) const;
 
 	float Radius() const { return AbsoluteBound.Size(); }
+
+	float Diff(const TSharedPtr<ParameterisedProfile>& other) const;
+
+	TSharedPtr<ParameterisedProfile> Interp(TSharedPtr<ParameterisedProfile> other, float frac) const;
 };
 
 }

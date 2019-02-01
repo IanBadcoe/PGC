@@ -5,7 +5,7 @@
 using namespace Opt;
 using namespace StructuralGraph;
 
-#pragma optimize ("", off)
+PRAGMA_DISABLE_OPTIMIZATION
 
 // a count of doubles
 #define PARAMS_PER_NODE 4
@@ -376,5 +376,4 @@ TArray<double> OptFunction::GetLastEnergyTerms() const
 //	::print_histo();
 //}
 
-#pragma optimize ("", on)
-
+PRAGMA_ENABLE_OPTIMIZATION

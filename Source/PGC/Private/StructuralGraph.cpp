@@ -2,11 +2,13 @@
 
 #include "Util.h"
 
-#pragma optimize ("", off)
+PRAGMA_DISABLE_OPTIMIZATION
 
 using namespace StructuralGraph;
+using namespace Profile;
 
-SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
+SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source)
+	: _ProfileSource(profile_source)
 {
 	for (const auto& n : input->GetNodes())
 	{
@@ -27,7 +29,7 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 		// these will be the same edge indices in new_node as the connectors in n
 		for (const auto& conn : n->Connectors)
 		{
-			auto conn_node = MakeShared<SNode>(Nodes.Num(), conn->Profile, SNode::Type::JunctionConnector);
+			auto conn_node = MakeShared<SNode>(Nodes.Num(), profile_source->GetProfile(), SNode::Type::JunctionConnector);
 
 			auto tot_trans = conn->Transform * n->Transform;
 
@@ -69,13 +71,8 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input)
 				auto here_to_node = Nodes[to_idx];
 				auto here_to_conn_node = here_to_node->Edges[to_conn_idx].Pin()->ToNode.Pin();
 
-				auto profiles = edge->Profiles;
-
-				if (profiles.Num() == 0)
-				{
-					profiles.Push(here_conn_node->Profile);
-					profiles.Push(here_to_conn_node->Profile);
-				}
+				auto profiles = _ProfileSource->GetCompatibleProfileSequence(here_conn_node->Profile, here_to_conn_node->Profile,
+					edge->Divs);
 
 				ConnectAndFillOut(here_node, here_conn_node, here_to_node, here_to_conn_node,
 					edge->Divs, edge->Twists,
@@ -197,7 +194,7 @@ void SGraph::Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, dou
 
 void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode> from_c, const TSharedPtr<SNode> to_n, TSharedPtr<SNode> to_c,
 	int divs, int twists, 
-	float D0, const TArray<TSharedPtr<LayoutGraph::ParameterisedProfile>>& profiles)
+	float D0, const TArray<TSharedPtr<ParameterisedProfile>>& profiles)
 {
 	// profiles.Num() is generally less than divs since we need lots of divs to give us a smooth curve but the profile does not change
 	// that often...
@@ -615,10 +612,10 @@ inline void SNode::FindRadius() {
 // connects the same edge between two connectors around a node
 // does this twice, once on the top and once on the bottom
 static void C2CFacePair(TSharedPtr<Mesh>& mesh,
-	const TSharedPtr<LayoutGraph::ParameterisedProfile> from_profile, const TSharedPtr<LayoutGraph::ParameterisedProfile> to_profile,
+	const TSharedPtr<ParameterisedProfile> from_profile, const TSharedPtr<ParameterisedProfile> to_profile,
 	const int from_quarters_map[4], const int to_quarters_map[4],
 	const FTransform& from_trans, const FTransform& to_trans,
-	LayoutGraph::ParameterisedProfile::VertTypes first_vert, LayoutGraph::ParameterisedProfile::VertTypes second_vert)
+	ParameterisedProfile::VertTypes first_vert, ParameterisedProfile::VertTypes second_vert)
 {
 	{
 		TArray<FVector> verts;
@@ -723,11 +720,11 @@ inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) {
 
 		for (const auto& oc : connectors)
 		{
-			verts_top.Push(oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::RoadbedInner, oc.QuartersMap[3], oc.ConNode->CachedTransform));
-			verts_top.Push(oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::RoadbedInner, oc.QuartersMap[0], oc.ConNode->CachedTransform));
+			verts_top.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::RoadbedInner, oc.QuartersMap[3], oc.ConNode->CachedTransform));
+			verts_top.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::RoadbedInner, oc.QuartersMap[0], oc.ConNode->CachedTransform));
 
-			verts_bot.Push(oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::RoadbedInner, oc.QuartersMap[2], oc.ConNode->CachedTransform));
-			verts_bot.Push(oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::RoadbedInner, oc.QuartersMap[1], oc.ConNode->CachedTransform));
+			verts_bot.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::RoadbedInner, oc.QuartersMap[2], oc.ConNode->CachedTransform));
+			verts_bot.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::RoadbedInner, oc.QuartersMap[1], oc.ConNode->CachedTransform));
 		}
 
 		Util::AddPolyToMesh(mesh, verts_top);
@@ -743,14 +740,14 @@ inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) {
 			{
 				TArray<FVector> verts;
 
-				verts.Push(oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::BarrierTopOuter, oc.QuartersMap[3], oc.ConNode->CachedTransform));
-				verts.Push(prev_oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::BarrierTopOuter, prev_oc.QuartersMap[0], prev_oc.ConNode->CachedTransform));
-				verts.Push(prev_oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::RoadbedOuter, prev_oc.QuartersMap[0], prev_oc.ConNode->CachedTransform));
-				verts.Push(prev_oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::RoadbedOuter, prev_oc.QuartersMap[1], prev_oc.ConNode->CachedTransform));
-				verts.Push(prev_oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::BarrierTopOuter, prev_oc.QuartersMap[1], prev_oc.ConNode->CachedTransform));
-				verts.Push(oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::BarrierTopOuter, oc.QuartersMap[2], oc.ConNode->CachedTransform));
-				verts.Push(oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::RoadbedOuter, oc.QuartersMap[2], oc.ConNode->CachedTransform));
-				verts.Push(oc.ConNode->Profile->GetTransformedVert(LayoutGraph::ParameterisedProfile::VertTypes::RoadbedOuter, oc.QuartersMap[3], oc.ConNode->CachedTransform));
+				verts.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::BarrierTopOuter, oc.QuartersMap[3], oc.ConNode->CachedTransform));
+				verts.Push(prev_oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::BarrierTopOuter, prev_oc.QuartersMap[0], prev_oc.ConNode->CachedTransform));
+				verts.Push(prev_oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::RoadbedOuter, prev_oc.QuartersMap[0], prev_oc.ConNode->CachedTransform));
+				verts.Push(prev_oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::RoadbedOuter, prev_oc.QuartersMap[1], prev_oc.ConNode->CachedTransform));
+				verts.Push(prev_oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::BarrierTopOuter, prev_oc.QuartersMap[1], prev_oc.ConNode->CachedTransform));
+				verts.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::BarrierTopOuter, oc.QuartersMap[2], oc.ConNode->CachedTransform));
+				verts.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::RoadbedOuter, oc.QuartersMap[2], oc.ConNode->CachedTransform));
+				verts.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::RoadbedOuter, oc.QuartersMap[3], oc.ConNode->CachedTransform));
 
 				Util::AddPolyToMesh(mesh, verts);
 			}
@@ -759,25 +756,25 @@ inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) {
 				prev_oc.ConNode->Profile, oc.ConNode->Profile,
 				prev_oc.QuartersMap, oc.QuartersMap,
 				prev_oc.ConNode->CachedTransform, oc.ConNode->CachedTransform,
-				LayoutGraph::ParameterisedProfile::VertTypes::OverhangEndOuter, LayoutGraph::ParameterisedProfile::VertTypes::BarrierTopOuter);
+				ParameterisedProfile::VertTypes::OverhangEndOuter, ParameterisedProfile::VertTypes::BarrierTopOuter);
 
 			C2CFacePair(mesh,
 				prev_oc.ConNode->Profile, oc.ConNode->Profile,
 				prev_oc.QuartersMap, oc.QuartersMap,
 				prev_oc.ConNode->CachedTransform, oc.ConNode->CachedTransform,
-				LayoutGraph::ParameterisedProfile::VertTypes::OverhangEndInner, LayoutGraph::ParameterisedProfile::VertTypes::OverhangEndOuter);
+				ParameterisedProfile::VertTypes::OverhangEndInner, ParameterisedProfile::VertTypes::OverhangEndOuter);
 
 			C2CFacePair(mesh,
 				prev_oc.ConNode->Profile, oc.ConNode->Profile,
 				prev_oc.QuartersMap, oc.QuartersMap,
 				prev_oc.ConNode->CachedTransform, oc.ConNode->CachedTransform,
-				LayoutGraph::ParameterisedProfile::VertTypes::BarrierTopInner, LayoutGraph::ParameterisedProfile::VertTypes::OverhangEndInner);
+				ParameterisedProfile::VertTypes::BarrierTopInner, ParameterisedProfile::VertTypes::OverhangEndInner);
 
 			C2CFacePair(mesh,
 				prev_oc.ConNode->Profile, oc.ConNode->Profile,
 				prev_oc.QuartersMap, oc.QuartersMap,
 				prev_oc.ConNode->CachedTransform, oc.ConNode->CachedTransform,
-				LayoutGraph::ParameterisedProfile::VertTypes::RoadbedInner, LayoutGraph::ParameterisedProfile::VertTypes::BarrierTopInner);
+				ParameterisedProfile::VertTypes::RoadbedInner, ParameterisedProfile::VertTypes::BarrierTopInner);
 
 			prev_oc = oc;
 		}
@@ -910,4 +907,4 @@ const FVector SNode::ProjectParentUp() const
 	return proj_up.GetSafeNormal();
 }
 
-#pragma optimize ("", on)
+PRAGMA_ENABLE_OPTIMIZATION

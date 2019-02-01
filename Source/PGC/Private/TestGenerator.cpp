@@ -2,107 +2,45 @@
 
 #include "TestGenerator.h"
 
+PRAGMA_DISABLE_OPTIMIZATION
+
 using namespace LayoutGraph;
 using namespace StructuralGraph;
+using namespace Profile;
 
-// tunnels
+// class statics
 
-const static TSharedPtr<ParameterizedRoadbedShape> SquareTunnel = MakeShared<ParameterizedRoadbedShape>
-(
-	1, 1,
-	0.5f, 0.5f,
-	0, -1
-);
-
-const static TSharedPtr<ParameterizedRoadbedShape> RoundTunnel = MakeShared<ParameterizedRoadbedShape>
-(
-	1, 1,
-	0.5f, 0.5f,
-	3, 9
-);
-
-// canyons
-
-const static TSharedPtr<ParameterizedRoadbedShape> SquareCanyon = MakeShared<ParameterizedRoadbedShape>
-(
-	1, 1,
-	0.35f, 0.35f,
-	0, -1
-);
-
-const static TSharedPtr<ParameterizedRoadbedShape> RoundCanyon = MakeShared<ParameterizedRoadbedShape>
-(
-	1, 1,
-	0.35f, 0.35f,
-	3, 9
-);
-
-const static TSharedPtr<ParameterizedRoadbedShape> RoundCanyonB = MakeShared<ParameterizedRoadbedShape>
-(
-	1, 1,
-	0.35f, 0.35f,
-	4, 8
-);
-
-// U-shapes
-
-const static TSharedPtr<ParameterizedRoadbedShape> SquareU = MakeShared<ParameterizedRoadbedShape>
-(
-	1, 1,
-	0, 0,
-	0, -1
-);
-
-const static TSharedPtr<ParameterizedRoadbedShape> SquareLowU = MakeShared<ParameterizedRoadbedShape>
-(
-	0.5f, 0.5f,
-	0, 0,
-	0, -1
-);
-
-const static TSharedPtr<ParameterizedRoadbedShape> SquareShallowU = MakeShared<ParameterizedRoadbedShape>
-(
-	0.1f, 0.1f,
-	0, 0,
-	0, -1
-);
+TArray <TSharedPtr<ParameterisedRoadbedShape>> TestProfileSource::Roadbeds;
+TArray <TSharedPtr<ParameterisedProfile>> TestProfileSource::Profiles;
 
 
-const static TSharedPtr<ParameterisedProfile> DefaultRoadbedX2 = MakeShared<ParameterisedProfile>
-(
-	4.0f,
-	TArray<float> { 1.0f, 1.0f, 1.0f, 1.0f },
-	TArray<float> { 0.0f, 0.0f, 0.0f, 0.0f },
-	TArray<bool> {
-		false, false, false, false, false, false, 
-		false, false, false, false, false, false, 
-		false, false, false, false, false, false, 
-		false, false, false, false, false, false
-	}
-);
+static bool s_inited = false;
 
-//const static TSharedPtr<ParameterisedProfile> HalfClosed = MakeShared<ParameterisedProfile>
-//(
-//	6.0f,
-//	1.0f, 6.0f, 6.0f, 1.0f,
-//	0.0f, 3.0f, 3.0f, 0.0f
-//);
-//
-//const static TSharedPtr<ParameterisedProfile> LeftCs = MakeShared<ParameterisedProfile>
-//(
-//	6.0f,
-//	0.0f, 0.0f, 6.0f, 6.0f,
-//	0.0f, 0.0f, 6.0f, 6.0f
-//);
-
-YJunction::YJunction(const FVector & pos, const FVector & rot)
-	: YJunction(TArray<TSharedPtr<ParameterisedProfile >> { DefaultRoadbedX2, DefaultRoadbedX2, DefaultRoadbedX2 }, pos, rot)
+static void Init()
 {
+	if (s_inited) return;
+
+	s_inited = true;
+
+	// tunnels
+	TestProfileSource::AddRoadbed("SquareTunnel", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.5f, 0.5f, 0, -1));
+	TestProfileSource::AddRoadbed("RoundTunnel", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.5f, 0.5f, 3, 9));
+
+	// canyons
+	TestProfileSource::AddRoadbed("SquareCanyon", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.35f, 0.35f, 0, -1));
+	TestProfileSource::AddRoadbed("RoundCanyon", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.35f, 0.35f, 3, 9));
+	TestProfileSource::AddRoadbed("RoundCanyonB", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.35f, 0.35f, 4, 8));
+
+	// U-shapes
+	TestProfileSource::AddRoadbed("SquareU", MakeShared<ParameterisedRoadbedShape>(1, 1, 0, 0, 0, -1));
+	TestProfileSource::AddRoadbed("SquareLowU", MakeShared<ParameterisedRoadbedShape>(0.5f, 0.5f, 0, 0, 0, -1));
+	TestProfileSource::AddRoadbed("SquareShallowU", MakeShared<ParameterisedRoadbedShape>(0.1f, 0.1f, 0, 0, 0, -1));
 }
 
 // Sets default values
 ATestGenerator::ATestGenerator()
 {
+	Init();
 }
 
 void ATestGenerator::EnsureGraphs()
@@ -115,7 +53,7 @@ void ATestGenerator::EnsureGraphs()
 
 	if (!StructuralGraph.IsValid())
 	{
-		StructuralGraph = MakeShared<SGraph>(TopologicalGraph);
+		StructuralGraph = MakeShared<SGraph>(TopologicalGraph, &ProfileSource);
 	}
 }
 
@@ -183,48 +121,14 @@ void ATestGenerator::Refine()
 	//Optimizer->RunOptimization();
 }
 
-void Connect(TestGraph* graph, int nodeFrom, int nodeFromConnector, int nodeTo, int nodeToConnector,
-	int divs, int twists,
-	float width, 
-	TArray<TSharedPtr<ParameterizedRoadbedShape>> top = TArray<TSharedPtr<ParameterizedRoadbedShape>>{},
-	TArray<TSharedPtr<ParameterizedRoadbedShape>> bottom = TArray<TSharedPtr<ParameterizedRoadbedShape>>{})
-{
-	TArray<TSharedPtr<ParameterisedProfile>> profiles;
-
-	if (top.Num() == 0)
-	{
-		top.Push(SquareShallowU);
-	}
-
-	if (bottom.Num() == 0)
-	{
-		bottom.Push(SquareShallowU);
-	}
-
-	auto max_count = FMath::Max3(top.Num(), bottom.Num(), 3);
-
-	for (int i = 0; i < max_count; i++)
-	{
-		int top_p = (float)i / max_count * top.Num();
-		int bottom_p = (float)i / max_count * bottom.Num();
-
-		const auto top_rb = top[top_p];
-		const auto bottom_rb = bottom[top_p];
-
-		profiles.Emplace(MakeShared<ParameterisedProfile>(width, top_rb, bottom_rb));
-	}
-
-	graph->Connect(nodeFrom, nodeFromConnector, nodeTo, nodeToConnector, divs, twists, profiles);
-}
-
 void TestGraph::Generate()
 {
 	Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 0 }, FVector{ 0, 0, 0 }));
 	Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 100 }, FVector{ 0, 0, 0 }));
 
-	::Connect(this, 0, 1, 1, 1, 20, 1, 4.0f);
-	::Connect(this, 0, 2, 1, 2, 20, 0, 6.0f);
-	::Connect(this, 0, 0, 1, 0, 20, 0, 3.0f);
+	Connect(0, 1, 1, 1, 20, 1);
+	Connect(0, 2, 1, 2, 20, 0);
+	Connect(0, 0, 1, 0, 20, 0);
 
 	//Nodes.Add(MakeShared<Node>(TArray<TSharedPtr<ParameterisedProfile>>{ HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, }, FVector::ZeroVector, FVector::ZeroVector));
 	//Nodes.Add(MakeShared<Node>(TArray<TSharedPtr<ParameterisedProfile>>{ HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, }, FVector(0, 0, 20), FVector(180, 0, 0)));
@@ -242,3 +146,72 @@ void TestGraph::Generate()
 	//Connect(2, 0, 2, 2, 20, 0);
 	//Connect(3, 0, 3, 2, 20, 0);
 }
+
+TSharedPtr<ParameterisedProfile> TestProfileSource::GetProfile() const
+{
+	return Profiles[FMath::RandRange(0, Profiles.Num() - 1)];
+}
+
+TArray<TSharedPtr<ParameterisedProfile>> TestProfileSource::GetCompatibleProfileSequence(TSharedPtr<ParameterisedProfile> from, TSharedPtr<ParameterisedProfile> to, int steps) const
+{
+	// must have room for at least the start and end-points
+	check(steps >= 2);
+
+	auto here_num = steps / 5;
+
+	TArray<TSharedPtr<ParameterisedProfile>> keys;
+
+	keys.Add(from);
+
+	for (int i = 0; i < here_num - 1; i++)
+	{
+		keys.Add(GetProfile());
+	}
+
+	keys.Add(to);
+
+	for (int i = 0; i < 20; i++)
+	{
+		auto rand_key = FMath::RandRange(1, keys.Num() - 2);
+
+		auto profile = GetProfile();
+
+		auto prev_diff = keys[rand_key]->Diff(keys[rand_key - 1]) + keys[rand_key]->Diff(keys[rand_key + 1]);
+		auto new_diff = profile->Diff(keys[rand_key - 1]) + profile->Diff(keys[rand_key + 1]);
+
+		if (new_diff < prev_diff)
+		{
+			keys[rand_key] = profile;
+		}
+	}
+
+	TArray<TSharedPtr<ParameterisedProfile>> ret;
+
+	for (int i = 0; i < steps; i++)
+	{
+		auto key = i / 5;
+		auto frac = (i - (key * 5)) / 4.0f;
+
+		ret.Add(keys[key]->Interp(keys[key + 1], frac));
+	}
+
+	return ret;
+}
+
+void TestProfileSource::AddRoadbed(FString name, TSharedPtr<Profile::ParameterisedRoadbedShape> roadbed)
+{
+	for (auto width : { 2.0f, 4.0f, 6.0f })
+	{
+		for (const auto& other : Roadbeds)
+		{
+			Profiles.Add(MakeShared<ParameterisedProfile>(width, roadbed, other));
+			Profiles.Add(MakeShared<ParameterisedProfile>(width, other, roadbed));
+		}
+
+		Profiles.Add(MakeShared<ParameterisedProfile>(width, roadbed, roadbed));
+	}
+
+	Roadbeds.Add(roadbed);
+}
+
+PRAGMA_ENABLE_OPTIMIZATION

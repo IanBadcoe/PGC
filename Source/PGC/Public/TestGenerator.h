@@ -13,18 +13,14 @@
 
 #include "TestGenerator.generated.h"
 
-using namespace LayoutGraph;
-
 enum class TestConnectorTypes {
 	StandardRoad,
 };
 
 class YJunction : public LayoutGraph::Node {
 public:
-	YJunction(const FVector& pos, const FVector& rot);
-	YJunction(TArray<TSharedPtr<ParameterisedProfile>> profiles, const FVector& pos, const FVector& rot)
-		: Node(profiles, pos, rot) {
-		check(profiles.Num() == 3);
+	YJunction(const FVector& pos, const FVector& rot)
+		: Node(3, pos, rot) {
 	}
 	virtual ~YJunction() = default;
 };
@@ -34,6 +30,19 @@ public:
 	TestGraph() : LayoutGraph::Graph(1.5f) {}
 
 	void Generate();
+};
+
+class TestProfileSource : public StructuralGraph::ProfileSource {
+public:
+	// Inherited via ProfileSource
+	virtual TSharedPtr<Profile::ParameterisedProfile> GetProfile() const override;
+	virtual TArray<TSharedPtr<Profile::ParameterisedProfile>> GetCompatibleProfileSequence(TSharedPtr<Profile::ParameterisedProfile> from, TSharedPtr<Profile::ParameterisedProfile> to, int steps) const override;
+
+	static void AddRoadbed(FString name, TSharedPtr<Profile::ParameterisedRoadbedShape> roadbed);
+
+private:
+	static TArray<TSharedPtr<Profile::ParameterisedRoadbedShape>> Roadbeds;
+	static TArray<TSharedPtr<Profile::ParameterisedProfile>> Profiles;
 };
 
 UCLASS(BlueprintType)
@@ -46,6 +55,8 @@ class PGC_API ATestGenerator : public AActor, public IPGCGenerator
 
 	TSharedPtr<NlOptIface> OptimizerInterface;
 	TSharedPtr<NlOptWrapper> Optimizer;
+
+	TestProfileSource ProfileSource;
 
 	void EnsureGraphs();
 	void EnsureOptimizer();

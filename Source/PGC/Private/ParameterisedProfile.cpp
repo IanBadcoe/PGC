@@ -1,34 +1,29 @@
 #include "ParameterisedProfile.h"
 
+PRAGMA_DISABLE_OPTIMIZATION
+
 using namespace Profile;
 
 ParameterisedProfile::ParameterisedProfile(float width,
-	TArray<float> barriers,
-	TArray<float> overhangs,
-	TArray<bool> outgoingSharps)
-	: Width{ width }, AbsoluteBound{ 0, 0 }
+	const TArray<float> barriers,
+	const TArray<float> overhangs,
+	const TArray<bool> outgoingSharps)
+	: Width{ width },
+	  BarrierHeights(barriers),
+	  OverhangWidths(overhangs),
+	  OutgoingSharp(outgoingSharps),
+	  AbsoluteBound{ 0, 0 }
 {
 	check(barriers.Num() == 4);
 	check(overhangs.Num() == 4);
 	check(outgoingSharps.Num() == 24);
-
-	for (int i = 0; i < 4; i++)
-	{
-		BarrierHeights[i] = barriers[i] * Width;
-		OverhangWidths[i] = overhangs[i] * Width;
-	}
-
-	for (int i = 0; i < NumVerts; i++)
-	{
-		OutgoingSharp[i] = outgoingSharps[i];
-	}
 
 	CalcAbsoluteBound();
 
 	CheckConsistent();
 }
 
-ParameterisedProfile::ParameterisedProfile(float width, const TSharedPtr<ParameterizedRoadbedShape>& top, const TSharedPtr<ParameterizedRoadbedShape>& bottom)
+ParameterisedProfile::ParameterisedProfile(float width, const TSharedPtr<ParameterisedRoadbedShape>& top, const TSharedPtr<ParameterisedRoadbedShape>& bottom)
 	: Width(width)
 {
 	BarrierHeights[0] = top->GetBarrierHeight(1) * Width;
@@ -166,5 +161,81 @@ FVector ParameterisedProfile::GetTransformedVert(VertTypes type, int quarter_idx
 	return GetTransformedVert(idx, trans);
 }
 
+float Profile::ParameterisedProfile::Diff(const TSharedPtr<ParameterisedProfile>& other) const
+{
+	auto ret = 0.0f;
 
+	for (int i = 0; i < NumVerts; i++)
+	{
+		ret += (this->GetPoint(i) - other->GetPoint(i)).Size();
+	}
 
+	return ret;
+}
+
+static inline float interp(float from, float to, float frac)
+{
+	check(frac >= 0 && frac <= 1);
+
+	return from + (to - from) * frac;
+}
+
+TSharedPtr<ParameterisedProfile> Profile::ParameterisedProfile::Interp(TSharedPtr<ParameterisedProfile> other, float frac) const
+{
+	for (int i = 0; i < 4; i++)
+	{
+		if ((OverhangWidths[i] == 0) != (other->OverhangWidths[i] == 0))
+		{
+			if (frac < 0.5)
+			{
+				return RawInterp(SafeIntermediate(other), frac * 2);
+			}
+
+			return SafeIntermediate(other)->RawInterp(other, frac * 2 - 1);
+		}
+	}
+
+	return RawInterp(other, frac);
+}
+
+TSharedPtr<ParameterisedProfile> Profile::ParameterisedProfile::RawInterp(TSharedPtr<ParameterisedProfile> other, float frac) const
+{
+	return MakeShared<ParameterisedProfile>(
+		interp(Width, other->Width, frac),
+		TArray<float> {
+			interp(BarrierHeights[0], other->BarrierHeights[0], frac),
+			interp(BarrierHeights[1], other->BarrierHeights[1], frac),
+			interp(BarrierHeights[2], other->BarrierHeights[2], frac),
+			interp(BarrierHeights[3], other->BarrierHeights[3], frac),
+		},
+		TArray<float> {
+			interp(OverhangWidths[0], other->OverhangWidths[0], frac),
+			interp(OverhangWidths[1], other->OverhangWidths[1], frac),
+			interp(OverhangWidths[2], other->OverhangWidths[2], frac),
+			interp(OverhangWidths[3], other->OverhangWidths[3], frac),
+		},
+		TArray<bool>(frac < 0.5f ? OutgoingSharp : other->OutgoingSharp)
+	);
+}
+
+TSharedPtr<ParameterisedProfile> Profile::ParameterisedProfile::SafeIntermediate(TSharedPtr<ParameterisedProfile> other) const
+{
+	return MakeShared<ParameterisedProfile>(
+		(Width + other->Width) / 2,
+		TArray<float> {
+			FMath::Max(BarrierHeights[0], other->BarrierHeights[0]),
+			FMath::Max(BarrierHeights[1], other->BarrierHeights[1]),
+			FMath::Max(BarrierHeights[2], other->BarrierHeights[2]),
+			FMath::Max(BarrierHeights[3], other->BarrierHeights[3]),
+		},
+		TArray<float> {
+			FMath::Min(OverhangWidths[0], other->OverhangWidths[0]),
+			FMath::Min(OverhangWidths[1], other->OverhangWidths[1]),
+			FMath::Min(OverhangWidths[2], other->OverhangWidths[2]),
+			FMath::Min(OverhangWidths[3], other->OverhangWidths[3]),
+		},
+		TArray<bool>(other->OutgoingSharp)
+	);
+}
+
+PRAGMA_ENABLE_OPTIMIZATION

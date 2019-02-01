@@ -9,6 +9,7 @@
 
 #include "LayoutGraph.h"
 #include "SplineUtil.h"
+#include "ParameterisedProfile.h"
 
 namespace StructuralGraph {
 	class SNode;
@@ -52,7 +53,7 @@ namespace StructuralGraph {
 		const int Idx;
 		const Type MyType;
 
-		const TSharedPtr<LayoutGraph::ParameterisedProfile> Profile;
+		const TSharedPtr<Profile::ParameterisedProfile> Profile;
 
 		mutable FTransform CachedTransform;
 
@@ -65,7 +66,7 @@ namespace StructuralGraph {
 
 		TSharedPtr<SNode> Parent;		// for the purposes of the DAG only...
 
-		SNode(int idx, const TSharedPtr<LayoutGraph::ParameterisedProfile> profile, Type type) : Idx(idx), Profile(profile), MyType(type)
+		SNode(int idx, const TSharedPtr<Profile::ParameterisedProfile> profile, Type type) : Idx(idx), Profile(profile), MyType(type)
 		{
 		}
 
@@ -85,6 +86,13 @@ namespace StructuralGraph {
 		const FVector ProjectParentUp() const;
 	};
 
+	class ProfileSource {
+	public:
+		virtual TSharedPtr<Profile::ParameterisedProfile> GetProfile() const = 0;
+		virtual TArray<TSharedPtr<Profile::ParameterisedProfile>> GetCompatibleProfileSequence(TSharedPtr<Profile::ParameterisedProfile> from,
+			TSharedPtr<Profile::ParameterisedProfile> to, int steps) const = 0;
+	};
+
 	class SGraph {
 		void RefreshTransforms() const;
 
@@ -101,7 +109,7 @@ namespace StructuralGraph {
 		void MakeIntoDagInner(TSharedPtr<SNode> node, TSet<TSharedPtr<SNode>>& closed);
 
 	public:
-		SGraph(TSharedPtr<LayoutGraph::Graph> input);
+		SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source);
 
 		// connect "from" to "to" directly with an edge and no regard to geometry...
 		void Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, double D0);
@@ -109,7 +117,7 @@ namespace StructuralGraph {
 		void ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode> from_c,
 			const TSharedPtr<SNode> to_n, TSharedPtr<SNode> to_c,
 			int divs, int twists,
-			float D0, const TArray<TSharedPtr<LayoutGraph::ParameterisedProfile>>& profiles);
+			float D0, const TArray<TSharedPtr<Profile::ParameterisedProfile>>& profiles);
 
 		int FindNodeIdx(const TSharedPtr<SNode>& node) const;
 
@@ -117,5 +125,7 @@ namespace StructuralGraph {
 
 		TArray<TSharedPtr<SNode>> Nodes;
 		TArray<TSharedPtr<SEdge>> Edges;
+
+		const ProfileSource* _ProfileSource;
 	};
 }

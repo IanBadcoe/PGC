@@ -2,7 +2,7 @@
 
 #include "Mesh.h"
 
-#pragma optimize ("", off)
+PRAGMA_DISABLE_OPTIMIZATION
 
 namespace Util {
 
@@ -125,4 +125,4 @@ inline FQuat AxisAngleToQuaternion(FVector Axis, float Angle)
 
 }
 
-#pragma optimize ("", on)
+PRAGMA_ENABLE_OPTIMIZATION
