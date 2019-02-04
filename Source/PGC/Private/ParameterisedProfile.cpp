@@ -238,4 +238,24 @@ TSharedPtr<ParameterisedProfile> Profile::ParameterisedProfile::SafeIntermediate
 	);
 }
 
+bool ParameterisedRoadbedShape::operator==(const ParameterisedRoadbedShape& rhs) const {
+	if (LeftBarrierHeight != rhs.LeftBarrierHeight
+		|| RightBarrierHeight != rhs.RightBarrierHeight
+		|| LeftOverhang != rhs.RightOverhang
+		|| RightOverhang != rhs.RightOverhang)
+	{
+		return false;
+	}
+
+	// any empty range is the same
+	if (IsEmptySmoothRange() && rhs.IsEmptySmoothRange())
+	{
+		return true;
+	}
+
+	return StartSmoothIdx == rhs.StartSmoothIdx
+		&& EndSmoothIdx == rhs.EndSmoothIdx;
+};
+
+
 PRAGMA_ENABLE_OPTIMIZATION

@@ -75,25 +75,19 @@ public:
 		(
 			RightBarrierHeight, LeftBarrierHeight,
 			RightOverhang, LeftOverhang,
-			11 - EndSmoothIdx, 11 - StartSmoothIdx
+			12 - EndSmoothIdx, 12 - StartSmoothIdx
 		);
 	}
 
-	bool operator==(const ParameterisedRoadbedShape& rhs) const {
-		if (LeftBarrierHeight != rhs.LeftBarrierHeight
-			|| RightBarrierHeight != rhs.RightBarrierHeight
-			|| LeftOverhang != rhs.RightOverhang
-			|| RightOverhang != rhs.RightOverhang)
-		{
-			return false;
-		}
+	bool operator==(const ParameterisedRoadbedShape& rhs) const;
 
-		// any empty range is the same
-		if (IsEmptySmoothSection() && rhs.IsEmptySmoothSection())
-		{
-			return true;
-		}
-	};
+	bool operator!=(const ParameterisedRoadbedShape& rhs) const {
+		return !(*this == rhs);
+	}
+
+	bool IsEmptySmoothRange() const {
+		return StartSmoothIdx >= EndSmoothIdx;
+	}
 };
 
 template<typename T, int N>

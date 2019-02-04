@@ -208,7 +208,8 @@ TArray<TSharedPtr<ParameterisedProfile>> TestProfileSource::GetCompatibleProfile
 	return ret;
 }
 
-void TestProfileSource::AddRoadbed(FString name, TSharedPtr<Profile::ParameterisedRoadbedShape> roadbed)
+void TestProfileSource::AddRoadbed(FString name, TSharedPtr<Profile::ParameterisedRoadbedShape> roadbed,
+	bool suppress_mirroring /* = false */)
 {
 	for (auto width : { 3.0f, 5.0f, 8.0f })
 	{
@@ -223,13 +224,14 @@ void TestProfileSource::AddRoadbed(FString name, TSharedPtr<Profile::Parameteris
 
 	Roadbeds.Add(name) = roadbed;
 
-	auto mirrored = roadbed->Mirrored();
-
-	if (mirrored != roadbed)
+	if (!suppress_mirroring)
 	{
+		auto mirrored = roadbed->Mirrored();
 
-
-		AddRoadbed(name + " (mirrored)", mirrored);
+		if (*mirrored != *roadbed)
+		{
+			AddRoadbed(name + " (mirrored)", mirrored, true);
+		}
 	}
 }
 
