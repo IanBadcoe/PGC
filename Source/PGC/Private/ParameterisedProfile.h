@@ -43,8 +43,8 @@ public:
 		int startSmooth,
 		int endSmooth)
 		: StartSmoothIdx(startSmooth), EndSmoothIdx(endSmooth),
-		LeftBarrierHeight(leftBarrier), RightBarrierHeight(rightBarrier),
-		LeftOverhang(leftOverhang), RightOverhang(rightOverhang)
+		  LeftBarrierHeight(leftBarrier), RightBarrierHeight(rightBarrier),
+		  LeftOverhang(leftOverhang), RightOverhang(rightOverhang)
 	{}
 	ParameterisedRoadbedShape(const ParameterisedRoadbedShape& rhs) = default;
 	ParameterisedRoadbedShape& operator=(const ParameterisedRoadbedShape& rhs) = default;
@@ -70,14 +70,30 @@ public:
 		return idx >= StartSmoothIdx && idx < EndSmoothIdx;
 	}
 
-	ParameterisedRoadbedShape Mirrored() const {
-		return ParameterisedRoadbedShape
-		{
+	TSharedPtr<ParameterisedRoadbedShape> Mirrored() const {
+		return MakeShared<ParameterisedRoadbedShape>
+		(
 			RightBarrierHeight, LeftBarrierHeight,
 			RightOverhang, LeftOverhang,
 			11 - EndSmoothIdx, 11 - StartSmoothIdx
-		};
+		);
 	}
+
+	bool operator==(const ParameterisedRoadbedShape& rhs) const {
+		if (LeftBarrierHeight != rhs.LeftBarrierHeight
+			|| RightBarrierHeight != rhs.RightBarrierHeight
+			|| LeftOverhang != rhs.RightOverhang
+			|| RightOverhang != rhs.RightOverhang)
+		{
+			return false;
+		}
+
+		// any empty range is the same
+		if (IsEmptySmoothSection() && rhs.IsEmptySmoothSection())
+		{
+			return true;
+		}
+	};
 };
 
 template<typename T, int N>
@@ -175,6 +191,10 @@ public:
 	float Diff(const TSharedPtr<ParameterisedProfile>& other) const;
 
 	TSharedPtr<ParameterisedProfile> Interp(TSharedPtr<ParameterisedProfile> other, float frac) const;
+
+	PGCEdgeType GetOutgoungEdgeType(int i) {
+		return OutgoingSharp[i] ? PGCEdgeType::Sharp : PGCEdgeType::Rounded;
+	}
 };
 
 }

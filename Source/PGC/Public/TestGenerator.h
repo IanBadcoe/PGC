@@ -13,10 +13,6 @@
 
 #include "TestGenerator.generated.h"
 
-enum class TestConnectorTypes {
-	StandardRoad,
-};
-
 class YJunction : public LayoutGraph::Node {
 public:
 	YJunction(const FVector& pos, const FVector& rot)
@@ -41,7 +37,7 @@ public:
 	static void AddRoadbed(FString name, TSharedPtr<Profile::ParameterisedRoadbedShape> roadbed);
 
 private:
-	static TArray<TSharedPtr<Profile::ParameterisedRoadbedShape>> Roadbeds;
+	static TMap<FString, TSharedPtr<Profile::ParameterisedRoadbedShape>> Roadbeds;
 	static TArray<TSharedPtr<Profile::ParameterisedProfile>> Profiles;
 };
 

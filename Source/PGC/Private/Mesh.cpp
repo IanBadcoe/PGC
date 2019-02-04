@@ -977,6 +977,7 @@ Idx<MeshFace> Mesh::AddFindFace(MeshFace face, const TArray<PGCEdgeType>& edge_t
 	}
 
 	auto prev_vert = face.VertIdxs.Last();
+	auto prev_edge_type = edge_types.Last();
 
 	for (int i = 0; i < face.VertIdxs.Num(); i++)
 	{
@@ -992,11 +993,12 @@ Idx<MeshFace> Mesh::AddFindFace(MeshFace face, const TArray<PGCEdgeType>& edge_t
 		// Sharp edges from either existing or incoming edges take precedence.
 		if (Edges[edge_idx].Type == PGCEdgeType::Rounded)
 		{
-			Edges[edge_idx].Type = edge_types[i];
+			Edges[edge_idx].Type = prev_edge_type;
 		}
 		Edges[edge_idx].AddFace(Faces.Num(), prev_vert);
 
 		prev_vert = vert_idx;
+		prev_edge_type = edge_types[i];
 	}
 
 	Faces.Push(face);
@@ -1194,10 +1196,10 @@ TSharedPtr<Mesh> Mesh::SubdivideInner()
 				v4.ToMeshVertRaw(f.UVGroup)
 				}, f.UVGroup,
 				{
-					Edges[prev_edge_idx].Type,
 					Edges[next_edge_idx].Type,
 					PGCEdgeType::Rounded,
 					PGCEdgeType::Rounded,
+					Edges[prev_edge_idx].Type,
 				});
 		}
 	}
@@ -1264,12 +1266,12 @@ void Mesh::AddCube(const FPGCCube& cube)
 	};
 
 	TArray<TArray<PGCEdgeType>> edge_types {
-		{cube.EdgeTypes[(int)PGCEdgeId::BottomFront], cube.EdgeTypes[(int)PGCEdgeId::BottomRight],cube.EdgeTypes[(int)PGCEdgeId::BottomBack],cube.EdgeTypes[(int)PGCEdgeId::BottomLeft]},
-		{cube.EdgeTypes[(int)PGCEdgeId::BottomRight], cube.EdgeTypes[(int)PGCEdgeId::FrontRight],cube.EdgeTypes[(int)PGCEdgeId::TopRight],cube.EdgeTypes[(int)PGCEdgeId::BackRight]},
-		{cube.EdgeTypes[(int)PGCEdgeId::BackLeft], cube.EdgeTypes[(int)PGCEdgeId::BottomBack],cube.EdgeTypes[(int)PGCEdgeId::BackRight],cube.EdgeTypes[(int)PGCEdgeId::TopBack]},
-		{cube.EdgeTypes[(int)PGCEdgeId::TopLeft], cube.EdgeTypes[(int)PGCEdgeId::FrontLeft],cube.EdgeTypes[(int)PGCEdgeId::BottomLeft],cube.EdgeTypes[(int)PGCEdgeId::BackLeft]},
-		{cube.EdgeTypes[(int)PGCEdgeId::TopFront], cube.EdgeTypes[(int)PGCEdgeId::FrontRight],cube.EdgeTypes[(int)PGCEdgeId::BottomFront],cube.EdgeTypes[(int)PGCEdgeId::FrontLeft]},
-		{cube.EdgeTypes[(int)PGCEdgeId::TopRight], cube.EdgeTypes[(int)PGCEdgeId::TopFront],cube.EdgeTypes[(int)PGCEdgeId::TopLeft],cube.EdgeTypes[(int)PGCEdgeId::TopBack]},
+		{ cube.EdgeTypes[(int)PGCEdgeId::BottomRight],	cube.EdgeTypes[(int)PGCEdgeId::BottomBack],		cube.EdgeTypes[(int)PGCEdgeId::BottomLeft],	cube.EdgeTypes[(int)PGCEdgeId::BottomFront],	},
+		{ cube.EdgeTypes[(int)PGCEdgeId::FrontRight],	cube.EdgeTypes[(int)PGCEdgeId::TopRight],		cube.EdgeTypes[(int)PGCEdgeId::BackRight],	cube.EdgeTypes[(int)PGCEdgeId::BottomRight],	},
+		{ cube.EdgeTypes[(int)PGCEdgeId::BottomBack],	cube.EdgeTypes[(int)PGCEdgeId::BackRight],		cube.EdgeTypes[(int)PGCEdgeId::TopBack],	cube.EdgeTypes[(int)PGCEdgeId::BackLeft],		},
+		{ cube.EdgeTypes[(int)PGCEdgeId::FrontLeft],	cube.EdgeTypes[(int)PGCEdgeId::BottomLeft],		cube.EdgeTypes[(int)PGCEdgeId::BackLeft],	cube.EdgeTypes[(int)PGCEdgeId::TopLeft],		},
+		{ cube.EdgeTypes[(int)PGCEdgeId::FrontRight],	cube.EdgeTypes[(int)PGCEdgeId::BottomFront],	cube.EdgeTypes[(int)PGCEdgeId::FrontLeft],	cube.EdgeTypes[(int)PGCEdgeId::TopFront],		},
+		{ cube.EdgeTypes[(int)PGCEdgeId::TopFront],		cube.EdgeTypes[(int)PGCEdgeId::TopLeft],		cube.EdgeTypes[(int)PGCEdgeId::TopBack],	cube.EdgeTypes[(int)PGCEdgeId::TopRight],		},
 	};
 
 	for (int i = 0; i < 6; i++)

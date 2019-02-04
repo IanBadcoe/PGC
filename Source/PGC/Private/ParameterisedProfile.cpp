@@ -38,10 +38,10 @@ ParameterisedProfile::ParameterisedProfile(float width, const TSharedPtr<Paramet
 
 	for (int i = 0; i < VertsPerQuarter; i++)
 	{
-		OutgoingSharp[i + VertsPerQuarter * 0] = top->GetSmooth(i + VertsPerQuarter);
-		OutgoingSharp[i + VertsPerQuarter * 1] = bottom->GetSmooth(i);
-		OutgoingSharp[i + VertsPerQuarter * 2] = bottom->GetSmooth(i + VertsPerQuarter);
-		OutgoingSharp[i + VertsPerQuarter * 3] = top->GetSmooth(i);
+		OutgoingSharp[i + VertsPerQuarter * 0] = !top->GetSmooth(i + VertsPerQuarter);
+		OutgoingSharp[i + VertsPerQuarter * 1] = !bottom->GetSmooth(i);
+		OutgoingSharp[i + VertsPerQuarter * 2] = !bottom->GetSmooth(i + VertsPerQuarter);
+		OutgoingSharp[i + VertsPerQuarter * 3] = !top->GetSmooth(i);
 	}
 
 	CalcAbsoluteBound();

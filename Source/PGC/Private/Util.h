@@ -7,9 +7,12 @@ PRAGMA_DISABLE_OPTIMIZATION
 namespace Util {
 
 // temp util to gloss over awkwardness of UVs and edge-types
-inline void AddPolyToMesh(TSharedPtr<Mesh> mesh, TArray<FVector> verts)
+inline void AddPolyToMesh(TSharedPtr<Mesh> mesh, TArray<FVector> verts, TArray<PGCEdgeType> edge_types)
 {
+	check(verts.Num() == edge_types.Num());
+
 	auto prev_vert = verts.Last();
+	auto& prev_edge_type = edge_types.Last();
 
 	// parameterized profiles can generate degenerate edges, remove any duplicated verts
 	for (int i = 0; i < verts.Num();)
@@ -17,6 +20,16 @@ inline void AddPolyToMesh(TSharedPtr<Mesh> mesh, TArray<FVector> verts)
 		if (verts[i] == prev_vert)
 		{
 			verts.RemoveAt(i);
+
+			if (edge_types[i] == PGCEdgeType::Sharp || prev_edge_type == PGCEdgeType::Sharp)
+			{
+				// is this right?  my thinking is that if either of the two edges was sharp, then
+				// the merged one should be (consider if this is the end of a wall, the wall
+				// top corners should not go soft just because they are merging back into the floor...
+				prev_edge_type = PGCEdgeType::Sharp;
+			}
+
+			edge_types.RemoveAt(i);
 		}
 		else
 		{
@@ -30,28 +43,58 @@ inline void AddPolyToMesh(TSharedPtr<Mesh> mesh, TArray<FVector> verts)
 		return;
 
 	TArray<FVector2D> UVs;
-	TArray<PGCEdgeType> EdgeTypes;
 
 	for (int i = 0; i < verts.Num(); i++)
 	{
 		UVs.Add(FVector2D(0, 0));
-		EdgeTypes.Add(PGCEdgeType::Rounded);
+		edge_types.Add(PGCEdgeType::Rounded);
 	}
 
-	mesh->AddFaceFromVects(verts, UVs, 0, EdgeTypes);
+	mesh->AddFaceFromVects(verts, UVs, 0, edge_types);
 }
 
 // temp util to gloss over awkwardness of UVs and edge-types
-inline void AddPolyToMeshReversed(TSharedPtr<Mesh> mesh, const TArray<FVector>& verts)
+inline void AddPolyToMeshReversed(TSharedPtr<Mesh> mesh, const TArray<FVector>& verts, const TArray<PGCEdgeType> edge_types)
 {
-	TArray<FVector> reversed;
+	TArray<FVector> verts_reversed;
+	TArray<PGCEdgeType> edge_types_reversed;
 
-	for (int i = verts.Num() - 1; i >= 0; i--)
+	const auto sz = verts.Num();
+
+	for (int i = sz - 1; i >= 0; i--)
 	{
-		reversed.Push(verts[i]);
+		verts_reversed.Push(verts[i]);
+		// because edge_types are for the following edge, when we reverse the verts
+		// the "following" edge is what was the preceding one
+		// and the edge types move by one
+		edge_types_reversed.Push(edge_types[(i - 1 + sz) % sz]);
 	}
 
-	AddPolyToMesh(mesh, reversed);
+	AddPolyToMesh(mesh, verts_reversed, edge_types_reversed);
+}
+
+inline void AddPolyToMesh(TSharedPtr<Mesh> mesh, TArray<FVector> verts, PGCEdgeType all_edge_types)
+{
+	TArray<PGCEdgeType> edge_types;
+
+	for (const auto& vert: verts)
+	{
+		edge_types.Push(all_edge_types);
+	}
+
+	return AddPolyToMesh(mesh, verts, edge_types);
+}
+
+inline void AddPolyToMeshReversed(TSharedPtr<Mesh> mesh, TArray<FVector> verts, PGCEdgeType all_edge_types)
+{
+	TArray<PGCEdgeType> edge_types;
+
+	for (const auto& vert : verts)
+	{
+		edge_types.Push(all_edge_types);
+	}
+
+	return AddPolyToMeshReversed(mesh, verts, edge_types);
 }
 
 // we expect forward and up to be set, right then derives from those

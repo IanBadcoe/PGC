@@ -10,7 +10,7 @@ using namespace Profile;
 
 // class statics
 
-TArray <TSharedPtr<ParameterisedRoadbedShape>> TestProfileSource::Roadbeds;
+TMap<FString, TSharedPtr<ParameterisedRoadbedShape>> TestProfileSource::Roadbeds;
 TArray <TSharedPtr<ParameterisedProfile>> TestProfileSource::Profiles;
 
 
@@ -23,18 +23,28 @@ static void Init()
 	s_inited = true;
 
 	// tunnels
-	TestProfileSource::AddRoadbed("SquareTunnel", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.5f, 0.5f, 0, -1));
-	TestProfileSource::AddRoadbed("RoundTunnel", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.5f, 0.5f, 3, 9));
+	//TestProfileSource::AddRoadbed("SquareTunnel", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.5f, 0.5f, 0, -1));
+	//TestProfileSource::AddRoadbed("RoundTunnel", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.5f, 0.5f, 3, 9));
 
-	// canyons
-	TestProfileSource::AddRoadbed("SquareCanyon", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.35f, 0.35f, 0, -1));
-	TestProfileSource::AddRoadbed("RoundCanyon", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.35f, 0.35f, 3, 9));
-	TestProfileSource::AddRoadbed("RoundCanyonB", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.35f, 0.35f, 4, 8));
+	//// canyons
+	//TestProfileSource::AddRoadbed("SquareCanyon", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.35f, 0.35f, 0, -1));
+	//TestProfileSource::AddRoadbed("RoundCanyon", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.35f, 0.35f, 3, 9));
+	//TestProfileSource::AddRoadbed("RoundCanyonB", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.35f, 0.35f, 4, 8));
 
-	// U-shapes
-	TestProfileSource::AddRoadbed("SquareU", MakeShared<ParameterisedRoadbedShape>(1, 1, 0, 0, 0, -1));
-	TestProfileSource::AddRoadbed("SquareLowU", MakeShared<ParameterisedRoadbedShape>(0.5f, 0.5f, 0, 0, 0, -1));
-	TestProfileSource::AddRoadbed("SquareShallowU", MakeShared<ParameterisedRoadbedShape>(0.1f, 0.1f, 0, 0, 0, -1));
+	//TestProfileSource::AddRoadbed("TallThinSquareCanyon", MakeShared<ParameterisedRoadbedShape>(1.5, 1.5, 0.35f, 0.35f, 0, -1));
+	//TestProfileSource::AddRoadbed("TallThinRoundCanyon", MakeShared<ParameterisedRoadbedShape>(1.5, 1.5, 0.35f, 0.35f, 3, 9));
+	//TestProfileSource::AddRoadbed("TallThinRoundCanyonB", MakeShared<ParameterisedRoadbedShape>(1.5, 1.5, 0.35f, 0.35f, 4, 8));
+
+	//// U-shapes
+	//TestProfileSource::AddRoadbed("SquareU", MakeShared<ParameterisedRoadbedShape>(1, 1, 0, 0, 0, -1));
+	//TestProfileSource::AddRoadbed("SquareLowU", MakeShared<ParameterisedRoadbedShape>(0.5f, 0.5f, 0, 0, 0, -1));
+	//TestProfileSource::AddRoadbed("SquareShallowU", MakeShared<ParameterisedRoadbedShape>(0.1f, 0.1f, 0, 0, 0, -1));
+	//TestProfileSource::AddRoadbed("RoundU", MakeShared<ParameterisedRoadbedShape>(1, 1, 0, 0, 4, 8));
+	//TestProfileSource::AddRoadbed("RoundLowU", MakeShared<ParameterisedRoadbedShape>(0.5f, 0.5f, 0, 0, 4, 8));
+	//TestProfileSource::AddRoadbed("RoundShallowU", MakeShared<ParameterisedRoadbedShape>(0.1f, 0.1f, 0, 0, 4, 8));
+
+	// C-shapes
+	TestProfileSource::AddRoadbed("SquareC", MakeShared<ParameterisedRoadbedShape>(1, 0, 1, 0, 0, -1));
 }
 
 // Sets default values
@@ -200,18 +210,27 @@ TArray<TSharedPtr<ParameterisedProfile>> TestProfileSource::GetCompatibleProfile
 
 void TestProfileSource::AddRoadbed(FString name, TSharedPtr<Profile::ParameterisedRoadbedShape> roadbed)
 {
-	for (auto width : { 2.0f, 4.0f, 6.0f })
+	for (auto width : { 3.0f, 5.0f, 8.0f })
 	{
 		for (const auto& other : Roadbeds)
 		{
-			Profiles.Add(MakeShared<ParameterisedProfile>(width, roadbed, other));
-			Profiles.Add(MakeShared<ParameterisedProfile>(width, other, roadbed));
+			Profiles.Add(MakeShared<ParameterisedProfile>(width, roadbed, other.Value));
+			Profiles.Add(MakeShared<ParameterisedProfile>(width, other.Value, roadbed));
 		}
 
 		Profiles.Add(MakeShared<ParameterisedProfile>(width, roadbed, roadbed));
 	}
 
-	Roadbeds.Add(roadbed);
+	Roadbeds.Add(name) = roadbed;
+
+	auto mirrored = roadbed->Mirrored();
+
+	if (mirrored != roadbed)
+	{
+
+
+		AddRoadbed(name + " (mirrored)", mirrored);
+	}
 }
 
 PRAGMA_ENABLE_OPTIMIZATION
