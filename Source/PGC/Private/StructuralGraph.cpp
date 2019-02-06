@@ -12,7 +12,7 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_sour
 {
 	for (const auto& n : input->GetNodes())
 	{
-		auto new_node = MakeShared<SNode>(Nodes.Num(), nullptr, SNode::Type::Junction);
+		auto new_node = MakeShared<SNode>(nullptr, SNode::Type::Junction);
 		new_node->Position = n->Transform.GetLocation();
 		new_node->CachedUp = n->Transform.GetUnitAxis(EAxis::Z);		// for the moment this is all we have, after MakeIntoDAG will calculate as an angle from parent Up and store in Rotation instead
 		new_node->Forward = n->Transform.GetUnitAxis(EAxis::X);
@@ -69,7 +69,7 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_sour
 		{
 			const auto& conn = n->Connectors[i];
 
-			auto conn_node = MakeShared<SNode>(Nodes.Num(), node_profiles[i], SNode::Type::JunctionConnector);
+			auto conn_node = MakeShared<SNode>(node_profiles[i], SNode::Type::JunctionConnector);
 
 			auto tot_trans = conn->Transform * n->Transform;
 
@@ -139,15 +139,32 @@ void SGraph::MakeIntoDAG()
 
 	TSet<TSharedPtr<SNode>> Closed;
 
-	MakeIntoDagInner(Nodes[0], Closed);
+	// this will contain the nodes in an order suitablew for updating from
+	// e.g. everything will be later in the list that its parent
+	TArray<TSharedPtr<SNode>> new_order;
+
+	auto orig_size = Nodes.Num();
+
+	MakeIntoDagInner(Nodes[0], Closed, new_order);
+
+	// we're assuming that the graph comes as a single part, if it eventually does not, we need to
+	// loop on the previous line to pull out each part in turn...
+	check(Nodes.Num() == 0);
+	check(new_order.Num() == orig_size);
+
+	Nodes = new_order;
 }
 
-// by doing this depth-first we ensure we traverse the whole of a unbranching sequence in one
+// by doing this depth-first we ensure we traverse the whole of an unbranching sequence in one
 // which avoids any awkwardness around knowing which way around the profile should be
 // when examining an edge from the middle of it in isolation
-// (otherwise you can end up with -->-->--><--<--<-- and the profile orientation in the middle is ambiguous unless)
-void SGraph::MakeIntoDagInner(TSharedPtr<SNode> node, TSet<TSharedPtr<SNode>>& closed)
+// (otherwise you can end up with -->-->--><--<--<-- and the profile orientations are indeterminate
+//  unless you follow it all the way from one end to the other (so as you know that a reverse has had to be propagated
+//  across the join and into the whole of the later section)
+void SGraph::MakeIntoDagInner(TSharedPtr<SNode> node, TSet<TSharedPtr<SNode>>& closed, TArray<TSharedPtr<SNode>>& new_order)
 {
+	Nodes.Remove(node);
+	new_order.Add(node);
 	closed.Add(node);
 
 	// this can be done when all connected node positions are known
@@ -183,7 +200,7 @@ void SGraph::MakeIntoDagInner(TSharedPtr<SNode> node, TSet<TSharedPtr<SNode>>& c
 			}
 		}
 
-		MakeIntoDagInner(other, closed);
+		MakeIntoDagInner(other, closed, new_order);
 	}
 }
 
@@ -381,7 +398,7 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 
 		TSharedPtr<SNode> next_node;
 		
-		next_node = MakeShared<SNode>(Nodes.Num(), profile, SNode::Type::Connection);
+		next_node = MakeShared<SNode>(profile, SNode::Type::Connection);
 		next_node->Position = frames[i].pos;
 		next_node->CachedUp = frames[i].up;
 		next_node->Forward = frames[i].forward;
@@ -487,7 +504,7 @@ void SGraph::MakeMesh(TSharedPtr<Mesh> mesh, bool skeleton_only)
 				poly.Add(from_p + orth2 * dist / 10);
 				poly.Add(from_p + orth1 * dist / 10);
 
-				Util::AddPolyToMesh(mesh, poly, { PGCEdgeType::Sharp, PGCEdgeType::Sharp, PGCEdgeType::Sharp });
+				Util::AddPolyToMesh(mesh, poly, { PGCEdgeType::Sharp, PGCEdgeType::Sharp, PGCEdgeType::Sharp, PGCEdgeType::Sharp });
 			}
 		}
 

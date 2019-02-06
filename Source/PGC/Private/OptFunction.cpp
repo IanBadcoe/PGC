@@ -115,7 +115,9 @@ double OptFunction::UnconnectedNodeNodeDist_Val(const FVector& p1, const FVector
 	if (dist >= D)
 		return 0;
 
-	return FMath::Pow(dist - D, 2) * 0.1;
+	// dividing by expected distance makes the penalty be for proportional error, rather than distance
+	// which I think makes sense as you don't want a large distance to be able to crush a small one disproportionately
+	return FMath::Pow((dist - D) / D, 2) * 0.1;
 }
 
 //double OptFunction::UnconnectedNodeNodeDist_Grad(const FVector & pGrad, const FVector & pOther, float D0, int axis)
@@ -144,7 +146,9 @@ double OptFunction::ConnectedNodeNodeTorsion_Val(const FVector & up1, const FVec
 
 	auto cos = FVector::DotProduct(up1_in_plane, up2_in_plane);
 
-	return FMath::Pow(1 - cos, 2);
+	auto angle = FMath::Acos(cos);
+
+	return FMath::Pow(angle / PI, 2) * 100;
 }
 
 //double OptFunction::ConnectedNodeNodeTorsion_Grad(const FVector & upGrad, const FVector & upOther, const FVector & pGrad, const FVector & pOther, bool flipped, int axis)
@@ -158,7 +162,9 @@ double OptFunction::ConnectedNodeNodeDist_Val(const FVector& p1, const FVector& 
 
 	add_hist(dist / D0);
 
-	return pow(dist - D0, 2);
+	// dividing by expected distance makes the penalty be for proportional error, rather than distance
+	// which I think makes sense as you don't want a large distance to be able to crush a small one disproportionately
+	return pow((dist - D0) / D0, 2);
 }
 
 //double OptFunction::ConnectedNodeNodeDist_Grad(const FVector& pGrad, const FVector& pOther, float D0, int axis)
@@ -186,9 +192,11 @@ OptFunction::OptFunction(TSharedPtr<SGraph> g, double connected_scale, double un
 
 				// where we have a 1/2 turns, we can end up with one edge where the
 				// normal has to reverse, we must preserve that in the target function
+				//
+				// do we need to project onto one node's forward plane?
 				auto flipped = FVector::DotProduct(ep->ToNode.Pin()->CachedUp, ep->FromNode.Pin()->CachedUp) < 0;
 
-				Connected.Add(JoinIdxs(n->Idx, other_n->Idx)) = JoinData{ flipped, ep->D0 };
+				Connected.Add(JoinIdxs(n, other_n)) = JoinData{ flipped, ep->D0 };
 			}
 		}
 	}
@@ -230,18 +238,23 @@ double OptFunction::f(int n, const double* x, double* grad)
 
 	for(int i = 0; i < G->Nodes.Num() - 1; i++)
 	{
+		const auto& node_a = G->Nodes[i];
+
 		for (int j = i + 1; j < G->Nodes.Num(); j++)
 		{
-			auto idxs = JoinIdxs{ i, j };
+			const auto& node_b = G->Nodes[j];
+
+			auto idxs = JoinIdxs{ node_a, node_b };
+
 			if (Connected.Contains(idxs))
 			{
-				ConnectedEnergy += ConnectedNodeNodeDist_Val(G->Nodes[i]->Position, G->Nodes[j]->Position, Connected[idxs].D0) * ConnectedScale;
+				ConnectedEnergy += ConnectedNodeNodeDist_Val(node_a->Position, node_b->Position, Connected[idxs].D0) * ConnectedScale;
 
-				TorsionEnergy += ConnectedNodeNodeTorsion_Val(G->Nodes[i]->CachedUp, G->Nodes[j]->CachedUp, G->Nodes[i]->Position, G->Nodes[j]->Position, Connected[idxs].Flipped) * TorsionScale;
+				TorsionEnergy += ConnectedNodeNodeTorsion_Val(node_a->CachedUp, node_b->CachedUp, node_a->Position, node_b->Position, Connected[idxs].Flipped) * TorsionScale;
 			}
 			else
 			{
-				UnconnectedEnergy += UnconnectedNodeNodeDist_Val(G->Nodes[i]->Position, G->Nodes[j]->Position, G->Nodes[i]->Radius + G->Nodes[j]->Radius) * UnconnectedScale;
+				UnconnectedEnergy += UnconnectedNodeNodeDist_Val(node_a->Position, node_b->Position, node_a->Radius + node_b->Radius) * UnconnectedScale;
 			}
 		}
 	}
@@ -343,6 +356,9 @@ void OptFunction::GetState(double* x, int n) const
 void OptFunction::SetState(const double* x, int n)
 {
 	check(n == GetSize());
+
+	// we have reordered the nodes so that parents are always before children
+	// allowing this to be a simple loop
 
 	for (int i = 0; i < G->Nodes.Num(); i++)
 	{

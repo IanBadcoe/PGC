@@ -50,7 +50,6 @@ namespace StructuralGraph {
 			Connection			// "Connection" are the nodes inserted along each edge
 		};
 
-		const int Idx;
 		const Type MyType;
 
 		const TSharedPtr<Profile::ParameterisedProfile> Profile;
@@ -66,7 +65,7 @@ namespace StructuralGraph {
 
 		TSharedPtr<SNode> Parent;		// for the purposes of the DAG only...
 
-		SNode(int idx, const TSharedPtr<Profile::ParameterisedProfile> profile, Type type) : Idx(idx), Profile(profile), MyType(type)
+		SNode(const TSharedPtr<Profile::ParameterisedProfile> profile, Type type) : Profile(profile), MyType(type)
 		{
 		}
 
@@ -106,7 +105,7 @@ namespace StructuralGraph {
 		//    optimization parameters, and hence part of the point of doing this...)
 		void MakeIntoDAG();
 
-		void MakeIntoDagInner(TSharedPtr<SNode> node, TSet<TSharedPtr<SNode>>& closed);
+		void MakeIntoDagInner(TSharedPtr<SNode> node, TSet<TSharedPtr<SNode>>& closed, TArray<TSharedPtr<SNode>>& new_order);
 
 	public:
 		SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source);

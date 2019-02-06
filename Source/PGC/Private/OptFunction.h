@@ -5,13 +5,16 @@
 namespace Opt {
 
 struct JoinIdxs {
-	const int I;
-	const int J;
+	const TSharedPtr<StructuralGraph::SNode> I;
+	const TSharedPtr<StructuralGraph::SNode> J;
 
-	JoinIdxs(int i, int j) : I(FMath::Min(i, j)), J(FMath::Max(i, j)) {}
+	JoinIdxs(TSharedPtr<StructuralGraph::SNode> i, TSharedPtr<StructuralGraph::SNode> j) : I(i.Get() < j.Get() ? i : j), J(i.Get() < j.Get() ? j : i)
+	{
+		check(I != J);
+	}
 
 	static inline friend uint32 GetTypeHash(const JoinIdxs& other) {
-		return ::GetTypeHash(other.I) ^ ::GetTypeHash(other.J) * 37;
+		return ::GetTypeHash(other.I.Get()) ^ ::GetTypeHash(other.J.Get()) * 37;
 	}
 
 	bool operator==(const JoinIdxs& rhs) const {
