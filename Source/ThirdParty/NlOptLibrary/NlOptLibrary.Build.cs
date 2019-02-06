@@ -17,7 +17,7 @@ public class NlOptLibrary : ModuleRules
     {
         string binariesDir = Path.Combine(GetUProjectPath(), "Binaries", Target.Platform.ToString());
         string filename = Path.GetFileName(Filepath);
-        Log.TraceInformation(String.Format("Copying DLL {0} -> {1}", Filepath, Path.Combine(binariesDir, filename)));
+//        Log.TraceInformation(String.Format("Copying DLL {0} -> {1}", Filepath, Path.Combine(binariesDir, filename)));
 
         if (!Directory.Exists(binariesDir))
         {
