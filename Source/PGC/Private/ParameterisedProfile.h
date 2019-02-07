@@ -142,6 +142,7 @@ private:
 	TFixedSizeArray<float, 4> BarrierHeights;			// height of side-barriers: upper-right, lower-right, lower-left, upper-left
 	TFixedSizeArray<float, 4> OverhangWidths;			// width of overhangs: upper-right, lower-right, lower-left, upper-left
 	TFixedSizeArray<bool, NumVerts> OutgoingSharp;		// whether any edge leaving this vert for the next profile should be sharp
+	TFixedSizeArray<bool, NumVerts> IsDrivableEdge;		// whether the edge following this surface defines a drivable surface
 
 	FVector2D AbsoluteBound;							// +ve corner of a rectangle large enough to just contain all
 
@@ -155,6 +156,9 @@ private:
 	// when interpolating, need to do wall-height and overhang changes in a particular order
 	// so that we don't end up with an overhang on wall it won't fit...
 	TSharedPtr<ParameterisedProfile> SafeIntermediate(TSharedPtr<ParameterisedProfile> other) const;
+
+	void CalcDrivable();
+	void CalcDrivable(int start_edge);
 
 public:
 	ParameterisedProfile(float width,
@@ -188,6 +192,11 @@ public:
 
 	PGCEdgeType GetOutgoungEdgeType(int i) {
 		return OutgoingSharp[i] ? PGCEdgeType::Sharp : PGCEdgeType::Rounded;
+	}
+
+	// querying about an edge using its _preceding_ vertex
+	bool IsDrivable(int i) const {
+		return IsDrivableEdge[i];
 	}
 };
 

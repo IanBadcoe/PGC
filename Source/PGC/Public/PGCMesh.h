@@ -45,8 +45,13 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate", Keywords = "PGC, procedural"), Category = "PGC")
 		FPGCMeshResult Generate(int NumDivisions, bool InsideOut);
 
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Channels", Keywords = "PGC, procedural"), Category = "PGC")
+		TArray<FPGCMeshResult> GenerateChannels(int NumDivisions, bool InsideOut,
+			int start_channel, int end_channel);
+
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Needs Refinement", Keywords = "PGC, procedural"), Category = "PGC")
 		bool NeedsRefinement();
+
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Refine", Keywords = "PGC, procedural"), Category = "PGC")
 		void Refine();
 

@@ -18,6 +18,8 @@ ParameterisedProfile::ParameterisedProfile(float width,
 	check(overhangs.Num() == 4);
 	check(outgoingSharps.Num() == 24);
 
+	CalcDrivable();
+
 	CalcAbsoluteBound();
 
 	CheckConsistent();
@@ -43,6 +45,8 @@ ParameterisedProfile::ParameterisedProfile(float width, const TSharedPtr<Paramet
 		OutgoingSharp[i + VertsPerQuarter * 2] = !bottom->GetSmooth(i + VertsPerQuarter);
 		OutgoingSharp[i + VertsPerQuarter * 3] = !top->GetSmooth(i);
 	}
+
+	CalcDrivable();
 
 	CalcAbsoluteBound();
 
@@ -236,6 +240,43 @@ TSharedPtr<ParameterisedProfile> Profile::ParameterisedProfile::SafeIntermediate
 		},
 		TArray<bool>(other->OutgoingSharp)
 	);
+}
+
+void Profile::ParameterisedProfile::CalcDrivable()
+{
+	// sides NumVerts - 1 and 11 are always drivable
+	// plus drivability spreads outwards from those across any smooth edges
+	CalcDrivable(NumVerts - 1);
+	CalcDrivable(11);
+}
+
+void Profile::ParameterisedProfile::CalcDrivable(int start_edge)
+{
+	IsDrivableEdge[start_edge] = true;
+
+	for (int i = 1; i < NumVerts; i++)
+	{
+		auto edge = (start_edge + i) % NumVerts;
+
+		if (!OutgoingSharp[edge])
+		{
+			break;
+		}
+
+		IsDrivableEdge[edge] = true;
+	}
+
+	for (int i = 1; i < NumVerts; i++)
+	{
+		auto edge = (start_edge + NumVerts - i) % NumVerts;
+
+		if (!OutgoingSharp[edge])
+		{
+			break;
+		}
+
+		IsDrivableEdge[edge] = true;
+	}
 }
 
 bool ParameterisedRoadbedShape::operator==(const ParameterisedRoadbedShape& rhs) const {

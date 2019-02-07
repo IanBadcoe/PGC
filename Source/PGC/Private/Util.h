@@ -7,7 +7,7 @@ PRAGMA_DISABLE_OPTIMIZATION
 namespace Util {
 
 // temp util to gloss over awkwardness of UVs and edge-types
-inline void AddPolyToMesh(TSharedPtr<Mesh> mesh, TArray<FVector> verts, TArray<PGCEdgeType> edge_types)
+inline void AddPolyToMesh(TSharedPtr<Mesh> mesh, TArray<FVector> verts, TArray<PGCEdgeType> edge_types, int channel)
 {
 	check(verts.Num() == edge_types.Num());
 
@@ -50,11 +50,11 @@ inline void AddPolyToMesh(TSharedPtr<Mesh> mesh, TArray<FVector> verts, TArray<P
 		edge_types.Add(PGCEdgeType::Rounded);
 	}
 
-	mesh->AddFaceFromVects(verts, UVs, 0, edge_types);
+	mesh->AddFaceFromVects(verts, UVs, 0, edge_types, channel);
 }
 
 // temp util to gloss over awkwardness of UVs and edge-types
-inline void AddPolyToMeshReversed(TSharedPtr<Mesh> mesh, const TArray<FVector>& verts, const TArray<PGCEdgeType> edge_types)
+inline void AddPolyToMeshReversed(TSharedPtr<Mesh> mesh, const TArray<FVector>& verts, const TArray<PGCEdgeType> edge_types, int channel)
 {
 	TArray<FVector> verts_reversed;
 	TArray<PGCEdgeType> edge_types_reversed;
@@ -70,10 +70,10 @@ inline void AddPolyToMeshReversed(TSharedPtr<Mesh> mesh, const TArray<FVector>& 
 		edge_types_reversed.Push(edge_types[(i - 1 + sz) % sz]);
 	}
 
-	AddPolyToMesh(mesh, verts_reversed, edge_types_reversed);
+	AddPolyToMesh(mesh, verts_reversed, edge_types_reversed, channel);
 }
 
-inline void AddPolyToMesh(TSharedPtr<Mesh> mesh, TArray<FVector> verts, PGCEdgeType all_edge_types)
+inline void AddPolyToMesh(TSharedPtr<Mesh> mesh, TArray<FVector> verts, PGCEdgeType all_edge_types, int channel)
 {
 	TArray<PGCEdgeType> edge_types;
 
@@ -82,10 +82,10 @@ inline void AddPolyToMesh(TSharedPtr<Mesh> mesh, TArray<FVector> verts, PGCEdgeT
 		edge_types.Push(all_edge_types);
 	}
 
-	return AddPolyToMesh(mesh, verts, edge_types);
+	return AddPolyToMesh(mesh, verts, edge_types, channel);
 }
 
-inline void AddPolyToMeshReversed(TSharedPtr<Mesh> mesh, TArray<FVector> verts, PGCEdgeType all_edge_types)
+inline void AddPolyToMeshReversed(TSharedPtr<Mesh> mesh, TArray<FVector> verts, PGCEdgeType all_edge_types, int channel)
 {
 	TArray<PGCEdgeType> edge_types;
 
@@ -94,7 +94,7 @@ inline void AddPolyToMeshReversed(TSharedPtr<Mesh> mesh, TArray<FVector> verts, 
 		edge_types.Push(all_edge_types);
 	}
 
-	return AddPolyToMeshReversed(mesh, verts, edge_types);
+	return AddPolyToMeshReversed(mesh, verts, edge_types, channel);
 }
 
 // we expect forward and up to be set, right then derives from those

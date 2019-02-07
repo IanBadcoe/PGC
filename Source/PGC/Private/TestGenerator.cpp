@@ -22,8 +22,9 @@ static void Init()
 
 	s_inited = true;
 
-	// tunnels
+	//// tunnels
 	//TestProfileSource::AddRoadbed("SquareTunnel", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.5f, 0.5f, 0, -1));
+	//TestProfileSource::AddRoadbed("RoundTunnel", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.5f, 0.5f, 3, 9));
 	//TestProfileSource::AddRoadbed("RoundTunnel", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.5f, 0.5f, 3, 9));
 
 	//// canyons
@@ -43,8 +44,17 @@ static void Init()
 	//TestProfileSource::AddRoadbed("RoundLowU", MakeShared<ParameterisedRoadbedShape>(0.5f, 0.5f, 0, 0, 4, 8));
 	//TestProfileSource::AddRoadbed("RoundShallowU", MakeShared<ParameterisedRoadbedShape>(0.1f, 0.1f, 0, 0, 4, 8));
 
-	// C-shapes
-	TestProfileSource::AddRoadbed("SquareC", MakeShared<ParameterisedRoadbedShape>(1, 0, 1, 0, 0, -1));
+	//// C-shapes
+	//TestProfileSource::AddRoadbed("SquareC", MakeShared<ParameterisedRoadbedShape>(1, 0, 1, 0, 0, -1));
+	//TestProfileSource::AddRoadbed("SquareShortTopC", MakeShared<ParameterisedRoadbedShape>(1, 0, 0.5f, 0, 0, -1));
+	//TestProfileSource::AddRoadbed("RoundC", MakeShared<ParameterisedRoadbedShape>(1, 0, 1, 0, 3, 7));
+	//TestProfileSource::AddRoadbed("RoundShortTopC", MakeShared<ParameterisedRoadbedShape>(1, 0, 0.5f, 0, 3, 7));
+
+	//// L-shapes
+	//TestProfileSource::AddRoadbed("SquareL", MakeShared<ParameterisedRoadbedShape>(1, 0, 0, 0, 0, -1));
+	//TestProfileSource::AddRoadbed("SquareShortL", MakeShared<ParameterisedRoadbedShape>(0.5f, 0, 0, 0, 0, -1));
+	//TestProfileSource::AddRoadbed("RoundL", MakeShared<ParameterisedRoadbedShape>(1, 0, 0, 0, 5, 6));
+	TestProfileSource::AddRoadbed("RoundShortL", MakeShared<ParameterisedRoadbedShape>(0.5f, 0, 0, 0, 5, 6));
 }
 
 // Sets default values

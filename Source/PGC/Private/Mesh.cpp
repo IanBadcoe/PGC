@@ -660,9 +660,9 @@ void Mesh::CleanUpRedundantVerts()
 	}
 }
 
-Idx<MeshFace> Mesh::AddFaceFromRawVerts(const TArray<MeshVertRaw>& vertices, int UVGroup, const TArray<PGCEdgeType>& edge_types)
+Idx<MeshFace> Mesh::AddFaceFromRawVerts(const TArray<MeshVertRaw>& vertices, int UVGroup, const TArray<PGCEdgeType>& edge_types, int channel)
 {
-	MeshFace mf;
+	MeshFace mf(channel);
 
 	for (auto vr : vertices)
 	{
@@ -718,9 +718,10 @@ bool Mesh::CancelExistingReverseFaceFromVects(const TArray<FVector>& vertices)
 
 Idx<MeshFace> Mesh::AddFaceFromVects(const TArray<FVector>& vertices,
 	const TArray<FVector2D>& uvs, int UVGroup,
-	const TArray<PGCEdgeType>& edge_types)
+	const TArray<PGCEdgeType>& edge_types,
+	int channel)
 {
-	MeshFace mf;
+	MeshFace mf(channel);
 
 	for (int i = 0; i < vertices.Num(); i++)
 	{
@@ -1044,7 +1045,8 @@ TSharedPtr<Mesh> Mesh::Triangularise()
 
 			ret->AddFaceFromRawVerts({ from, to, fv },
 				f.UVGroup,
-				{ Edges[edge_idx].Type, PGCEdgeType::Rounded, PGCEdgeType::Rounded });
+				{ Edges[edge_idx].Type, PGCEdgeType::Rounded, PGCEdgeType::Rounded },
+				f.Channel);
 
 			prev_vert = v;
 		}
@@ -1200,7 +1202,8 @@ TSharedPtr<Mesh> Mesh::SubdivideInner()
 					PGCEdgeType::Rounded,
 					PGCEdgeType::Rounded,
 					Edges[prev_edge_idx].Type,
-				});
+				},
+				f.Channel);
 		}
 	}
 
@@ -1276,14 +1279,15 @@ void Mesh::AddCube(const FPGCCube& cube)
 
 	for (int i = 0; i < 6; i++)
 	{
-		AddFaceFromVects(faces[i], uvs, NextUVGroup++, edge_types[i]);
+		// add channel argument(s) to this function if we want a choice here...
+		AddFaceFromVects(faces[i], uvs, NextUVGroup++, edge_types[i], 0);
 		CheckConsistent(false);
 	}
 
 	CheckConsistent(true);
 }
 
-void Mesh::Bake(FPGCMeshResult& mesh, bool insideOut)
+void Mesh::BakeAllChannels(FPGCMeshResult& mesh, bool insideOut)
 {
 	for (const auto& f : Faces)
 	{
@@ -1295,6 +1299,59 @@ void Mesh::Bake(FPGCMeshResult& mesh, bool insideOut)
 		}
 
 		BakedFaces.Push(mfr);
+	}
+
+	for (auto v : BakedVerts)
+	{
+		mesh.Verts.Push(v.Pos);
+		mesh.UVs.Push(v.UV);
+	}
+
+	for (auto f : BakedFaces)
+	{
+		check(f.VertIdxs.Num() > 2);
+
+		auto common_vert = f.VertIdxs[0];
+		auto prev_vert = f.VertIdxs[1];
+		for (int i = 2; i < f.VertIdxs.Num(); i++)
+		{
+			auto this_vert = f.VertIdxs[i];
+
+			if (insideOut)
+			{
+				mesh.Triangles.Push(common_vert.AsInt());
+				mesh.Triangles.Push(this_vert.AsInt());
+				mesh.Triangles.Push(prev_vert.AsInt());
+			}
+			else
+			{
+				mesh.Triangles.Push(common_vert.AsInt());
+				mesh.Triangles.Push(prev_vert.AsInt());
+				mesh.Triangles.Push(this_vert.AsInt());
+			}
+			prev_vert = this_vert;
+		}
+	}
+
+	BakedFaces.Empty();
+	BakedVerts.Empty();
+}
+
+void Mesh::BakeChannel(FPGCMeshResult & mesh, bool insideOut, int channel)
+{
+	for (const auto& f : Faces)
+	{
+		if (f.Channel == channel)
+		{
+			MeshFaceRaw mfr;
+
+			for (auto vert_idx : f.VertIdxs)
+			{
+				mfr.VertIdxs.Push(BakeVertex(Vertices[vert_idx].ToMeshVertRaw(f.UVGroup)));
+			}
+
+			BakedFaces.Push(mfr);
+		}
 	}
 
 	for (auto v : BakedVerts)

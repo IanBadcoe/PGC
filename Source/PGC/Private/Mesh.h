@@ -298,6 +298,9 @@ struct MeshFace {
 	}
 
 	MeshVertMultiUV WorkingFaceVertex;
+	int Channel;
+
+	MeshFace(int channel) : Channel(channel) {}
 };
 
 USTRUCT(BlueprintType)
@@ -352,7 +355,7 @@ class Mesh : public TSharedFromThis<Mesh>
 	void CleanUpRedundantEdges();
 	void CleanUpRedundantVerts();
 
-	Idx<MeshFace> AddFaceFromRawVerts(const TArray<MeshVertRaw>& vertices, int UVGroup, const TArray<PGCEdgeType>& edge_types);
+	Idx<MeshFace> AddFaceFromRawVerts(const TArray<MeshVertRaw>& vertices, int UVGroup, const TArray<PGCEdgeType>& edge_types, int channel);
 
 	// the function of these was driven by the AddFace requirement of finding and canceling an existing face
 	// which is the reverse of these, so the arguments here take a face winding the opposite wat to the one we are removing
@@ -391,9 +394,11 @@ public:
 	// (this is poor, but only in the same way that building by cubes is poor in the first instance)
 	void AddCube(const FPGCCube& cube);
 
-	Idx<MeshFace> AddFaceFromVects(const TArray<FVector>& vertices, const TArray<FVector2D>& uvs, int UVGroup, const TArray<PGCEdgeType>& edge_types);
+	Idx<MeshFace> AddFaceFromVects(const TArray<FVector>& vertices, const TArray<FVector2D>& uvs,
+		int UVGroup, const TArray<PGCEdgeType>& edge_types, int channel);
 
-	void Bake(FPGCMeshResult& mesh, bool insideOut);
+	void BakeAllChannels(FPGCMeshResult& mesh, bool insideOut);
+	void BakeChannel(FPGCMeshResult& mesh, bool insideOut, int channel);
 
 	// C++ only
 	void CheckConsistent(bool closed);

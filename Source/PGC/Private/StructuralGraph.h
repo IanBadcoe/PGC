@@ -107,6 +107,9 @@ namespace StructuralGraph {
 
 		void MakeIntoDagInner(TSharedPtr<SNode> node, TSet<TSharedPtr<SNode>>& closed, TArray<TSharedPtr<SNode>>& new_order);
 
+		void MakeMeshReal(TSharedPtr<Mesh> mesh);
+		void MakeMeshSkeleton(TSharedPtr<Mesh> mesh);
+
 	public:
 		SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source);
 
