@@ -28,8 +28,15 @@ class ParameterisedRoadbedShape {
 	// when interacting with the ParameterizedProfile, we use our heights and overhangs here as fractions
 	// and multiply them by the desired width
 
+	// NOTE: have made no attempt to accommodate the case where points merge and might have different
+	// smooth and/or drivable settings, so at the moment can ask separately for two verts at the same
+	// location.  if ever required could merge those using some sort of rule?
+
 	int StartSmoothIdx;
 	int EndSmoothIdx;
+
+	int StartDriveIdx;
+	int EndDriveIdx;
 
 	float LeftBarrierHeight;
 	float RightBarrierHeight;
@@ -40,9 +47,18 @@ class ParameterisedRoadbedShape {
 public:
 	ParameterisedRoadbedShape(float leftBarrier, float rightBarrier,
 		float leftOverhang, float rightOverhang,
-		int startSmooth,
-		int endSmooth)
+		int startSmooth, int endSmooth)
 		: StartSmoothIdx(startSmooth), EndSmoothIdx(endSmooth),
+		  StartDriveIdx(startSmooth), EndDriveIdx(endSmooth),
+		  LeftBarrierHeight(leftBarrier), RightBarrierHeight(rightBarrier),
+		  LeftOverhang(leftOverhang), RightOverhang(rightOverhang)
+	{}
+	ParameterisedRoadbedShape(float leftBarrier, float rightBarrier,
+		float leftOverhang, float rightOverhang,
+		int startSmooth, int endSmooth,
+		int startDrive, int endDrive)
+		: StartSmoothIdx(startSmooth), EndSmoothIdx(endSmooth),
+		  StartDriveIdx(startDrive), EndDriveIdx(endDrive),
 		  LeftBarrierHeight(leftBarrier), RightBarrierHeight(rightBarrier),
 		  LeftOverhang(leftOverhang), RightOverhang(rightOverhang)
 	{}
@@ -61,7 +77,7 @@ public:
 		return idx == 0 ? LeftOverhang : RightOverhang;
 	}
 
-	bool GetSmooth(int idx) const {
+	bool IsSmooth(int idx) const {
 		check(idx >= 0 && idx < 12);
 
 		if (idx == 0 || idx == 11)
@@ -70,12 +86,22 @@ public:
 		return idx >= StartSmoothIdx && idx < EndSmoothIdx;
 	}
 
+	bool IsDrivable(int idx) const {
+		check(idx >= 0 && idx < 12);
+
+		if (idx == 0 || idx == 11)
+			return true;
+
+		return idx >= StartDriveIdx && idx < EndDriveIdx;
+	}
+
 	TSharedPtr<ParameterisedRoadbedShape> Mirrored() const {
 		return MakeShared<ParameterisedRoadbedShape>
 		(
 			RightBarrierHeight, LeftBarrierHeight,
 			RightOverhang, LeftOverhang,
-			12 - EndSmoothIdx, 12 - StartSmoothIdx
+			12 - EndSmoothIdx, 12 - StartSmoothIdx,
+			12 - EndDriveIdx, 12 - StartDriveIdx
 		);
 	}
 
@@ -87,6 +113,10 @@ public:
 
 	bool IsEmptySmoothRange() const {
 		return StartSmoothIdx >= EndSmoothIdx;
+	}
+
+	bool IsEmptyDriveRange() const {
+		return StartDriveIdx >= EndDriveIdx;
 	}
 };
 
@@ -157,14 +187,12 @@ private:
 	// so that we don't end up with an overhang on wall it won't fit...
 	TSharedPtr<ParameterisedProfile> SafeIntermediate(TSharedPtr<ParameterisedProfile> other) const;
 
-	void CalcDrivable();
-	void CalcDrivable(int start_edge);
-
 public:
 	ParameterisedProfile(float width,
 		const TArray<float> barriers,
 		const TArray<float> overhangs,
-		const TArray<bool> outgoingSharps);
+		const TArray<bool> outgoingSharps,
+		const TArray<bool> isDrivableEdge);
 	ParameterisedProfile(const ParameterisedProfile& rhs) = default;
 	ParameterisedProfile& operator=(const ParameterisedProfile& rhs) = default;
 
@@ -190,7 +218,7 @@ public:
 
 	TSharedPtr<ParameterisedProfile> Interp(TSharedPtr<ParameterisedProfile> other, float frac) const;
 
-	PGCEdgeType GetOutgoungEdgeType(int i) {
+	PGCEdgeType GetOutgoingEdgeType(int i) {
 		return OutgoingSharp[i] ? PGCEdgeType::Sharp : PGCEdgeType::Rounded;
 	}
 

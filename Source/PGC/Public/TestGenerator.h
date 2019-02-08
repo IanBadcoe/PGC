@@ -34,7 +34,8 @@ public:
 	virtual TSharedPtr<Profile::ParameterisedProfile> GetProfile() const override;
 	virtual TArray<TSharedPtr<Profile::ParameterisedProfile>> GetCompatibleProfileSequence(TSharedPtr<Profile::ParameterisedProfile> from, TSharedPtr<Profile::ParameterisedProfile> to, int steps) const override;
 
-	static void AddRoadbed(FString name, TSharedPtr<Profile::ParameterisedRoadbedShape> roadbed, bool suppress_mirroring = false);
+	static void AddRoadbed(FString name, TSharedPtr<Profile::ParameterisedRoadbedShape> roadbed,
+		bool suppress_mirroring = false, TArray<float> sizes = {});
 
 private:
 	static TMap<FString, TSharedPtr<Profile::ParameterisedRoadbedShape>> Roadbeds;

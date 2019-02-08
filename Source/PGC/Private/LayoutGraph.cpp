@@ -71,7 +71,7 @@ int Node::FindConnectorIdx(const TSharedPtr<ConnectorInst>& conn) const
 
 const Node::ConnectorArray Node::MakeRadialConnectors(int num)
 {
-	auto assumed_profile_radius = 2.0f;
+	auto assumed_profile_radius = 6.0f;
 
 	// A regular polygon with this many lines of assumed_profile_radius lines around it looks like this:
 	//

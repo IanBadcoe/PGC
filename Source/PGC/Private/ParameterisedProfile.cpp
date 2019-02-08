@@ -7,18 +7,18 @@ using namespace Profile;
 ParameterisedProfile::ParameterisedProfile(float width,
 	const TArray<float> barriers,
 	const TArray<float> overhangs,
-	const TArray<bool> outgoingSharps)
+	const TArray<bool> outgoingSharps,
+	const TArray<bool> isDrivableEdge)
 	: Width{ width },
 	  BarrierHeights(barriers),
 	  OverhangWidths(overhangs),
 	  OutgoingSharp(outgoingSharps),
+	  IsDrivableEdge(isDrivableEdge),
 	  AbsoluteBound{ 0, 0 }
 {
 	check(barriers.Num() == 4);
 	check(overhangs.Num() == 4);
 	check(outgoingSharps.Num() == 24);
-
-	CalcDrivable();
 
 	CalcAbsoluteBound();
 
@@ -38,15 +38,19 @@ ParameterisedProfile::ParameterisedProfile(float width, const TSharedPtr<Paramet
 	OverhangWidths[2] = bottom->GetOverhang(1) * Width;
 	OverhangWidths[3] = top->GetOverhang(0) * Width;
 
-	for (int i = 0; i < VertsPerQuarter; i++)
+	int roadbed_idx = 6;			// like an idiot I made no effort to have the roadbed and profile idxs line-up :-o
+
+	for (int i = 0; i < NumVerts; i++)
 	{
-		OutgoingSharp[i + VertsPerQuarter * 0] = !top->GetSmooth(i + VertsPerQuarter);
-		OutgoingSharp[i + VertsPerQuarter * 1] = !bottom->GetSmooth(i);
-		OutgoingSharp[i + VertsPerQuarter * 2] = !bottom->GetSmooth(i + VertsPerQuarter);
-		OutgoingSharp[i + VertsPerQuarter * 3] = !top->GetSmooth(i);
+		auto roadbed_qtr = GetQuarterIdx(roadbed_idx);
+
+		OutgoingSharp[i] = !(roadbed_qtr < 2 ? top : bottom)->IsSmooth(roadbed_idx % (VertsPerQuarter * 2));
+		IsDrivableEdge[i] = (roadbed_qtr < 2 ? top : bottom)->IsDrivable(roadbed_idx % (VertsPerQuarter * 2));
+
+		roadbed_idx = (roadbed_idx + 1) % NumVerts;
 	}
 
-	CalcDrivable();
+//	CalcDrivable();
 
 	CalcAbsoluteBound();
 
@@ -218,7 +222,8 @@ TSharedPtr<ParameterisedProfile> Profile::ParameterisedProfile::RawInterp(TShare
 			interp(OverhangWidths[2], other->OverhangWidths[2], frac),
 			interp(OverhangWidths[3], other->OverhangWidths[3], frac),
 		},
-		TArray<bool>(frac < 0.5f ? OutgoingSharp : other->OutgoingSharp)
+		TArray<bool>(frac < 0.5f ? OutgoingSharp : other->OutgoingSharp),
+		TArray<bool>(frac < 0.5f ? IsDrivableEdge : other->IsDrivableEdge)
 	);
 }
 
@@ -238,46 +243,50 @@ TSharedPtr<ParameterisedProfile> Profile::ParameterisedProfile::SafeIntermediate
 			FMath::Min(OverhangWidths[2], other->OverhangWidths[2]),
 			FMath::Min(OverhangWidths[3], other->OverhangWidths[3]),
 		},
-		TArray<bool>(other->OutgoingSharp)
+		TArray<bool>(other->OutgoingSharp),
+		TArray<bool>(other->IsDrivableEdge)
 	);
 }
 
-void Profile::ParameterisedProfile::CalcDrivable()
-{
-	// sides NumVerts - 1 and 11 are always drivable
-	// plus drivability spreads outwards from those across any smooth edges
-	CalcDrivable(NumVerts - 1);
-	CalcDrivable(11);
-}
-
-void Profile::ParameterisedProfile::CalcDrivable(int start_edge)
-{
-	IsDrivableEdge[start_edge] = true;
-
-	for (int i = 1; i < NumVerts; i++)
-	{
-		auto edge = (start_edge + i) % NumVerts;
-
-		if (!OutgoingSharp[edge])
-		{
-			break;
-		}
-
-		IsDrivableEdge[edge] = true;
-	}
-
-	for (int i = 1; i < NumVerts; i++)
-	{
-		auto edge = (start_edge + NumVerts - i) % NumVerts;
-
-		if (!OutgoingSharp[edge])
-		{
-			break;
-		}
-
-		IsDrivableEdge[edge] = true;
-	}
-}
+//void Profile::ParameterisedProfile::CalcDrivable()
+//{
+//	// sides NumVerts - 1 and 11 are always drivable
+//	// plus drivability spreads outwards from those across any smooth edges
+//	CalcDrivable(NumVerts - 1);
+//	CalcDrivable(11);
+//}
+//
+//void Profile::ParameterisedProfile::CalcDrivable(int start_edge)
+//{
+//	IsDrivableEdge[start_edge] = true;
+//
+//	for (int i = 1; i < NumVerts; i++)
+//	{
+//		auto edge = (start_edge + i) % NumVerts;
+//
+//		if (OutgoingSharp[edge])
+//		{
+//			break;
+//		}
+//
+//		IsDrivableEdge[edge] = true;
+//	}
+//
+//	for (int i = 1; i < NumVerts; i++)
+//	{
+//		// for i = 1 this works out to start_edge, which is what we want since that controls propagation
+//		// to preceding face...
+//		auto sharp_place = (start_edge + NumVerts - i + 1) % NumVerts;
+//		auto edge = (start_edge + NumVerts - i) % NumVerts;
+//
+//		if (OutgoingSharp[sharp_place])
+//		{
+//			break;
+//		}
+//
+//		IsDrivableEdge[edge] = true;
+//	}
+//}
 
 bool ParameterisedRoadbedShape::operator==(const ParameterisedRoadbedShape& rhs) const {
 	if (LeftBarrierHeight != rhs.LeftBarrierHeight
@@ -289,13 +298,16 @@ bool ParameterisedRoadbedShape::operator==(const ParameterisedRoadbedShape& rhs)
 	}
 
 	// any empty range is the same
-	if (IsEmptySmoothRange() && rhs.IsEmptySmoothRange())
+	if (IsEmptySmoothRange() && rhs.IsEmptySmoothRange()
+		&& IsEmptyDriveRange() && rhs.IsEmptyDriveRange())
 	{
 		return true;
 	}
 
 	return StartSmoothIdx == rhs.StartSmoothIdx
-		&& EndSmoothIdx == rhs.EndSmoothIdx;
+		&& EndSmoothIdx == rhs.EndSmoothIdx
+		&& StartDriveIdx == rhs.StartDriveIdx
+		&& EndDriveIdx == rhs.EndDriveIdx;
 };
 
 

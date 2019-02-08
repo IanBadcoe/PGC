@@ -54,7 +54,10 @@ static void Init()
 	//TestProfileSource::AddRoadbed("SquareL", MakeShared<ParameterisedRoadbedShape>(1, 0, 0, 0, 0, -1));
 	//TestProfileSource::AddRoadbed("SquareShortL", MakeShared<ParameterisedRoadbedShape>(0.5f, 0, 0, 0, 0, -1));
 	//TestProfileSource::AddRoadbed("RoundL", MakeShared<ParameterisedRoadbedShape>(1, 0, 0, 0, 5, 6));
-	TestProfileSource::AddRoadbed("RoundShortL", MakeShared<ParameterisedRoadbedShape>(0.5f, 0, 0, 0, 5, 6));
+	//TestProfileSource::AddRoadbed("RoundShortL", MakeShared<ParameterisedRoadbedShape>(0.5f, 0, 0, 0, 5, 6));
+
+	// test only!!!
+	TestProfileSource::AddRoadbed("SquareCanyon", MakeShared<ParameterisedRoadbedShape>(0.3, 0.3, 0, 0, 1, 11, 4, 8), true, { 3.0f });
 }
 
 // Sets default values
@@ -117,14 +120,14 @@ void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh)
 	//OptimizerInterface->GetState(state.GetData(), sz);
 	//OptimizerInterface->SetState(state.GetData(), sz);
 
-	if (Optimizer->RunOptimization())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Converged"));
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Not converged"));
-	}
+	//if (Optimizer->RunOptimization())
+	//{
+	//	UE_LOG(LogTemp, Warning, TEXT("Converged"));
+	//}
+	//else
+	//{
+	//	UE_LOG(LogTemp, Warning, TEXT("Not converged"));
+	//}
 
 	StructuralGraph->MakeMesh(mesh, false);
 }
@@ -139,32 +142,6 @@ void ATestGenerator::Refine()
 	//EnsureOptimizer();
 
 	//Optimizer->RunOptimization();
-}
-
-void TestGraph::Generate()
-{
-	Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 0 }, FVector{ 0, 0, 0 }));
-	Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 100 }, FVector{ 0, 0, 0 }));
-
-	Connect(0, 1, 1, 1, 20, 1);
-	Connect(0, 2, 1, 2, 20, 0);
-	Connect(0, 0, 1, 0, 20, 0);
-
-	//Nodes.Add(MakeShared<Node>(TArray<TSharedPtr<ParameterisedProfile>>{ HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, }, FVector::ZeroVector, FVector::ZeroVector));
-	//Nodes.Add(MakeShared<Node>(TArray<TSharedPtr<ParameterisedProfile>>{ HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, }, FVector(0, 0, 20), FVector(180, 0, 0)));
-
-	//Nodes.Add(MakeShared<YJunction>(FVector{ 50, 40, 0 }, FVector::ZeroVector));
-	//Nodes.Add(MakeShared<YJunction>(FVector{ 50, 20, 0 }, FVector::ZeroVector));
-
-	//Connect(0, 1, 2, 1, 20, 0);
-	//Connect(0, 2, 3, 1, 20, 0);
-	//Connect(0, 4, 0, 5, 20, 0);
-	//Connect(1, 1, 1, 2, 20, 0);
-	//Connect(1, 4, 1, 5, 20, 0);
-	//Connect(0, 0, 1, 3, 20, 1);
-	//Connect(0, 3, 1, 0, 20, 0);
-	//Connect(2, 0, 2, 2, 20, 0);
-	//Connect(3, 0, 3, 2, 20, 0);
 }
 
 TSharedPtr<ParameterisedProfile> TestProfileSource::GetProfile() const
@@ -219,9 +196,11 @@ TArray<TSharedPtr<ParameterisedProfile>> TestProfileSource::GetCompatibleProfile
 }
 
 void TestProfileSource::AddRoadbed(FString name, TSharedPtr<Profile::ParameterisedRoadbedShape> roadbed,
-	bool suppress_mirroring /* = false */)
+	bool suppress_mirroring /* = false */, TArray<float> sizes /* = {} */)
 {
-	for (auto width : { 3.0f, 5.0f, 8.0f })
+	auto here_sizes = sizes.Num() ? sizes : TArray<float>{ 3.0f, 5.0f, 8.0f };
+
+	for (auto width : here_sizes)
 	{
 		for (const auto& other : Roadbeds)
 		{
@@ -243,6 +222,38 @@ void TestProfileSource::AddRoadbed(FString name, TSharedPtr<Profile::Parameteris
 			AddRoadbed(name + " (mirrored)", mirrored, true);
 		}
 	}
+}
+
+void TestGraph::Generate()
+{
+	// NODE ROTATIONS ARE IN THE ORDER X, Y, Z and DEGREES
+	Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 0 }, FVector{ 0, 0, 0 }));
+	Nodes.Add(MakeShared<YJunction>(FVector{ 30, 0, 0 }, FVector{ 0, 0, 180 }));
+
+	Connect(0, 0, 1, 0, 20, 0);
+
+	//Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 0 }, FVector{ 0, 0, 0 }));
+	//Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 100 }, FVector{ 0, 0, 0 }));
+
+	//Connect(0, 1, 1, 1, 20, 1);
+	//Connect(0, 2, 1, 2, 20, 0);
+	//Connect(0, 0, 1, 0, 20, 0);
+
+	////Nodes.Add(MakeShared<Node>(TArray<TSharedPtr<ParameterisedProfile>>{ HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, }, FVector::ZeroVector, FVector::ZeroVector));
+	////Nodes.Add(MakeShared<Node>(TArray<TSharedPtr<ParameterisedProfile>>{ HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, HalfClosed, }, FVector(0, 0, 20), FVector(180, 0, 0)));
+
+	////Nodes.Add(MakeShared<YJunction>(FVector{ 50, 40, 0 }, FVector::ZeroVector));
+	////Nodes.Add(MakeShared<YJunction>(FVector{ 50, 20, 0 }, FVector::ZeroVector));
+
+	////Connect(0, 1, 2, 1, 20, 0);
+	////Connect(0, 2, 3, 1, 20, 0);
+	////Connect(0, 4, 0, 5, 20, 0);
+	////Connect(1, 1, 1, 2, 20, 0);
+	////Connect(1, 4, 1, 5, 20, 0);
+	////Connect(0, 0, 1, 3, 20, 1);
+	////Connect(0, 3, 1, 0, 20, 0);
+	////Connect(2, 0, 2, 2, 20, 0);
+	////Connect(3, 0, 3, 2, 20, 0);
 }
 
 PRAGMA_ENABLE_OPTIMIZATION

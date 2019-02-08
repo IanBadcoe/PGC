@@ -107,8 +107,9 @@ namespace StructuralGraph {
 
 		void MakeIntoDagInner(TSharedPtr<SNode> node, TSet<TSharedPtr<SNode>>& closed, TArray<TSharedPtr<SNode>>& new_order);
 
-		void MakeMeshReal(TSharedPtr<Mesh> mesh);
-		void MakeMeshSkeleton(TSharedPtr<Mesh> mesh);
+		void MakeMeshReal(TSharedPtr<Mesh> mesh) const;
+		void MakeMeshSkeleton(TSharedPtr<Mesh> mesh) const;
+
 
 	public:
 		SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source);
@@ -123,7 +124,7 @@ namespace StructuralGraph {
 
 		int FindNodeIdx(const TSharedPtr<SNode>& node) const;
 
-		void MakeMesh(TSharedPtr<Mesh> mesh, bool skeleton_only);
+		void MakeMesh(TSharedPtr<Mesh> mesh, bool skeleton_only) const;
 
 		TArray<TSharedPtr<SNode>> Nodes;
 		TArray<TSharedPtr<SEdge>> Edges;
