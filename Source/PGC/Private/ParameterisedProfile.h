@@ -89,9 +89,6 @@ public:
 	bool IsDrivable(int idx) const {
 		check(idx >= 0 && idx < 12);
 
-		if (idx == 0 || idx == 11)
-			return true;
-
 		return idx >= StartDriveIdx && idx < EndDriveIdx;
 	}
 

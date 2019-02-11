@@ -32,7 +32,7 @@ void UPGCMesh::TickComponent(float DeltaTime, ELevelTick TickType, FActorCompone
 	// ...
 }
 
-FPGCMeshResult UPGCMesh::Generate(int NumDivisions, bool InsideOut)
+FPGCMeshResult UPGCMesh::GenerateMergeChannels(int NumDivisions, bool InsideOut, PGCDebugEdgeType debugEdges)
 {
 	TSharedPtr<Mesh> divided_mesh;
 	
@@ -49,12 +49,12 @@ FPGCMeshResult UPGCMesh::Generate(int NumDivisions, bool InsideOut)
 
 	FPGCMeshResult ret;
 
-	divided_mesh->BakeAllChannels(ret, InsideOut);
+	divided_mesh->BakeAllChannelsIntoOne(ret, InsideOut, debugEdges);
 
 	return ret;
 }
 
-TArray<FPGCMeshResult> UPGCMesh::GenerateChannels(int NumDivisions, bool InsideOut,
+FPGCMeshResult UPGCMesh::GenerateChannels(int NumDivisions, bool InsideOut, PGCDebugEdgeType debugEdges,
 	int start_channel, int end_channel)
 {
 	TSharedPtr<Mesh> divided_mesh;
@@ -70,14 +70,9 @@ TArray<FPGCMeshResult> UPGCMesh::GenerateChannels(int NumDivisions, bool InsideO
 		divided_mesh = InitialMesh->Triangularise();
 	}
 
-	TArray<FPGCMeshResult> ret;
+	FPGCMeshResult ret;
 
-	for(int i = start_channel; i <= end_channel; i++)
-	{
-		ret.Push(FPGCMeshResult());
-
-		divided_mesh->BakeChannel(ret.Last(), InsideOut, i);
-	}
+	divided_mesh->BakeChannels(ret, InsideOut, debugEdges, start_channel, end_channel);
 
 	return ret;
 }

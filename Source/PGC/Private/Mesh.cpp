@@ -2,6 +2,8 @@
 
 #include "Mesh.h"
 
+#include "PGCCube.h"
+
 #include "Runtime/Core/Public/Templates/UniquePtr.h"
 #include "Runtime/Engine/Classes/Engine/World.h"
 
@@ -300,7 +302,7 @@ PGCEdgeId edge_test[]{
 
 static void TestOne(const TArray<FVector>& config, int x_from, int y_from, int z_from, bool mirror)
 {
-	auto mesh = MakeShared<Mesh>();
+	auto mesh = MakeShared<Mesh>(FMath::Cos(20.0f));
 
 	int neg = mirror ? -1 : 1;
 
@@ -317,7 +319,7 @@ void Mesh::UnitTest()
 {
 	for (auto edge_id : edge_test)
 	{
-		auto mesh = MakeShared<Mesh>();
+		auto mesh = MakeShared<Mesh>(FMath::Cos(20.0f));
 
 		FPGCCube cube;
 		cube.EdgeTypes[(int)edge_id] = PGCEdgeType::Sharp;
@@ -328,7 +330,7 @@ void Mesh::UnitTest()
 
 		for (const auto& edge : mesh->Edges)
 		{
-			if (edge.Type == PGCEdgeType::Sharp)
+			if (edge.SetType == PGCEdgeType::Sharp)
 				count_sharp++;
 		}
 
@@ -721,6 +723,9 @@ Idx<MeshFace> Mesh::AddFaceFromVects(const TArray<FVector>& vertices,
 	const TArray<PGCEdgeType>& edge_types,
 	int channel)
 {
+	check(vertices.Num() == edge_types.Num());
+	check(vertices.Num() == uvs.Num());
+
 	MeshFace mf(channel);
 
 	for (int i = 0; i < vertices.Num(); i++)
@@ -758,6 +763,115 @@ Idx<MeshVertRaw> Mesh::FindBakedVert(const MeshVertRaw& mvr) const
 	}
 
 	return Idx<MeshVertRaw>::None;
+}
+
+void Mesh::BakeChannelsIntoFaceChannel(FPGCMeshResult& mesh, bool insideOut, PGCDebugEdgeType debugEdges, int from_channel, int to_face_channel)
+{
+	check(BakedFaces.Num() == 0);
+
+	if (mesh.FaceChannels.Num() < to_face_channel + 1)
+	{
+		mesh.FaceChannels.AddDefaulted(to_face_channel + 1 - mesh.FaceChannels.Num());
+	}
+
+	for (const auto& f : Faces)
+	{
+		if (from_channel == -1 || f.Channel == from_channel)
+		{
+			MeshFaceRaw mfr;
+
+			for (auto vert_idx : f.VertIdxs)
+			{
+				mfr.VertIdxs.Push(BakeVertex(Vertices[vert_idx].ToMeshVertRaw(f.UVGroup)));
+			}
+
+			BakedFaces.Push(mfr);
+		}
+	}
+
+	// we are sometimes accumulating BakedVerts over several calls to this function
+	// (and we require 1-to-1 between BakedVerts indices and mesh.Verts and mesh.UVs indices)
+	// so put over any that are new
+	for (int i = mesh.Verts.Num(); i < BakedVerts.Num(); i++)
+	{
+		const auto& v = BakedVerts[i];
+
+		mesh.Verts.Push(v.Pos);
+		mesh.UVs.Push(v.UV);
+	}
+
+	for (auto f : BakedFaces)
+	{
+		check(f.VertIdxs.Num() > 2);
+
+		auto common_vert = f.VertIdxs[0];
+		auto prev_vert = f.VertIdxs[1];
+		for (int i = 2; i < f.VertIdxs.Num(); i++)
+		{
+			auto this_vert = f.VertIdxs[i];
+
+			if (insideOut)
+			{
+				mesh.FaceChannels[to_face_channel].Triangles.Push(common_vert.AsInt());
+				mesh.FaceChannels[to_face_channel].Triangles.Push(this_vert.AsInt());
+				mesh.FaceChannels[to_face_channel].Triangles.Push(prev_vert.AsInt());
+			}
+			else
+			{
+				mesh.FaceChannels[to_face_channel].Triangles.Push(common_vert.AsInt());
+				mesh.FaceChannels[to_face_channel].Triangles.Push(prev_vert.AsInt());
+				mesh.FaceChannels[to_face_channel].Triangles.Push(this_vert.AsInt());
+			}
+			prev_vert = this_vert;
+		}
+	}
+
+	if (debugEdges == PGCDebugEdgeType::Effective)
+	{
+		for (const auto& edge : Edges)
+		{
+			check(edge.EffectiveType == PGCEdgeType::Sharp || edge.EffectiveType == PGCEdgeType::Rounded);
+
+			// UV group doesn't matter as we won't be using UVs on the edge drawing anyway
+			auto vs = BakeVertex(Vertices[edge.StartVertIdx].ToMeshVertRaw(0));
+			auto ve = BakeVertex(Vertices[edge.EndVertIdx].ToMeshVertRaw(0));
+
+			if (edge.EffectiveType == PGCEdgeType::Rounded)
+			{
+				mesh.RoundedEdges.Push({ vs.AsInt(), ve.AsInt() });
+			}
+			else
+			{
+				mesh.SharpEdges.Push({ vs.AsInt(), ve.AsInt() });
+			}
+		}
+	}
+	else if (debugEdges == PGCDebugEdgeType::Set)
+	{
+		for (const auto& edge : Edges)
+		{
+			check(edge.SetType != PGCEdgeType::Unset);
+
+			// UV group doesn't matter as we won't be using UVs on the edge drawing anyway
+			auto vs = BakeVertex(Vertices[edge.StartVertIdx].ToMeshVertRaw(0));
+			auto ve = BakeVertex(Vertices[edge.EndVertIdx].ToMeshVertRaw(0));
+
+			if (edge.SetType == PGCEdgeType::Rounded)
+			{
+				mesh.RoundedEdges.Push({ vs.AsInt(), ve.AsInt() });
+			}
+			else if (edge.SetType == PGCEdgeType::Sharp)
+			{
+				mesh.SharpEdges.Push({ vs.AsInt(), ve.AsInt() });
+			}
+			else
+			{
+				mesh.AutoEdges.Push({ vs.AsInt(), ve.AsInt() });
+			}
+		}
+	}
+
+	BakedFaces.Empty();
 }
 
 TSharedRef<Mesh> Mesh::SplitSharedVerts()
@@ -992,10 +1106,7 @@ Idx<MeshFace> Mesh::AddFindFace(MeshFace face, const TArray<PGCEdgeType>& edge_t
 
 		// Have carefully arranged these edge_types into the same order as the verts.
 		// Sharp edges from either existing or incoming edges take precedence.
-		if (Edges[edge_idx].Type == PGCEdgeType::Rounded)
-		{
-			Edges[edge_idx].Type = prev_edge_type;
-		}
+		Edges[edge_idx].SetType = MergeEdgeTypes(Edges[edge_idx].SetType, prev_edge_type);
 		Edges[edge_idx].AddFace(Faces.Num(), prev_vert);
 
 		prev_vert = vert_idx;
@@ -1011,7 +1122,7 @@ TSharedPtr<Mesh> Mesh::Triangularise()
 {
 	check(Clean);
 
-	auto ret = MakeShared<Mesh>();
+	auto ret = MakeShared<Mesh>(FMath::Cos(20.0f));
 
 	for (const auto& f : Faces)
 	{
@@ -1045,7 +1156,7 @@ TSharedPtr<Mesh> Mesh::Triangularise()
 
 			ret->AddFaceFromRawVerts({ from, to, fv },
 				f.UVGroup,
-				{ Edges[edge_idx].Type, PGCEdgeType::Rounded, PGCEdgeType::Rounded },
+				{ Edges[edge_idx].SetType, PGCEdgeType::Rounded, PGCEdgeType::Rounded },
 				f.Channel);
 
 			prev_vert = v;
@@ -1078,7 +1189,9 @@ TSharedPtr<Mesh> Mesh::SubdivideInner()
 {
 	check(Clean);
 
-	auto ret = MakeShared<Mesh>();
+	auto ret = MakeShared<Mesh>(CosAutoSharpAngle);
+
+	SetEffectiveEdgeTypes();
 
 	for (auto& f : Faces)
 	{
@@ -1099,7 +1212,7 @@ TSharedPtr<Mesh> Mesh::SubdivideInner()
 
 	for (auto& e : Edges)
 	{
-		if (e.Type == PGCEdgeType::Rounded)
+		if (e.EffectiveType == PGCEdgeType::Rounded)
 		{
 			e.WorkingEdgeVertex.Pos = (Vertices[e.StartVertIdx].Pos + Vertices[e.EndVertIdx].Pos
 				+ Faces[e.ForwardFaceIdx].WorkingFaceVertex.Pos + Faces[e.BackwardsFaceIdx].WorkingFaceVertex.Pos) / 4;
@@ -1122,7 +1235,7 @@ TSharedPtr<Mesh> Mesh::SubdivideInner()
 		{
 			const auto& edge = Edges[edge_idx];
 
-			if (edge.Type == PGCEdgeType::Sharp)
+			if (edge.EffectiveType == PGCEdgeType::Sharp)
 			{
 				sharp_edges.Add(edge);
 			}
@@ -1198,10 +1311,10 @@ TSharedPtr<Mesh> Mesh::SubdivideInner()
 				v4.ToMeshVertRaw(f.UVGroup)
 				}, f.UVGroup,
 				{
-					Edges[next_edge_idx].Type,
+					Edges[next_edge_idx].SetType,
 					PGCEdgeType::Rounded,
 					PGCEdgeType::Rounded,
-					Edges[prev_edge_idx].Type,
+					Edges[prev_edge_idx].SetType,
 				},
 				f.Channel);
 		}
@@ -1210,6 +1323,57 @@ TSharedPtr<Mesh> Mesh::SubdivideInner()
 	ret->CheckConsistent(true);
 
 	return ret;
+}
+
+void Mesh::SetEffectiveEdgeTypes()
+{
+	for (auto& e : Edges)
+	{
+		if (e.EffectiveType == PGCEdgeType::Unset)
+		{
+			if (e.SetType != PGCEdgeType::Auto)
+			{
+				e.EffectiveType = e.SetType;
+			}
+			else
+			{
+				CalcEffectiveType(e);
+			}
+		}
+	}
+}
+
+void Mesh::CalcEffectiveType(MeshEdge& edge)
+{
+	FVector e1normal = CalcNonplanarFaceNormal(Faces[edge.ForwardFaceIdx]);
+	FVector e2normal = CalcNonplanarFaceNormal(Faces[edge.BackwardsFaceIdx]);
+
+	auto cos = FVector::DotProduct(e1normal, e2normal);
+
+	if (cos < CosAutoSharpAngle)
+	{
+		edge.EffectiveType = PGCEdgeType::Sharp;
+	}
+	else
+	{
+		edge.EffectiveType = PGCEdgeType::Rounded;
+	}
+}
+
+FVector Mesh::CalcNonplanarFaceNormal(const MeshFace& face)
+{
+	FVector sum{ 0, 0, 0 };
+
+	auto prev_vert_idx = face.VertIdxs.Last();
+
+	for (const auto& vert_idx : face.VertIdxs)
+	{
+		sum += FVector::CrossProduct(Vertices[prev_vert_idx].Pos, Vertices[vert_idx].Pos);
+
+		prev_vert_idx = vert_idx;
+	}
+
+	return sum.GetSafeNormal();
 }
 
 TSharedPtr<Mesh> Mesh::SubdivideN(int count)
@@ -1287,106 +1451,24 @@ void Mesh::AddCube(const FPGCCube& cube)
 	CheckConsistent(true);
 }
 
-void Mesh::BakeAllChannels(FPGCMeshResult& mesh, bool insideOut)
+void Mesh::BakeAllChannelsIntoOne(FPGCMeshResult& mesh, bool insideOut, PGCDebugEdgeType debugEdges)
 {
-	for (const auto& f : Faces)
-	{
-		MeshFaceRaw mfr;
+	check(BakedVerts.Num() == 0);
 
-		for (auto vert_idx : f.VertIdxs)
-		{
-			mfr.VertIdxs.Push(BakeVertex(Vertices[vert_idx].ToMeshVertRaw(f.UVGroup)));
-		}
+	BakeChannelsIntoFaceChannel(mesh, insideOut, debugEdges, -1, 0);
 
-		BakedFaces.Push(mfr);
-	}
-
-	for (auto v : BakedVerts)
-	{
-		mesh.Verts.Push(v.Pos);
-		mesh.UVs.Push(v.UV);
-	}
-
-	for (auto f : BakedFaces)
-	{
-		check(f.VertIdxs.Num() > 2);
-
-		auto common_vert = f.VertIdxs[0];
-		auto prev_vert = f.VertIdxs[1];
-		for (int i = 2; i < f.VertIdxs.Num(); i++)
-		{
-			auto this_vert = f.VertIdxs[i];
-
-			if (insideOut)
-			{
-				mesh.Triangles.Push(common_vert.AsInt());
-				mesh.Triangles.Push(this_vert.AsInt());
-				mesh.Triangles.Push(prev_vert.AsInt());
-			}
-			else
-			{
-				mesh.Triangles.Push(common_vert.AsInt());
-				mesh.Triangles.Push(prev_vert.AsInt());
-				mesh.Triangles.Push(this_vert.AsInt());
-			}
-			prev_vert = this_vert;
-		}
-	}
-
-	BakedFaces.Empty();
 	BakedVerts.Empty();
 }
 
-void Mesh::BakeChannel(FPGCMeshResult & mesh, bool insideOut, int channel)
+void Mesh::BakeChannels(FPGCMeshResult& mesh, bool insideOut, PGCDebugEdgeType debugEdges, int start_channel, int end_channel)
 {
-	for (const auto& f : Faces)
+	check(BakedVerts.Num() == 0);
+
+	for(int i = start_channel; i <= end_channel; i++)
 	{
-		if (f.Channel == channel)
-		{
-			MeshFaceRaw mfr;
-
-			for (auto vert_idx : f.VertIdxs)
-			{
-				mfr.VertIdxs.Push(BakeVertex(Vertices[vert_idx].ToMeshVertRaw(f.UVGroup)));
-			}
-
-			BakedFaces.Push(mfr);
-		}
+		BakeChannelsIntoFaceChannel(mesh, insideOut, debugEdges, i, i);
 	}
 
-	for (auto v : BakedVerts)
-	{
-		mesh.Verts.Push(v.Pos);
-		mesh.UVs.Push(v.UV);
-	}
-
-	for (auto f : BakedFaces)
-	{
-		check(f.VertIdxs.Num() > 2);
-
-		auto common_vert = f.VertIdxs[0];
-		auto prev_vert = f.VertIdxs[1];
-		for (int i = 2; i < f.VertIdxs.Num(); i++)
-		{
-			auto this_vert = f.VertIdxs[i];
-
-			if (insideOut)
-			{
-				mesh.Triangles.Push(common_vert.AsInt());
-				mesh.Triangles.Push(this_vert.AsInt());
-				mesh.Triangles.Push(prev_vert.AsInt());
-			}
-			else
-			{
-				mesh.Triangles.Push(common_vert.AsInt());
-				mesh.Triangles.Push(prev_vert.AsInt());
-				mesh.Triangles.Push(this_vert.AsInt());
-			}
-			prev_vert = this_vert;
-		}
-	}
-
-	BakedFaces.Empty();
 	BakedVerts.Empty();
 }
 

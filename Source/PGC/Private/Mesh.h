@@ -12,12 +12,39 @@
 #include "Runtime/Core/Public/Misc/AssertionMacros.h"
 #include "Runtime/CoreUObject/Public/UObject/ObjectMacros.h"
 
-#include "PGCCube.h"
-
 
 #include "Mesh.generated.h"
 
 PRAGMA_DISABLE_OPTIMIZATION
+
+struct FPGCCube;
+
+UENUM()
+enum class PGCEdgeType {
+	Rounded,
+	Sharp,
+	Auto,		///< Make sharp if initial angle > some threshold, otherwise smooth
+				///< when merging with other sorts of edge, the other takes presidence
+	Unset		///< a default for "EffectiveType" so we can assert it has been set
+};
+
+// Auto defers to a set value, Rounded defers to Sharp
+inline PGCEdgeType MergeEdgeTypes(const PGCEdgeType& e1, const PGCEdgeType& e2)
+{
+	check(e1 != PGCEdgeType::Unset);
+	check(e2 != PGCEdgeType::Unset);
+
+	if (e1 == PGCEdgeType::Auto)
+		return e2;
+
+	if (e2 == PGCEdgeType::Auto)
+		return e1;
+
+	if (e1 == PGCEdgeType::Rounded)
+		return e2;
+
+	return e1;
+}
 
 template <typename T> class TArrayIdx;
 
@@ -237,7 +264,8 @@ struct MeshEdge {
 	Idx<MeshFace> ForwardFaceIdx = Idx<MeshFace>::None;
 	Idx<MeshFace> BackwardsFaceIdx = Idx<MeshFace>::None;
 
-	PGCEdgeType Type = PGCEdgeType::Rounded;
+	PGCEdgeType SetType = PGCEdgeType::Auto;
+	PGCEdgeType EffectiveType = PGCEdgeType::Unset;				///< same as set type except that "Auto" has been resolved into one of Rounded or Sharp
 
 	void AddFace(Idx<MeshFace> face_idx, Idx<MeshVert> start_vert_idx)
 	{
@@ -304,6 +332,30 @@ struct MeshFace {
 };
 
 USTRUCT(BlueprintType)
+struct FPGCDebugEdge {
+	GENERATED_USTRUCT_BODY()
+
+	FPGCDebugEdge()
+		: StartVertex(-1), EndVertex(-1) {}
+	FPGCDebugEdge(int start, int end)
+		: StartVertex(start), EndVertex(end) {}
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PGC Mesh")
+	int StartVertex;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PGC Mesh")
+	int EndVertex;
+};
+
+// purely because the wrapping system doesn't support array of array
+USTRUCT(BlueprintType)
+struct FPGCTriangleSet {
+	GENERATED_USTRUCT_BODY()
+		
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PGC Mesh")
+	TArray<int> Triangles;
+};
+
+USTRUCT(BlueprintType)
 struct FPGCMeshResult {
 	GENERATED_USTRUCT_BODY()
 
@@ -314,7 +366,23 @@ struct FPGCMeshResult {
 	TArray<FVector2D> UVs;
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PGC Mesh")
-	TArray<int> Triangles;
+	TArray<FPGCTriangleSet> FaceChannels;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PGC Mesh")
+	TArray<FPGCDebugEdge> SharpEdges;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PGC Mesh")
+	TArray<FPGCDebugEdge> RoundedEdges;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PGC Mesh")
+	TArray<FPGCDebugEdge> AutoEdges;
+};
+
+UENUM(BlueprintType)
+enum class PGCDebugEdgeType : uint8 {
+	None,
+	Effective,
+	Set
 };
 
 class Mesh : public TSharedFromThis<Mesh>
@@ -328,6 +396,7 @@ class Mesh : public TSharedFromThis<Mesh>
 
 	int NextUVGroup = 0;
 	float VertexTolerance = 0.001f;	// currently working on meshes that are multiples of 1 in size, so 0.001 should be plenty
+	const float CosAutoSharpAngle;
 
 	bool Clean = true;				// when we add geometry, we may generate inappropriately shared verts
 									// this signals to clean that up
@@ -365,6 +434,9 @@ class Mesh : public TSharedFromThis<Mesh>
 
 	Idx<MeshVertRaw> BakeVertex(const MeshVertRaw& mvr);
 	Idx<MeshVertRaw> FindBakedVert(const MeshVertRaw& mvr) const;
+	// take the faces tagged "from_channel" and bake them into the FaceChannel "to_face_channel" in the array
+	// *SPECIAL* to put all channels into one, supply -1 as "from_channel"
+	void BakeChannelsIntoFaceChannel(FPGCMeshResult& mesh, bool insideOut, PGCDebugEdgeType debugEdges, int from_channel, int to_face_channel);
 
 	TSharedRef<Mesh> SplitSharedVerts();		///< edges and faces should only share a vert if they form a single "pyramid" with that vert as the point, when two 
 									            ///< pyramids share a vert we split the vert
@@ -377,9 +449,13 @@ class Mesh : public TSharedFromThis<Mesh>
 
 	TSharedPtr<Mesh> SubdivideInner();
 
+	void SetEffectiveEdgeTypes();
+	void CalcEffectiveType(MeshEdge& edge);
+	FVector CalcNonplanarFaceNormal(const MeshFace& face);
+
 public:	
 	// Sets default values for this actor's properties
-	Mesh() {}
+	Mesh(float cosAutoSharpAngleDegrees) : CosAutoSharpAngle(cosAutoSharpAngleDegrees) {}
 
 	// if we are viewing a starting mesh, some faces can be very non-planar, and the arbitrary meshing of Bake isn't easy to look at
 	// so can do a pass of this, but on a divided mesh all faces should be smaller and flatter and that not matter...
@@ -397,8 +473,8 @@ public:
 	Idx<MeshFace> AddFaceFromVects(const TArray<FVector>& vertices, const TArray<FVector2D>& uvs,
 		int UVGroup, const TArray<PGCEdgeType>& edge_types, int channel);
 
-	void BakeAllChannels(FPGCMeshResult& mesh, bool insideOut);
-	void BakeChannel(FPGCMeshResult& mesh, bool insideOut, int channel);
+	void BakeAllChannelsIntoOne(FPGCMeshResult& mesh, bool insideOut, PGCDebugEdgeType debugEdges);
+	void BakeChannels(FPGCMeshResult& mesh, bool insideOut, PGCDebugEdgeType debugEdges, int start_channel, int end_channel);
 
 	// C++ only
 	void CheckConsistent(bool closed);

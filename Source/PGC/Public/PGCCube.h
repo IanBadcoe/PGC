@@ -3,10 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+#include "Mesh.h"
+
+
 #include "PGCCube.generated.h"
 
 UENUM()
-enum class PGCEdgeId {
+enum class PGCEdgeId : uint8 {
 	TopFront,
 	TopLeft,
 	TopBack,
@@ -21,12 +25,6 @@ enum class PGCEdgeId {
 	BottomRight,
 
 	MAX
-};
-
-UENUM()
-enum class PGCEdgeType {
-	Rounded,
-	Sharp
 };
 
 USTRUCT(BlueprintType)

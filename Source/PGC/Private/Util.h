@@ -47,7 +47,6 @@ inline void AddPolyToMesh(TSharedPtr<Mesh> mesh, TArray<FVector> verts, TArray<P
 	for (int i = 0; i < verts.Num(); i++)
 	{
 		UVs.Add(FVector2D(0, 0));
-		edge_types.Add(PGCEdgeType::Rounded);
 	}
 
 	mesh->AddFaceFromVects(verts, UVs, 0, edge_types, channel);
