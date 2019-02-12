@@ -32,47 +32,50 @@ void UPGCMesh::TickComponent(float DeltaTime, ELevelTick TickType, FActorCompone
 	// ...
 }
 
-FPGCMeshResult UPGCMesh::GenerateMergeChannels(int NumDivisions, bool InsideOut, PGCDebugEdgeType debugEdges)
+FPGCMeshResult UPGCMesh::GenerateMergeChannels(int NumDivisions, bool InsideOut, bool Triangularise, PGCDebugEdgeType DebugEdges)
 {
-	TSharedPtr<Mesh> divided_mesh;
+	TSharedPtr<Mesh> out_mesh = InitialMesh;
 	
 	if (NumDivisions > 0)
 	{
-		divided_mesh = InitialMesh->SubdivideN(NumDivisions);
+		out_mesh = out_mesh->SubdivideN(NumDivisions);
 	}
-	else
+	
+	if (Triangularise)	// do we ever want subdivision _and_ triangularisation?  No reason why not, but not needed it yet...
 	{
 		// can have some seriously non-planar faces without subdivision,
 		// this splits them around a central point, rather than fan from an random edge vertex
-		divided_mesh = InitialMesh->Triangularise();
+		out_mesh = out_mesh->Triangularise();
 	}
 
 	FPGCMeshResult ret;
 
-	divided_mesh->BakeAllChannelsIntoOne(ret, InsideOut, debugEdges);
+	out_mesh->BakeAllChannelsIntoOne(ret, InsideOut, DebugEdges);
 
 	return ret;
 }
 
-FPGCMeshResult UPGCMesh::GenerateChannels(int NumDivisions, bool InsideOut, PGCDebugEdgeType debugEdges,
-	int start_channel, int end_channel)
+FPGCMeshResult UPGCMesh::GenerateChannels(int NumDivisions, bool InsideOut, bool Triangularise,
+	PGCDebugEdgeType DebugEdges,
+	int StartChannel, int EndChannel)
 {
-	TSharedPtr<Mesh> divided_mesh;
+	TSharedPtr<Mesh> out_mesh = InitialMesh;
 
 	if (NumDivisions > 0)
 	{
-		divided_mesh = InitialMesh->SubdivideN(NumDivisions);
+		out_mesh = out_mesh->SubdivideN(NumDivisions);
 	}
-	else
+	
+	if (Triangularise)
 	{
 		// can have some seriously non-planar faces without subdivision,
 		// this splits them around a central point, rather than fan from an random edge vertex
-		divided_mesh = InitialMesh->Triangularise();
+		out_mesh = out_mesh->Triangularise();
 	}
 
 	FPGCMeshResult ret;
 
-	divided_mesh->BakeChannels(ret, InsideOut, debugEdges, start_channel, end_channel);
+	out_mesh->BakeChannels(ret, InsideOut, DebugEdges, StartChannel, EndChannel);
 
 	return ret;
 }

@@ -28,11 +28,16 @@ enum class PGCEdgeType {
 	Unset		///< a default for "EffectiveType" so we can assert it has been set
 };
 
-// Auto defers to a set value, Rounded defers to Sharp
+// Anything trumps Unset
+// Anything except Unset trumps Auto
+// Sharp trumps Rounded
 inline PGCEdgeType MergeEdgeTypes(const PGCEdgeType& e1, const PGCEdgeType& e2)
 {
-	check(e1 != PGCEdgeType::Unset);
-	check(e2 != PGCEdgeType::Unset);
+	if (e1 == PGCEdgeType::Unset)
+		return e2;
+
+	if (e2 == PGCEdgeType::Unset)
+		return e1;
 
 	if (e1 == PGCEdgeType::Auto)
 		return e2;
@@ -264,14 +269,13 @@ struct MeshEdge {
 	Idx<MeshFace> ForwardFaceIdx = Idx<MeshFace>::None;
 	Idx<MeshFace> BackwardsFaceIdx = Idx<MeshFace>::None;
 
-	PGCEdgeType SetType = PGCEdgeType::Auto;
-	PGCEdgeType EffectiveType = PGCEdgeType::Unset;				///< same as set type except that "Auto" has been resolved into one of Rounded or Sharp
+	PGCEdgeType SetType = PGCEdgeType::Unset;					///< we need to start unset here, because we make edges with a default value and then merge-in the real one
+	PGCEdgeType EffectiveType = PGCEdgeType::Unset;				///< same as SetType except that "Auto" has been resolved into one of Rounded or Sharp
 
 	void AddFace(Idx<MeshFace> face_idx, Idx<MeshVert> start_vert_idx)
 	{
 		if (start_vert_idx == StartVertIdx)
 		{
-
 			check(!ForwardFaceIdx.Valid());
 			ForwardFaceIdx = face_idx;
 		}
@@ -449,7 +453,7 @@ class Mesh : public TSharedFromThis<Mesh>
 
 	TSharedPtr<Mesh> SubdivideInner();
 
-	void SetEffectiveEdgeTypes();
+	void ResolveEffectiveEdgeTypes();
 	void CalcEffectiveType(MeshEdge& edge);
 	FVector CalcNonplanarFaceNormal(const MeshFace& face);
 

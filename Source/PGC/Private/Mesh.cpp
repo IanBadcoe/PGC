@@ -302,7 +302,7 @@ PGCEdgeId edge_test[]{
 
 static void TestOne(const TArray<FVector>& config, int x_from, int y_from, int z_from, bool mirror)
 {
-	auto mesh = MakeShared<Mesh>(FMath::Cos(20.0f));
+	auto mesh = MakeShared<Mesh>(FMath::Cos(FMath::DegreesToRadians(20.0f)));
 
 	int neg = mirror ? -1 : 1;
 
@@ -319,7 +319,7 @@ void Mesh::UnitTest()
 {
 	for (auto edge_id : edge_test)
 	{
-		auto mesh = MakeShared<Mesh>(FMath::Cos(20.0f));
+		auto mesh = MakeShared<Mesh>(FMath::Cos(FMath::DegreesToRadians(20.0f)));
 
 		FPGCCube cube;
 		cube.EdgeTypes[(int)edge_id] = PGCEdgeType::Sharp;
@@ -1118,11 +1118,34 @@ Idx<MeshFace> Mesh::AddFindFace(MeshFace face, const TArray<PGCEdgeType>& edge_t
 	return Faces.LastIdx();
 }
 
+
+// (untested) copy-over code that could be used in the following for faces that are already triangles
+// (doesn't happen at present, hence untested...)
+// copying over could be usefully encapsulated into a Mesh member function
+//
+//// just copy over as is already a triangle
+//MeshFace mf(f.Channel);
+//
+//auto v0 = Vertices[f.VertIdxs[0]].ToMeshVertRaw(f.UVGroup);
+//auto v1 = Vertices[f.VertIdxs[1]].ToMeshVertRaw(f.UVGroup);
+//auto v2 = Vertices[f.VertIdxs[2]].ToMeshVertRaw(f.UVGroup);
+//
+//const auto& e0 = Edges[FindEdge(f.VertIdxs[0], f.VertIdxs[1], false)];
+//const auto& e1 = Edges[FindEdge(f.VertIdxs[1], f.VertIdxs[2], false)];
+//const auto& e2 = Edges[FindEdge(f.VertIdxs[2], f.VertIdxs[0], false)];
+//
+//ret->AddFaceFromRawVerts({ v0, v1, v2 },
+//	f.UVGroup,
+//	{ e0.SetType, e1.SetType, e2.SetType },
+//	f.Channel);
+
 TSharedPtr<Mesh> Mesh::Triangularise()
 {
+	ResolveEffectiveEdgeTypes();
+
 	check(Clean);
 
-	auto ret = MakeShared<Mesh>(FMath::Cos(20.0f));
+	auto ret = MakeShared<Mesh>(FMath::Cos(FMath::DegreesToRadians(20.0f)));
 
 	for (const auto& f : Faces)
 	{
@@ -1154,6 +1177,7 @@ TSharedPtr<Mesh> Mesh::Triangularise()
 
 			check(edge_idx.Valid());
 
+			// edges introduced in the middle of what was a single (roughly planar) face should be Rounded, I guess...
 			ret->AddFaceFromRawVerts({ from, to, fv },
 				f.UVGroup,
 				{ Edges[edge_idx].SetType, PGCEdgeType::Rounded, PGCEdgeType::Rounded },
@@ -1191,7 +1215,7 @@ TSharedPtr<Mesh> Mesh::SubdivideInner()
 
 	auto ret = MakeShared<Mesh>(CosAutoSharpAngle);
 
-	SetEffectiveEdgeTypes();
+	ResolveEffectiveEdgeTypes();
 
 	for (auto& f : Faces)
 	{
@@ -1304,6 +1328,7 @@ TSharedPtr<Mesh> Mesh::SubdivideInner()
 			auto& v3 = f.WorkingFaceVertex;
 			auto& v4 = Edges[prev_edge_idx].WorkingEdgeVertex;
 
+			// edges introduced in the middle of what was a single (roughly planar) face should be Rounded, I guess...
 			ret->AddFaceFromRawVerts({
 				v1.ToMeshVertRaw(f.UVGroup),
 				v2.ToMeshVertRaw(f.UVGroup),
@@ -1325,7 +1350,7 @@ TSharedPtr<Mesh> Mesh::SubdivideInner()
 	return ret;
 }
 
-void Mesh::SetEffectiveEdgeTypes()
+void Mesh::ResolveEffectiveEdgeTypes()
 {
 	for (auto& e : Edges)
 	{
@@ -1453,6 +1478,8 @@ void Mesh::AddCube(const FPGCCube& cube)
 
 void Mesh::BakeAllChannelsIntoOne(FPGCMeshResult& mesh, bool insideOut, PGCDebugEdgeType debugEdges)
 {
+	ResolveEffectiveEdgeTypes();
+
 	check(BakedVerts.Num() == 0);
 
 	BakeChannelsIntoFaceChannel(mesh, insideOut, debugEdges, -1, 0);
@@ -1462,6 +1489,8 @@ void Mesh::BakeAllChannelsIntoOne(FPGCMeshResult& mesh, bool insideOut, PGCDebug
 
 void Mesh::BakeChannels(FPGCMeshResult& mesh, bool insideOut, PGCDebugEdgeType debugEdges, int start_channel, int end_channel)
 {
+	ResolveEffectiveEdgeTypes();
+
 	check(BakedVerts.Num() == 0);
 
 	for(int i = start_channel; i <= end_channel; i++)

@@ -57,7 +57,7 @@ static void Init()
 	//TestProfileSource::AddRoadbed("RoundShortL", MakeShared<ParameterisedRoadbedShape>(0.5f, 0, 0, 0, 5, 6));
 
 	// test only!!!
-	TestProfileSource::AddRoadbed("SquareCanyon", MakeShared<ParameterisedRoadbedShape>(0.3, 0.3, 0, 0, 1, 11, 4, 8), true, { 3.0f });
+	TestProfileSource::AddRoadbed("SquareCanyon", MakeShared<ParameterisedRoadbedShape>(0.3, 0.3, 0, 0, 0, -1, 5, 6), true, { 3.0f });
 }
 
 // Sets default values
