@@ -223,6 +223,8 @@ public:
 	bool IsDrivable(int i) const {
 		return IsDrivableEdge[i];
 	}
+
+	bool IsOpenCeiling(bool top) const;
 };
 
 }

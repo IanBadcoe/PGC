@@ -1370,6 +1370,13 @@ void Mesh::ResolveEffectiveEdgeTypes()
 
 void Mesh::CalcEffectiveType(MeshEdge& edge)
 {
+	// just to cover incomplete meshes seen while testing other features...
+	if (!edge.ForwardFaceIdx.Valid() || !edge.BackwardsFaceIdx.Valid())
+	{
+		edge.EffectiveType = PGCEdgeType::Sharp;
+		return;
+	}
+
 	FVector e1normal = CalcNonplanarFaceNormal(Faces[edge.ForwardFaceIdx]);
 	FVector e2normal = CalcNonplanarFaceNormal(Faces[edge.BackwardsFaceIdx]);
 

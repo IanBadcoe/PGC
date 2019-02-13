@@ -4,7 +4,6 @@
 #include "Runtime/Core/Public/Templates/SharedPointer.h"
 
 #include "Mesh.h"
-#include "NlOptWrapper.h"
 
 namespace LayoutGraph {
 
@@ -60,10 +59,6 @@ public:
 		Edges.AddDefaulted(Connectors.Num());
 	}
 
-
-	// profiles are not a matter for layout....  some sort of edge type/style might be
-	// and that might drive profile selection later...
-	//Node(const TArray<TSharedPtr<ParameterisedProfile>>& profiles, const FVector& pos, const FVector& rot);
 	Node(int num_radial_connectors, const FVector& pos, const FVector& rot);
 
 	Node() = delete;

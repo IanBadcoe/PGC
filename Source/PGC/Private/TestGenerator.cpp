@@ -57,7 +57,8 @@ static void Init()
 	//TestProfileSource::AddRoadbed("RoundShortL", MakeShared<ParameterisedRoadbedShape>(0.5f, 0, 0, 0, 5, 6));
 
 	// test only!!!
-	TestProfileSource::AddRoadbed("SquareCanyon", MakeShared<ParameterisedRoadbedShape>(0.3, 0.3, 0, 0, 0, -1, 5, 6), true, { 3.0f });
+	TestProfileSource::AddRoadbed("test1", MakeShared<ParameterisedRoadbedShape>(1.0f, 1.0f, 0.5f, 0.5f, 6, 11, 5, 7), true, { 3.0f });
+	TestProfileSource::AddRoadbed("test2", MakeShared<ParameterisedRoadbedShape>(1.0f, 1.0f, 0, 0, 6, 11, 5, 7), true, { 3.0f });
 }
 
 // Sets default values
@@ -202,11 +203,11 @@ void TestProfileSource::AddRoadbed(FString name, TSharedPtr<Profile::Parameteris
 
 	for (auto width : here_sizes)
 	{
-		for (const auto& other : Roadbeds)
-		{
-			Profiles.Add(MakeShared<ParameterisedProfile>(width, roadbed, other.Value));
-			Profiles.Add(MakeShared<ParameterisedProfile>(width, other.Value, roadbed));
-		}
+		//for (const auto& other : Roadbeds)
+		//{
+		//	Profiles.Add(MakeShared<ParameterisedProfile>(width, roadbed, other.Value));
+		//	Profiles.Add(MakeShared<ParameterisedProfile>(width, other.Value, roadbed));
+		//}
 
 		Profiles.Add(MakeShared<ParameterisedProfile>(width, roadbed, roadbed));
 	}
@@ -229,8 +230,10 @@ void TestGraph::Generate()
 	// NODE ROTATIONS ARE IN THE ORDER X, Y, Z and DEGREES
 	Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 0 }, FVector{ 0, 0, 0 }));
 	Nodes.Add(MakeShared<YJunction>(FVector{ 30, 0, 0 }, FVector{ 0, 0, 180 }));
+	Nodes.Add(MakeShared<YJunction>(FVector{ 20, 20, 0 }, FVector{ 0, 0, 180 }));
 
 	Connect(0, 0, 1, 0, 20, 0);
+	Connect(0, 1, 2, 0, 20, 0);
 
 	//Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 0 }, FVector{ 0, 0, 0 }));
 	//Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 100 }, FVector{ 0, 0, 0 }));

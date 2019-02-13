@@ -41,6 +41,17 @@ namespace StructuralGraph {
 	};
 
 	class SNode {
+		struct OrdCon {
+			TSharedPtr<SNode> ConNode;
+			float Angle;
+			FVector Axis;
+			bool Flipped;
+
+			bool UpsideDown = false;
+
+			int QuartersMap[4]{ 3, 2, 1, 0 };		// if the connector is Flipped and/or Rolled its quarters change relative location
+		};
+
 	public:
 		TArray<TWeakPtr<SEdge>> Edges;
 
@@ -75,7 +86,8 @@ namespace StructuralGraph {
 		const SNode& operator=(const SNode&) = delete;
 		virtual ~SNode() = default;
 
-		void AddToMesh(TSharedPtr<Mesh> mesh);
+		void AddToMesh(TSharedPtr<Mesh> mesh) const;
+		void AddCeilingToMesh(TSharedPtr<Mesh> mesh, const TArray<OrdCon>& connectors, bool top) const;
 
 		// after initial layout, forward is defined as a function of our, our parent's and other connected node positions
 		void RecalcForward();

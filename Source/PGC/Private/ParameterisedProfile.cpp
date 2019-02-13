@@ -169,7 +169,7 @@ FVector ParameterisedProfile::GetTransformedVert(VertTypes type, int quarter_idx
 	return GetTransformedVert(idx, trans);
 }
 
-float Profile::ParameterisedProfile::Diff(const TSharedPtr<ParameterisedProfile>& other) const
+float ParameterisedProfile::Diff(const TSharedPtr<ParameterisedProfile>& other) const
 {
 	auto ret = 0.0f;
 
@@ -188,7 +188,7 @@ static inline float interp(float from, float to, float frac)
 	return from + (to - from) * frac;
 }
 
-TSharedPtr<ParameterisedProfile> Profile::ParameterisedProfile::Interp(TSharedPtr<ParameterisedProfile> other, float frac) const
+TSharedPtr<ParameterisedProfile> ParameterisedProfile::Interp(TSharedPtr<ParameterisedProfile> other, float frac) const
 {
 	for (int i = 0; i < 4; i++)
 	{
@@ -206,7 +206,24 @@ TSharedPtr<ParameterisedProfile> Profile::ParameterisedProfile::Interp(TSharedPt
 	return RawInterp(other, frac);
 }
 
-TSharedPtr<ParameterisedProfile> Profile::ParameterisedProfile::RawInterp(TSharedPtr<ParameterisedProfile> other, float frac) const
+bool ParameterisedProfile::IsOpenCeiling(bool top) const
+{
+	int q1 = 2;
+	int q2 = 1;
+
+	if (top)
+	{
+		q1 = 0;
+		q2 = 3;
+	}
+
+	// if the BarrierHeights were different, but by less than the overhang thickness (1.0f),
+	// then this function is rather ambiguous, I've not tried that, but possibly "open" would cover it...
+
+	return BarrierHeights[q1] != BarrierHeights[q2] || OverhangWidths[q1] + OverhangWidths[q2] < Width;
+}
+
+TSharedPtr<ParameterisedProfile> ParameterisedProfile::RawInterp(TSharedPtr<ParameterisedProfile> other, float frac) const
 {
 	return MakeShared<ParameterisedProfile>(
 		interp(Width, other->Width, frac),
@@ -227,7 +244,7 @@ TSharedPtr<ParameterisedProfile> Profile::ParameterisedProfile::RawInterp(TShare
 	);
 }
 
-TSharedPtr<ParameterisedProfile> Profile::ParameterisedProfile::SafeIntermediate(TSharedPtr<ParameterisedProfile> other) const
+TSharedPtr<ParameterisedProfile> ParameterisedProfile::SafeIntermediate(TSharedPtr<ParameterisedProfile> other) const
 {
 	return MakeShared<ParameterisedProfile>(
 		(Width + other->Width) / 2,
@@ -247,46 +264,6 @@ TSharedPtr<ParameterisedProfile> Profile::ParameterisedProfile::SafeIntermediate
 		TArray<bool>(other->IsDrivableEdge)
 	);
 }
-
-//void Profile::ParameterisedProfile::CalcDrivable()
-//{
-//	// sides NumVerts - 1 and 11 are always drivable
-//	// plus drivability spreads outwards from those across any smooth edges
-//	CalcDrivable(NumVerts - 1);
-//	CalcDrivable(11);
-//}
-//
-//void Profile::ParameterisedProfile::CalcDrivable(int start_edge)
-//{
-//	IsDrivableEdge[start_edge] = true;
-//
-//	for (int i = 1; i < NumVerts; i++)
-//	{
-//		auto edge = (start_edge + i) % NumVerts;
-//
-//		if (OutgoingSharp[edge])
-//		{
-//			break;
-//		}
-//
-//		IsDrivableEdge[edge] = true;
-//	}
-//
-//	for (int i = 1; i < NumVerts; i++)
-//	{
-//		// for i = 1 this works out to start_edge, which is what we want since that controls propagation
-//		// to preceding face...
-//		auto sharp_place = (start_edge + NumVerts - i + 1) % NumVerts;
-//		auto edge = (start_edge + NumVerts - i) % NumVerts;
-//
-//		if (OutgoingSharp[sharp_place])
-//		{
-//			break;
-//		}
-//
-//		IsDrivableEdge[edge] = true;
-//	}
-//}
 
 bool ParameterisedRoadbedShape::operator==(const ParameterisedRoadbedShape& rhs) const {
 	if (LeftBarrierHeight != rhs.LeftBarrierHeight

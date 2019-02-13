@@ -291,7 +291,7 @@ void StructuralGraph::SGraph::MakeMeshReal(TSharedPtr<Mesh> mesh) const
 				// an extrusion that should be smooth along its length
 				// (PGCEdgeType::Auto would be an alternative, to put corners only on sharp angles...)
 				//
-				// the other two edges sharpness comes from from_n->Profile 
+				// the other two edges sharpness comes from from_n->Profile
 				Util::AddPolyToMesh(mesh, poly,
 					{
 						PGCEdgeType::Rounded,
@@ -737,21 +737,12 @@ static void C2CFacePair(TSharedPtr<Mesh>& mesh,
 	}
 }
 
-inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) {
+inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) const {
 	// unused nodes disappear for the moment...
 	if (Edges.Num() == 0)
 		return;
 
 	// order connectors by angle around up vector
-
-	struct OrdCon {
-		TSharedPtr<SNode> ConNode;
-		float Angle;
-		FVector Axis;
-		bool Flipped;
-
-		int QuartersMap[4]{ 3, 2, 1, 0 };		// if the connector is Flipped and/or Rolled its quarters change relative location
-	};
 
 	TArray<OrdCon> connectors;
 
@@ -807,6 +798,8 @@ inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) {
 		{
 			Swap(oc.QuartersMap[0], oc.QuartersMap[2]);
 			Swap(oc.QuartersMap[1], oc.QuartersMap[3]);
+
+			oc.UpsideDown = true;
 		}
 	}
 
@@ -829,11 +822,11 @@ inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) {
 	}
 
 	{
-		// faces between connectors around the outside
 		auto prev_oc = connectors.Last();
 
 		for (const auto& oc : connectors)
 		{
+			// between connectors around the outside, joining top and bottom into one
 			{
 				TArray<FVector> verts;
 
@@ -870,6 +863,7 @@ inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) {
 				ParameterisedProfile::VertTypes::BarrierTopInner, ParameterisedProfile::VertTypes::OverhangEndInner,
 				PGCEdgeType::Auto, PGCEdgeType::Auto, 0);
 
+			// between connectors connecting the inner barrier edges
 			C2CFacePair(mesh,
 				prev_oc.ConNode->Profile, oc.ConNode->Profile,
 				prev_oc.QuartersMap, oc.QuartersMap,
@@ -880,6 +874,11 @@ inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) {
 			prev_oc = oc;
 		}
 	}
+
+	// much simpler now, if all connectors are for tunnels, we'll fill-in the missing triangle to close the node ceiling
+	// (taking out the overhang-end-inner/out rectangles above)
+	AddCeilingToMesh(mesh, connectors, true);
+	AddCeilingToMesh(mesh, connectors, false);
 
 	// fill-in any unused connector ends
 	for (const auto& oc : connectors)
@@ -946,6 +945,272 @@ inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) {
 			}
 		}
 	}
+}
+
+void StructuralGraph::SNode::AddCeilingToMesh(TSharedPtr<Mesh> mesh, const TArray<OrdCon>& connectors, bool top) const
+{
+	// only proceed if we are completely closed
+	for (const auto& conn : connectors)
+	{
+		// this seems the wrong way up to me, top should be top when we're not upsidedown, but
+		// this works and the other doesn't
+		if (conn.ConNode->Profile->IsOpenCeiling(top == conn.UpsideDown))
+		{
+			return;
+		}
+	}
+
+	int qforward = top ? 0 : 1;
+	int qbackward = top ? 3 : 2;
+
+	// first delete existing overhang-inner
+	// adding it again the other way around deletes it...
+
+	auto prev_oc = connectors.Last();
+
+	for (const auto& oc : connectors)
+	{
+		TArray<FVector> verts;
+
+		verts.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::OverhangEndInner, oc.QuartersMap[qbackward], oc.ConNode->CachedTransform));
+		verts.Push(prev_oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::OverhangEndInner, prev_oc.QuartersMap[qforward], prev_oc.ConNode->CachedTransform));
+		verts.Push(prev_oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::OverhangEndOuter, prev_oc.QuartersMap[qforward], prev_oc.ConNode->CachedTransform));
+		verts.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::OverhangEndOuter, oc.QuartersMap[qbackward], oc.ConNode->CachedTransform));
+
+		if (!top)
+		{
+			Util::AddPolyToMesh(mesh, verts, PGCEdgeType::Auto, 0);
+		}
+		else
+		{
+			Util::AddPolyToMeshReversed(mesh, verts, PGCEdgeType::Auto, 0);
+		}
+
+		prev_oc = oc;
+	}
+
+	// now add-in the outer triangle
+	{
+		TArray<FVector> verts;
+
+		// it doesn't matter which of qforward or qbackward we use, because in a closed profile they are both in the same place
+
+		for (const auto& oc : connectors)
+		{
+			verts.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::OverhangEndOuter, oc.QuartersMap[qforward], oc.ConNode->CachedTransform));
+		}
+
+		if (!top)
+		{
+			Util::AddPolyToMeshReversed(mesh, verts, PGCEdgeType::Auto, 0);
+		}
+		else
+		{
+			Util::AddPolyToMesh(mesh, verts, PGCEdgeType::Auto, 0);
+		}
+	}
+
+	// now add-in the inner triangle
+	{
+		TArray<FVector> verts;
+
+		// it doesn't matter which of qforward or qbackward we use, because in a closed profile they are both in the same place
+
+		for (const auto& oc : connectors)
+		{
+			verts.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::OverhangEndInner, oc.QuartersMap[qforward], oc.ConNode->CachedTransform));
+		}
+
+		if (top)
+		{
+			Util::AddPolyToMeshReversed(mesh, verts, PGCEdgeType::Auto, 0);
+		}
+		else
+		{
+			Util::AddPolyToMesh(mesh, verts, PGCEdgeType::Auto, 0);
+		}
+	}
+
+	//{
+	//	// to handle connectors with closed ceilings
+	//	// (where we would like the node to have a closed ceiling too)
+	//	// 1) find contiguous sequences of closed connectors
+	//	// 2) draw each of those as:
+	//	// 2a) a ceiling-top polygon that goes left-barrier-top-outer -> shared-overhang-end-outer -> right-barrier-top-outer -> (next connector)
+	//	// 2b) a ceiling-bottom polygon that goes left-barrier-top-inner -> shared-overhang-end-inner -> right-barrier-top-inner -> (next connector)
+	//	// 2c) (if that doesn't come full circle) close the open vertical edge
+	//	//
+	//	// e.g. if we have:
+	//	//
+	//	//                  +---+---+    <--- Connector1, closed ceiling
+	//	//                /           \
+	//	//               /             \
+	//	//              /               \
+	//	//             +                 +
+	//	//              \               /
+	//	//               +             +    Connector3                            
+	//	// Connector2,                      open
+	//	// open            +         +
+	//	//                  \       /
+	//	//                   +-----+
+	//	//
+	//	// Then there are two 2a polygons:
+	//	// Two 2b polygons (the same shape, but beneath those and a little smaller)
+	//	// And two 2c polygons (joining the open ends, shown edge-on)
+	//	//
+	//	//                  +---+---+
+	//	//                /           \
+	//	//               /             \
+	//	//              /      2a/b     \
+	//	//             +                 +
+	//	//              \               /
+	//	//               +-------------+
+	//	//                    ^
+	//	//        2 X 2c ----<
+	//	//                    v
+	//	//                 +---------+
+	//	//                  \  2a/b /
+	//	//                   +-----+
+	//	//
+
+	//	// first find a connector with an open ceiling, if there is one
+
+	//	// if we don't find one, then we can start anywhere...
+	//	int open_conn = 0;
+
+	//	for (int i = 0; i < connectors.Num(); i++)
+	//	{
+	//		const auto& oc = connectors[i];
+
+	//		// this seems the wrong way up to me, top should be top when we're not upsidedown, but...
+	//		if (oc.ConNode->Profile->IsOpenCeiling(top == oc.UpsideDown))
+	//		{
+	//			open_conn = i;
+	//			break;
+	//		}
+	//	}
+
+	//	TArray<TArray<OrdCon>> subsets;
+	//	TArray<OrdCon> subset{ connectors[open_conn] };
+
+	//	for (int i = open_conn + 1; i < open_conn + connectors.Num() + 1; i++)
+	//	{
+	//		auto hi = i % connectors.Num();
+
+	//		const auto& oc = connectors[hi];
+
+	//		subset.Push(oc);
+
+	//		// this seems the wrong way up to me, top should be top when we're not upsidedown, but...
+	//		if (oc.ConNode->Profile->IsOpenCeiling(top == oc.UpsideDown))
+	//		{
+	//			subsets.Push(subset);
+
+	//			subset = TArray<OrdCon>{ oc };
+	//		}
+	//	}
+
+	//	if (subset.Num() > 1)
+	//	{
+	//		subsets.Push(subset);
+	//	}
+
+	//	// at this point subsets contains up to N sequences of OCs
+	//	// where each sequence begins and ends with an open one (if there is one)
+	//	// and the start and end OCs appear in previous and following sequences, e.g. it 0 and 2 are open, we will have:
+	//	// 0 -> 1 -> 2
+	//	// 2 -> 1
+	//	// these represent the sub-parts that the ceiling will be split into 
+
+	//	int qforward = top ? 0 : 1;
+	//	int qbackward = top ? 3 : 2;
+
+	//	for (const auto& seq : subsets)
+	//	{
+	//		// outside of ceiling
+	//		{
+	//			TArray<FVector> verts;
+
+	//			for (int i = 0; i < seq.Num(); i++)
+	//			{
+	//				const auto& oc = seq[i];
+
+	//				if (i != 0)
+	//				{
+	//					verts.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::BarrierTopOuter, oc.QuartersMap[qbackward], oc.ConNode->CachedTransform));
+	//					verts.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::OverhangEndOuter, oc.QuartersMap[qbackward], oc.ConNode->CachedTransform));
+	//				}
+
+	//				if (i != seq.Num() - 1)
+	//				{
+	//					verts.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::OverhangEndOuter, oc.QuartersMap[qforward], oc.ConNode->CachedTransform));
+	//					verts.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::BarrierTopOuter, oc.QuartersMap[qforward], oc.ConNode->CachedTransform));
+	//				}
+	//			}
+
+	//			if (top)
+	//			{
+	//				Util::AddPolyToMesh(mesh, verts, PGCEdgeType::Auto, 0);
+	//			}
+	//			else
+	//			{
+	//				Util::AddPolyToMeshReversed(mesh, verts, PGCEdgeType::Auto, 0);
+	//			}
+	//		}
+
+	//		// inside of ceiling
+	//		{
+	//			TArray<FVector> verts;
+
+	//			for (int i = 0; i < seq.Num(); i++)
+	//			{
+	//				const auto& oc = seq[i];
+
+	//				if (i != 0)
+	//				{
+	//					verts.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::BarrierTopInner, oc.QuartersMap[qbackward], oc.ConNode->CachedTransform));
+	//					verts.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::OverhangEndInner, oc.QuartersMap[qbackward], oc.ConNode->CachedTransform));
+	//				}
+
+	//				if (i != seq.Num() - 1)
+	//				{
+	//					verts.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::OverhangEndInner, oc.QuartersMap[qforward], oc.ConNode->CachedTransform));
+	//					verts.Push(oc.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::BarrierTopInner, oc.QuartersMap[qforward], oc.ConNode->CachedTransform));
+	//				}
+	//			}
+
+	//			if (top)
+	//			{
+	//				Util::AddPolyToMeshReversed(mesh, verts, PGCEdgeType::Auto, 0);
+	//			}
+	//			else
+	//			{
+	//				Util::AddPolyToMesh(mesh, verts, PGCEdgeType::Auto, 0);
+	//			}
+	//		}
+
+	//		{
+	//			TArray<FVector> verts;
+
+	//			const auto& oc_first = seq[0];
+	//			const auto& oc_last = seq.Last();
+
+	//			verts.Push(oc_first.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::OverhangEndInner, oc_first.QuartersMap[qforward], oc_first.ConNode->CachedTransform));
+	//			verts.Push(oc_first.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::OverhangEndOuter, oc_first.QuartersMap[qforward], oc_first.ConNode->CachedTransform));
+	//			verts.Push(oc_last.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::OverhangEndOuter, oc_last.QuartersMap[qbackward], oc_last.ConNode->CachedTransform));
+	//			verts.Push(oc_last.ConNode->Profile->GetTransformedVert(ParameterisedProfile::VertTypes::OverhangEndInner, oc_last.QuartersMap[qbackward], oc_last.ConNode->CachedTransform));
+
+	//			if (top)
+	//			{
+	//				Util::AddPolyToMesh(mesh, verts, PGCEdgeType::Auto, 0);
+	//			}
+	//			else
+	//			{
+	//				Util::AddPolyToMeshReversed(mesh, verts, PGCEdgeType::Auto, 0);
+	//			}
+	//		}
+	//	}
+	//}
 }
 
 void SNode::RecalcForward()
