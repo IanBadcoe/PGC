@@ -94,14 +94,15 @@ Idx<MeshVert> Mesh::FindVert(const FVector & pos) const
 	return Idx<MeshVert>::None;
 }
 
-Idx<MeshVert> Mesh::FindVert(const MeshVertRaw& mvr, int UVGroup) const
+Idx<MeshVert> Mesh::FindVert(const FVector& pos, int UVGroup) const
 {
 	for (Idx<MeshVert> i{ 0 }; i < Vertices.Num(); i++)
 	{
 		auto& vert = Vertices[i];
 
-		// ToMeshVertRaw explodes if vert doesn't know about this UVGroup
-		if (vert.UVs.Contains(UVGroup) && vert.ToMeshVertRaw(UVGroup).ToleranceCompare(mvr, VertexTolerance))
+		// did have tolerance here, but it makes things worse with near-zero sizes triangles as they develop duplicate verts
+		// which crashes other logic
+		if (vert.UVs.Contains(UVGroup) && vert.Pos == pos)
 		{
 			return i;
 		}
@@ -359,7 +360,7 @@ void Mesh::UnitTest()
 
 Idx<MeshVert> Mesh::AddVert(MeshVertRaw vert, int UVGRoup)
 {
-	auto vert_idx = FindVert(vert, UVGRoup);
+	auto vert_idx = FindVert(vert.Pos, UVGRoup);
 
 	// we have it with this UV already set
 	if (vert_idx.Valid())
@@ -758,7 +759,7 @@ Idx<MeshVertRaw> Mesh::FindBakedVert(const MeshVertRaw& mvr) const
 {
 	for (int i = 0; i < BakedVerts.Num(); i++)
 	{
-		if (BakedVerts[i].ToleranceCompare(mvr, VertexTolerance))
+		if (BakedVerts[i] == mvr)
 			return Idx<MeshVertRaw>(i);
 	}
 
@@ -1508,12 +1509,11 @@ void Mesh::BakeChannels(FPGCMeshResult& mesh, bool insideOut, PGCDebugEdgeType d
 	BakedVerts.Empty();
 }
 
-
-bool MeshVertRaw::ToleranceCompare(const MeshVertRaw& other, float tolerance) const
-{
-	// may need separate coord and UV tolerances if the scales get very different...
-	return FVector::DistSquared(Pos, other.Pos) < tolerance * tolerance
-		&& FVector2D::DistSquared(UV, other.UV) < tolerance * tolerance;
-}
+//bool MeshVertRaw::ToleranceCompare(const MeshVertRaw& other, float tolerance) const
+//{
+//	// may need separate coord and UV tolerances if the scales get very different...
+//	return FVector::DistSquared(Pos, other.Pos) < tolerance * tolerance
+//		&& FVector2D::DistSquared(UV, other.UV) < tolerance * tolerance;
+//}
 
 PRAGMA_ENABLE_OPTIMIZATION

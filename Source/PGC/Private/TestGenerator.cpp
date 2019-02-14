@@ -89,7 +89,7 @@ void ATestGenerator::EnsureOptimizer()
 	{
 		check(!OptimizerInterface.IsValid());
 
-		OptimizerInterface = MakeShared<Opt::OptFunction>(StructuralGraph, 1.0, 1.0, 100.0);
+		OptimizerInterface = MakeShared<Opt::OptFunction>(StructuralGraph, 1.0, 1.0, 1000.0, 100.0);
 
 		Optimizer = MakeShared<NlOptWrapper>(OptimizerInterface);
 	}
@@ -121,16 +121,16 @@ void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh)
 	//OptimizerInterface->GetState(state.GetData(), sz);
 	//OptimizerInterface->SetState(state.GetData(), sz);
 
-	//if (Optimizer->RunOptimization())
-	//{
-	//	UE_LOG(LogTemp, Warning, TEXT("Converged"));
-	//}
-	//else
-	//{
-	//	UE_LOG(LogTemp, Warning, TEXT("Not converged"));
-	//}
+	if (Optimizer->RunOptimization())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Converged"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Not converged"));
+	}
 
-	StructuralGraph->MakeMesh(mesh, false);
+	StructuralGraph->MakeMesh(mesh, true);
 }
 
 bool ATestGenerator::NeedsRefinement()
@@ -229,11 +229,13 @@ void TestGraph::Generate()
 {
 	// NODE ROTATIONS ARE IN THE ORDER X, Y, Z and DEGREES
 	Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 0 }, FVector{ 0, 0, 0 }));
-	Nodes.Add(MakeShared<YJunction>(FVector{ 30, 0, 0 }, FVector{ 0, 0, 180 }));
-	Nodes.Add(MakeShared<YJunction>(FVector{ 20, 20, 0 }, FVector{ 0, 0, 180 }));
+//	Nodes.Add(MakeShared<YJunction>(FVector{ 30, 0, 0 }, FVector{ 0, 0, 180 }));
+	Nodes.Add(MakeShared<YJunction>(FVector{ -10, 20, 0 }, FVector{ 0, 0, 180 }));
+//	Nodes.Add(MakeShared<YJunction>(FVector{ -10, -20, 0 }, FVector{ 0, 0, 180 }));
 
-	Connect(0, 0, 1, 0, 20, 0);
-	Connect(0, 1, 2, 0, 20, 0);
+//	Connect(0, 0, 1, 0, 20, 0);
+	Connect(0, 1, 1, 1, 20, 0);
+//	Connect(0, 2, 3, 2, 20, 0);
 
 	//Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 0 }, FVector{ 0, 0, 0 }));
 	//Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 100 }, FVector{ 0, 0, 0 }));

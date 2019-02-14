@@ -117,7 +117,7 @@ double OptFunction::UnconnectedNodeNodeDist_Val(const FVector& p1, const FVector
 
 	// dividing by expected distance makes the penalty be for proportional error, rather than distance
 	// which I think makes sense as you don't want a large distance to be able to crush a small one disproportionately
-	return FMath::Pow((dist - D) / D, 2) * 0.1;
+	return FMath::Pow((dist - D) / D, 2);
 }
 
 //double OptFunction::UnconnectedNodeNodeDist_Grad(const FVector & pGrad, const FVector & pOther, float D0, int axis)
@@ -136,6 +136,10 @@ double OptFunction::ConnectedNodeNodeTorsion_Val(const FVector & up1, const FVec
 {
 	auto axis = (p2 - p1).GetSafeNormal();
 
+	// if we are supplied two identical points, this becomes undefined, but is very bad anyway...
+	if (axis.GetMax() == 0)
+		return 2;
+
 	auto up1_in_plane = Util::ProjectOntoPlane(up1, axis);
 	auto up2_in_plane = Util::ProjectOntoPlane(up2, axis);
 
@@ -148,7 +152,7 @@ double OptFunction::ConnectedNodeNodeTorsion_Val(const FVector & up1, const FVec
 
 	auto angle = FMath::Acos(cos);
 
-	return FMath::Pow(angle / PI, 2) * 100;
+	return FMath::Pow(angle / PI, 2);
 }
 
 //double OptFunction::ConnectedNodeNodeTorsion_Grad(const FVector & upGrad, const FVector & upOther, const FVector & pGrad, const FVector & pOther, bool flipped, int axis)
@@ -167,6 +171,18 @@ double OptFunction::ConnectedNodeNodeDist_Val(const FVector& p1, const FVector& 
 	return pow((dist - D0) / D0, 2);
 }
 
+double Opt::OptFunction::ConnectedNodeNodeBend_Val(const FVector& prev_pos, const FVector& pos, const FVector& next_pos)
+{
+	auto d1 = (pos - prev_pos).GetSafeNormal();
+	auto d2 = (next_pos - pos).GetSafeNormal();
+
+	auto cos = FVector::DotProduct(d1, d2);
+
+	auto angle = FMath::Acos(cos);
+
+	return FMath::Pow(angle / PI, 2);
+}
+
 //double OptFunction::ConnectedNodeNodeDist_Grad(const FVector& pGrad, const FVector& pOther, float D0, int axis)
 //{
 //	check(axis >= 0 && axis < 3);
@@ -176,8 +192,8 @@ double OptFunction::ConnectedNodeNodeDist_Val(const FVector& p1, const FVector& 
 //	return 2 * (pGrad[axis] - pOther[axis]) * (dist - D0) / dist;
 //}
 
-OptFunction::OptFunction(TSharedPtr<SGraph> g, double connected_scale, double unconnected_scale, double torsion_scale)
-	: G(g), ConnectedScale(connected_scale), UnconnectedScale(unconnected_scale), TorsionScale(torsion_scale)
+OptFunction::OptFunction(TSharedPtr<SGraph> g, double connected_scale, double unconnected_scale, double torsion_scale, double bend_scale)
+	: G(g), ConnectedScale(connected_scale), UnconnectedScale(unconnected_scale), TorsionScale(torsion_scale), BendScale(bend_scale)
 {
 	for (const auto& n : G->Nodes)
 	{
@@ -233,6 +249,7 @@ double OptFunction::f(int n, const double* x, double* grad)
 	ConnectedEnergy = 0;
 	UnconnectedEnergy = 0;
 	TorsionEnergy = 0;
+	BendEnergy = 0;
 
 	SetState(x, n);
 
@@ -256,6 +273,17 @@ double OptFunction::f(int n, const double* x, double* grad)
 			{
 				UnconnectedEnergy += UnconnectedNodeNodeDist_Val(node_a->Position, node_b->Position, node_a->Radius + node_b->Radius) * UnconnectedScale;
 			}
+		}
+
+		// Junctions attach their connectors at all angles, so this could be counterproductive for them
+		if (node_a->MyType != SNode::Type::Junction &&
+			node_a->Edges.Num() == 2)
+		{
+			const auto& pos = node_a->Position;
+			const auto& pos_other1 = node_a->Edges[0].Pin()->OtherNode(node_a).Pin()->Position;
+			const auto& pos_other2 = node_a->Edges[1].Pin()->OtherNode(node_a).Pin()->Position;
+
+			BendEnergy += ConnectedNodeNodeBend_Val(pos_other1, pos, pos_other2) * BendScale;
 		}
 	}
 
@@ -329,7 +357,10 @@ double OptFunction::f(int n, const double* x, double* grad)
 //		}
 //	}
 
-	return ConnectedEnergy + UnconnectedEnergy + TorsionEnergy;
+	return ConnectedEnergy
+		+ UnconnectedEnergy
+		+ TorsionEnergy
+		+ BendEnergy;
 }
 
 void OptFunction::GetInitialStepSize(double* steps, int n) const
@@ -374,12 +405,36 @@ void OptFunction::SetState(const double* x, int n)
 
 TArray<FString> OptFunction::GetEnergyTermNames() const
 {
-	return TArray<FString> { "Connected", "Unconnected", "Torsion" };
+	return TArray<FString> { "Connected", "Unconnected", "Torsion", "Bend" };
 }
 
 TArray<double> OptFunction::GetLastEnergyTerms() const
 {
-	return TArray<double> { ConnectedEnergy, UnconnectedEnergy, TorsionEnergy };
+	return TArray<double> { ConnectedEnergy, UnconnectedEnergy, TorsionEnergy, BendEnergy };
+}
+
+void Opt::OptFunction::GetLimits(double* lower, double* upper, int n) const
+{
+	check(n == GetSize());
+
+	int i = 0;
+
+	for (const auto& node : G->Nodes)
+	{
+		check(i + 3 < n);
+
+		lower[i + 0] = node->Position.X - 100;
+		lower[i + 1] = node->Position.Y - 100;
+		lower[i + 2] = node->Position.Z - 100;
+		lower[i + 3] = -PI;
+
+		upper[i + 0] = node->Position.X + 100;
+		upper[i + 1] = node->Position.Y + 100;
+		upper[i + 2] = node->Position.Z + 100;
+		upper[i + 3] = PI;
+
+		i += 4;
+	}
 }
 
 //void OptFunction::reset_histo()

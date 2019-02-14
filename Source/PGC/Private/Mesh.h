@@ -147,7 +147,7 @@ struct MeshVertRaw {
 		return Pos == rhs.Pos && UV == rhs.UV;
 	}
 
-	bool ToleranceCompare(const MeshVertRaw& other, float tolerance) const;
+//	bool ToleranceCompare(const MeshVertRaw& other, float tolerance) const;
 
 	FVector Pos;
 	FVector2D UV;
@@ -414,7 +414,7 @@ class Mesh : public TSharedFromThis<Mesh>
 	Idx<MeshEdge> AddFindEdge(Idx<MeshVert> idx1, Idx<MeshVert> idx2);
 
 	Idx<MeshVert> FindVert(const FVector& pos) const;
-	Idx<MeshVert> FindVert(const MeshVertRaw& vert, int UVGroup) const;
+	Idx<MeshVert> FindVert(const FVector& pos, int UVGroup) const;
 
 	Idx<MeshFace> AddFindFace(MeshFace face, const TArray<PGCEdgeType>& edge_types);
 	Idx<MeshVert> AddVert(MeshVertRaw vert, int UVGroup);

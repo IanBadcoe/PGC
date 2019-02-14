@@ -37,10 +37,12 @@ class OptFunction : public NlOptIface {
 	double ConnectedEnergy;
 	double UnconnectedEnergy;
 	double TorsionEnergy;
+	double BendEnergy;
 
 	const double ConnectedScale;
 	const double UnconnectedScale;
 	const double TorsionScale;
+	const double BendScale;
 
 	static double UnconnectedNodeNodeDist_Val(const FVector& p1, const FVector& p2, float D0);
 	//static double UnconnectedNodeNodeDist_Grad(const FVector& pGrad, const FVector& pOther, float D0, int axis);
@@ -54,14 +56,17 @@ class OptFunction : public NlOptIface {
 	static double ConnectedNodeNodeDist_Val(const FVector& p1, const FVector& p2, float D0);
 	//static double ConnectedNodeNodeDist_Grad(const FVector& pGrad, const FVector& pOther, float D0, int axis);
 
+	static double ConnectedNodeNodeBend_Val(const FVector& prev_pos, const FVector& pos, const FVector& next_pos);
+
 public:
-	OptFunction(TSharedPtr<StructuralGraph::SGraph> g, double connected_scale, double unconnected_scale, double torsion_scale);
+	OptFunction(TSharedPtr<StructuralGraph::SGraph> g, double connected_scale, double unconnected_scale, double torsion_scale, double bend_scale);
 	virtual ~OptFunction() = default;
 
 	// Inherited via NlOptIface
 	int GetSize() const;
 	virtual double f(int n, const double * x, double * grad) override;
 	virtual void GetInitialStepSize(double* steps, int n) const override;
+	virtual void GetLimits(double * lower, double * upper, int n) const override;
 	virtual void GetState(double* x, int n) const override;
 	virtual void SetState(const double* x, int n) override;
 

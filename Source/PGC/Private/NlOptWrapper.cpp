@@ -1,7 +1,7 @@
 #include "NlOptWrapper.h"
 
 #include "Runtime/Core/Public/Templates/SharedPointer.h"
-
+#include "Runtime/Engine/Classes/Kismet/GameplayStatics.h"
 
 NlOptWrapper::NlOptWrapper(const TSharedPtr<NlOptIface> iface)
 	: NlIface(iface)
@@ -25,7 +25,27 @@ bool NlOptWrapper::RunOptimization()
 
 	//NlIface->SetState(state.GetData(), state.Num());
 
-	return RunOptimization(NLOPT_LN_SBPLX, 1000000);
+	FDateTime timeUtc = FDateTime::UtcNow();
+	int64 start = timeUtc.ToUnixTimestamp() * 1000 + timeUtc.GetMillisecond();
+
+	// NLOPT_LN_SBPLX - 42s - unreliable
+	// NLOPT_GN_ISRES - nothing
+	// NLOPT_LN_COBYLA - 28s - failed to straighten edge
+	// NLOPT_LN_COBYLA - with bounds - 90s - failed to straighten edge
+	// NLOPT_LN_BOBYQA - failed to straighten
+	// NLOPT_LN_PRAXIS
+	// NLOPT_GN_DIRECT - took ages, never improved it, returned mangled
+	// NLOPT_GN_DIRECT_L - likewise
+	// NLOPT_GN_ISRES - needs bounds - failed to unfold edge
+	// NLOPT_GN_CRS2_LM - 62s - making good progress but not converged after 1000000 steps
+	// NLOPT_GN_ESCH - failed to start?
+
+	auto ret = RunOptimization(NLOPT_LN_SBPLX, 1000000, true);
+
+	timeUtc = FDateTime::UtcNow();
+	int64 end = timeUtc.ToUnixTimestamp() * 1000 + timeUtc.GetMillisecond();
+
+	UE_LOG(LogTemp, Warning, TEXT("Time elapsed: %ldms"), end - start);
 
 	//if (RunOptimization(NLOPT_LN_SBPLX, 10000))
 	//{
@@ -35,6 +55,8 @@ bool NlOptWrapper::RunOptimization()
 	//UE_LOG(LogTemp, Warning, TEXT("Simplex Completed"));
 
 	//return RunOptimization(NLOPT_LD_SLSQP, 10000);
+
+	return ret;
 }
 
 double NlOptWrapper::f_callback(unsigned n, const double* x, double* grad, void* data)
@@ -52,25 +74,36 @@ double NlOptWrapper::f_callback_inner(unsigned n, const double * x, double * gra
 	static auto first = true;
 
 	if (first || ret < best) {
-		best = ret;
-		first = false;
+		static int64 last_update = -1000;
 
-		UE_LOG(LogTemp, Warning, TEXT("Target function best seen: %f"), best);
-		//		This->NlIface->print_histo();
+		FDateTime timeUtc = FDateTime::UtcNow();
+		int64 now = timeUtc.ToUnixTimestamp() * 1000 + timeUtc.GetMillisecond();
 
-		auto names = NlIface->GetEnergyTermNames();
-		auto energies = NlIface->GetLastEnergyTerms();
-
-		for (int i = 0; i < names.Num(); i++)
+		// don't log too often as it really slows us down...
+		if (now - last_update > 1000)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Energy: %s: %f"), *names[i], energies[i]);
+			best = ret;
+			first = false;
+
+			UE_LOG(LogTemp, Warning, TEXT("Target function best seen: %f"), best);
+			//		This->NlIface->print_histo();
+
+			auto names = NlIface->GetEnergyTermNames();
+			auto energies = NlIface->GetLastEnergyTerms();
+
+			for (int i = 0; i < names.Num(); i++)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Energy: %s: %f"), *names[i], energies[i]);
+			}
+
+			last_update = now;
 		}
 	}
 
 	return ret;
 }
 
-bool NlOptWrapper::RunOptimization(nlopt_algorithm alg, int steps)
+bool NlOptWrapper::RunOptimization(nlopt_algorithm alg, int steps, bool use_limits)
 {
 	nlopt_opt NlOpt = nlopt_create(alg, NlIface->GetSize());
 	nlopt_set_min_objective(NlOpt, &f_callback, this);
@@ -87,9 +120,12 @@ bool NlOptWrapper::RunOptimization(nlopt_algorithm alg, int steps)
 	upper.AddDefaulted(NlIface->GetSize());
 	lower.AddDefaulted(NlIface->GetSize());
 
-	//NlIface->GetLimits(lower.GetData(), upper.GetData(), NlIface->GetSize());
-	//nlopt_set_lower_bounds(NlOpt, lower.GetData());
-	//nlopt_set_upper_bounds(NlOpt, upper.GetData());
+	if (use_limits)
+	{
+		NlIface->GetLimits(lower.GetData(), upper.GetData(), NlIface->GetSize());
+		nlopt_set_lower_bounds(NlOpt, lower.GetData());
+		nlopt_set_upper_bounds(NlOpt, upper.GetData());
+	}
 
 	TArray<double> state;
 	state.AddDefaulted(NlIface->GetSize());
