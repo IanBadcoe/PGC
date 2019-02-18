@@ -139,7 +139,7 @@ void SGraph::MakeIntoDAG()
 
 	TSet<TSharedPtr<SNode>> Closed;
 
-	// this will contain the nodes in an order suitablew for updating from
+	// this will contain the nodes in an order suitable for updating from
 	// e.g. everything will be later in the list that its parent
 	TArray<TSharedPtr<SNode>> new_order;
 
