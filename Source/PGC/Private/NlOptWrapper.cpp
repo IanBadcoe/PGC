@@ -3,6 +3,8 @@
 #include "Runtime/Core/Public/Templates/SharedPointer.h"
 #include "Runtime/Engine/Classes/Kismet/GameplayStatics.h"
 
+PRAGMA_DISABLE_OPTIMIZATION
+
 NlOptWrapper::NlOptWrapper(const TSharedPtr<NlOptIface> iface)
 	: NlIface(iface)
 {
@@ -12,8 +14,11 @@ NlOptWrapper::~NlOptWrapper()
 {
 }
 
-bool NlOptWrapper::RunOptimization()
+bool NlOptWrapper::RunOptimization(bool use_limits, int loggingFreq)
 {
+	LoggingFreq = loggingFreq;
+	First = true;
+
 	//TArray<double> state;
 	//state.AddDefaulted(NlIface->GetSize());
 	//NlIface->GetState(state.GetData(), state.Num());
@@ -39,13 +44,31 @@ bool NlOptWrapper::RunOptimization()
 	// NLOPT_GN_ISRES - needs bounds - failed to unfold edge
 	// NLOPT_GN_CRS2_LM - 62s - making good progress but not converged after 1000000 steps
 	// NLOPT_GN_ESCH - failed to start?
+	// NLOPT_LN_NELDERMEAD - converged really quickly into a bad local minimum
 
-	auto ret = RunOptimization(NLOPT_LN_SBPLX, 1000000, true);
+	// conclusion: SubPlex is best, but if I could do a simpler optimisation on the starting config first it might work
+	// more reliably/faster (Done now: see SetupOptFunction)
+
+	auto ret = RunOptimization(NLOPT_LN_SBPLX, 1000000, use_limits);
+
+	if (ret)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("-------------------------------------"));
+		UE_LOG(LogTemp, Warning, TEXT("Converged"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("-------------------------------------"));
+		UE_LOG(LogTemp, Warning, TEXT("Not Converged"));
+	}
+
+	Log("(final)");
 
 	timeUtc = FDateTime::UtcNow();
 	int64 end = timeUtc.ToUnixTimestamp() * 1000 + timeUtc.GetMillisecond();
 
 	UE_LOG(LogTemp, Warning, TEXT("Time elapsed: %ldms"), end - start);
+	UE_LOG(LogTemp, Warning, TEXT("-------------------------------------"));
 
 	//if (RunOptimization(NLOPT_LN_SBPLX, 10000))
 	//{
@@ -70,34 +93,24 @@ double NlOptWrapper::f_callback_inner(unsigned n, const double * x, double * gra
 {
 	auto ret = NlIface->f(n, x, grad);
 
-	static auto best = 0.0f;
-	static auto first = true;
+	static int64 last_update = -1000;
 
-	if (first || ret < best) {
-		static int64 last_update = -1000;
+	FDateTime timeUtc = FDateTime::UtcNow();
+	int64 now = timeUtc.ToUnixTimestamp() * 1000 + timeUtc.GetMillisecond();
 
-		FDateTime timeUtc = FDateTime::UtcNow();
-		int64 now = timeUtc.ToUnixTimestamp() * 1000 + timeUtc.GetMillisecond();
+	if (ret < BestEnergy || First)
+	{
+		BestEnergy = ret;
+		BestEnergyComponents = NlIface->GetLastEnergyTerms();
+	}
 
-		// don't log too often as it really slows us down...
-		if (now - last_update > 1000)
-		{
-			best = ret;
-			first = false;
+	// don't log too often as it really slows us down...
+	if (First || now - last_update > LoggingFreq)
+	{
+		Log(First ? "(initial)" : "");
 
-			UE_LOG(LogTemp, Warning, TEXT("Target function best seen: %f"), best);
-			//		This->NlIface->print_histo();
-
-			auto names = NlIface->GetEnergyTermNames();
-			auto energies = NlIface->GetLastEnergyTerms();
-
-			for (int i = 0; i < names.Num(); i++)
-			{
-				UE_LOG(LogTemp, Warning, TEXT("Energy: %s: %f"), *names[i], energies[i]);
-			}
-
-			last_update = now;
-		}
+		last_update = now;
+		First = false;
 	}
 
 	return ret;
@@ -116,12 +129,12 @@ bool NlOptWrapper::RunOptimization(nlopt_algorithm alg, int steps, bool use_limi
 	NlIface->GetInitialStepSize(initial_step.GetData(), NlIface->GetSize());
 	nlopt_set_initial_step(NlOpt, initial_step.GetData());
 
-	TArray<double> upper, lower;
-	upper.AddDefaulted(NlIface->GetSize());
-	lower.AddDefaulted(NlIface->GetSize());
-
 	if (use_limits)
 	{
+		TArray<double> upper, lower;
+		upper.AddDefaulted(NlIface->GetSize());
+		lower.AddDefaulted(NlIface->GetSize());
+
 		NlIface->GetLimits(lower.GetData(), upper.GetData(), NlIface->GetSize());
 		nlopt_set_lower_bounds(NlOpt, lower.GetData());
 		nlopt_set_upper_bounds(NlOpt, upper.GetData());
@@ -142,3 +155,17 @@ bool NlOptWrapper::RunOptimization(nlopt_algorithm alg, int steps, bool use_limi
 	return res != NLOPT_MAXEVAL_REACHED;
 }
 
+void NlOptWrapper::Log(const char* note)
+{
+	UE_LOG(LogTemp, Warning, TEXT("%sTarget function best seen: %f"), *FString(note), BestEnergy);
+	//		This->NlIface->print_histo();
+
+	auto names = NlIface->GetEnergyTermNames();
+
+	for (int i = 0; i < names.Num(); i++)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Energy: %s: %f"), *names[i], BestEnergyComponents[i]);
+	}
+}
+
+PRAGMA_ENABLE_OPTIMIZATION

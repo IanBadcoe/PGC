@@ -6,6 +6,7 @@
 
 #include "Runtime/Core/Public/Templates/UniquePtr.h"
 #include "Runtime/Engine/Classes/Engine/World.h"
+#include "Util.h"
 
 PRAGMA_DISABLE_OPTIMIZATION
 
@@ -1395,18 +1396,14 @@ void Mesh::CalcEffectiveType(MeshEdge& edge)
 
 FVector Mesh::CalcNonplanarFaceNormal(const MeshFace& face)
 {
-	FVector sum{ 0, 0, 0 };
-
-	auto prev_vert_idx = face.VertIdxs.Last();
+	TArray<FVector> verts;
 
 	for (const auto& vert_idx : face.VertIdxs)
 	{
-		sum += FVector::CrossProduct(Vertices[prev_vert_idx].Pos, Vertices[vert_idx].Pos);
-
-		prev_vert_idx = vert_idx;
+		verts.Emplace(Vertices[vert_idx].Pos);
 	}
 
-	return sum.GetSafeNormal();
+	return Util::NewellPolyNormal(verts);
 }
 
 TSharedPtr<Mesh> Mesh::SubdivideN(int count)

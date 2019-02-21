@@ -1,6 +1,10 @@
 #pragma once
 
 #include "Mesh.h"
+#include "GVector.h"
+
+#include "NlOptWrapper.h"
+
 
 PRAGMA_DISABLE_OPTIMIZATION
 
@@ -136,7 +140,11 @@ inline FVector ProjectOntoPlane(const FVector& vect, const FVector& plane_normal
 // projects "to" and "from" into the axis plane,
 //
 // return in radians, looking down "axis" clockwise is a +ve angle
-inline float SignedAngle(const FVector& from, const FVector& to, const FVector& axis)
+//
+// keep_positive:
+//   true: outputs 0 -> 2PI
+//   false: outputs -PI -> PI
+inline float SignedAngle(const FVector& from, const FVector& to, const FVector& axis, bool keep_positive)
 {
 	auto from_proj_norm = ProjectOntoPlane(from, axis).GetSafeNormal();
 	auto to_proj_norm = ProjectOntoPlane(to, axis).GetSafeNormal();
@@ -148,6 +156,11 @@ inline float SignedAngle(const FVector& from, const FVector& to, const FVector& 
 	if (FVector::DotProduct(sign_check, axis) < 0)
 	{
 		angle = -angle;
+	}
+
+	if (keep_positive && angle < 0)
+	{
+		angle += 2 * PI;
 	}
 
 	return angle;
@@ -163,6 +176,209 @@ inline FQuat AxisAngleToQuaternion(FVector Axis, float Angle)
 	q.W = cos(Angle / 2);
 
 	return q;
+}
+
+inline FVector NewellPolyNormal(const TArray<FVector>& verts)
+{
+	auto prev_vert = verts.Last();
+	FVector sum{ 0, 0, 0 };
+
+	for (const auto& vert : verts)
+	{
+		sum += FVector::CrossProduct(prev_vert, vert);
+
+		prev_vert = vert;
+	}
+
+	return sum.GetSafeNormal();
+}
+
+// modified from : http://geomalgorithms.com/a07-_distance.html
+// dist3D_Segment_to_Segment(): get the 3D minimum distance between 2 segments
+//    Input:  two 3D line segments S1 and S2
+//    Return: the shortest distance between S1 and S2
+float
+dist3D_Segment_to_Segment(GVector P0, GVector P1, GVector Q0, GVector Q1)
+{
+	GVector   u = P1 - P0;
+	GVector   v = Q1 - Q0;
+	GVector   w = P0 - Q0;
+	auto      a = GVector::DotProduct(u, u);         // always >= 0
+	auto      b = GVector::DotProduct(u, v);
+	auto      c = GVector::DotProduct(v, v);         // always >= 0
+	auto      d = GVector::DotProduct(u, w);
+	auto      e = GVector::DotProduct(v, w);
+	auto      D = a * c - b * b;        // always >= 0
+	double    sc, sN, sD = D;       // sc = sN / sD, default sD = D >= 0
+	double    tc, tN, tD = D;       // tc = tN / tD, default tD = D >= 0
+
+	static const auto SMALL_NUM = 1E-9;
+
+	// compute the line parameters of the two closest points
+	if (D < SMALL_NUM) { // the lines are almost parallel
+		sN = 0.0;         // force using point P0 on segment S1
+		sD = 1.0;         // to prevent possible division by 0.0 later
+		tN = e;
+		tD = c;
+	}
+	else {                 // get the closest points on the infinite lines
+		sN = (b*e - c * d);
+		tN = (a*e - b * d);
+		if (sN < 0.0) {        // sc < 0 => the s=0 edge is visible
+			sN = 0.0;
+			tN = e;
+			tD = c;
+		}
+		else if (sN > sD) {  // sc > 1  => the s=1 edge is visible
+			sN = sD;
+			tN = e + b;
+			tD = c;
+		}
+	}
+
+	if (tN < 0.0) {            // tc < 0 => the t=0 edge is visible
+		tN = 0.0;
+		// recompute sc for this edge
+		if (-d < 0.0)
+			sN = 0.0;
+		else if (-d > a)
+			sN = sD;
+		else {
+			sN = -d;
+			sD = a;
+		}
+	}
+	else if (tN > tD) {      // tc > 1  => the t=1 edge is visible
+		tN = tD;
+		// recompute sc for this edge
+		if ((-d + b) < 0.0)
+			sN = 0;
+		else if ((-d + b) > a)
+			sN = sD;
+		else {
+			sN = (-d + b);
+			sD = a;
+		}
+	}
+	// finally do the division to get sc and tc
+	sc = (abs(sN) < SMALL_NUM ? 0.0 : sN / sD);
+	tc = (abs(tN) < SMALL_NUM ? 0.0 : tN / tD);
+
+	// get the difference of the two closest points
+	GVector   dP = w + (u * sc) - (v * tc);  // =  S1(sc) - S2(tc)
+
+	return dP.Size();   // return the closest distance
+}
+
+//template <typename T>
+struct ParamPair {
+	double s;
+	double t;
+};
+
+inline double ParametricRayPointDiff(
+	const GVector& P0, const GVector& u, double s,
+	const GVector& Q0, const GVector& v, double t)
+{
+	auto p = P0 + u * s;
+	auto q = Q0 + v * t;
+	return (p - q).Size();
+}
+
+template <typename T>
+T Clamp(T val, T min, T max) {
+	return val < min ? min : val > max ? max : val;
+}
+
+inline ParamPair FindSegSegClosestPointParamsSlow(const GVector& P0, const GVector& u, const GVector& Q0, const GVector& v)
+{
+	struct OF : NlOptIface {
+		GVector P0;
+		GVector u;
+		GVector Q0;
+		GVector v;
+
+		double s = 0;
+		double t = 0;
+	public:
+		virtual ~OF() {}
+
+		virtual double f(int n, const double* x, double* grad) override {
+			return ParametricRayPointDiff(P0, u, x[0], Q0, v, x[1]);
+		}
+		virtual int GetSize() const override { return 2; }
+		virtual void GetInitialStepSize(double* steps, int n) const override {
+			steps[0] = 0.1;
+			steps[1] = 0.1;
+		}
+		virtual void GetLimits(double* lower, double* upper, int n) const override {
+			lower[0] = 0;
+			lower[1] = 0;
+
+			upper[0] = 1;
+			upper[1] = 1;
+		}
+		virtual void GetState(double* x, int n) const override {
+			x[0] = s;
+			x[1] = t;
+		}
+		virtual void SetState(const double* x, int n) override {
+			s = x[0];
+			t = x[1];
+		}
+		virtual TArray<FString> GetEnergyTermNames() const override
+		{
+			return {};
+		}
+		virtual TArray<double> GetLastEnergyTerms() const override {
+			return {};
+		}
+	};
+
+	auto of = MakeShared<OF>();
+
+	of->P0 = P0;
+	of->u = u;
+	of->Q0 = Q0;
+	of->v = v;
+
+	NlOptWrapper nlow(of);
+
+	nlow.RunOptimization(true, -1);
+
+	return { (float)of->s, (float)of->t };
+}
+
+// find the separation between two line segments, each segment defined by a point at either end
+inline double SegmentSegmentDistance(const GVector& P0, const GVector& P1, const GVector& Q0, const GVector& Q1)
+{
+	// infinite rays lines on which each segment lies are P0 + s*u and Q0 + v*t
+	// we'll solve for the s and t of closest approach
+	auto u = P1 - P0;
+	auto v = Q1 - Q0;
+
+	auto dist = dist3D_Segment_to_Segment(P0, P1, Q0, Q1);
+
+#if 0
+	auto check_params = FindSegSegClosestPointParamsSlow(P0, u, Q0, v);
+
+	// we can't check distance at the found params
+	// because for very-nearly parallel rays the optimizing approach can shoot off towards infinity and find a very close
+	// result, but the algebraic solution will notice they are parallel and approximate to avoid numerical instability
+	// so instead let's clamp both to the segment range before checking
+
+	// can't check the returned params, because for parallel rays they underdetermined...
+	// but can check we get points at the same separation...
+
+	auto check_p = P0 + u * check_params.s;
+	auto check_q = Q0 + v * check_params.t;
+
+	auto check_dist = (check_p - check_q).Size();
+
+	check(FMath::Abs(dist - check_dist) < 2e-4);
+#endif
+
+	return dist;
 }
 
 }

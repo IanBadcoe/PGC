@@ -26,15 +26,23 @@ class NlOptWrapper
 {
 	const TSharedPtr<NlOptIface> NlIface;
 
+	int LoggingFreq = 1000;
+	bool First = true;
+	double BestEnergy;
+	TArray<double> BestEnergyComponents;
+
 	static double f_callback(unsigned n, const double* x, double* grad, void* data);
 	double f_callback_inner(unsigned n, const double* x, double* grad);
 
 	bool RunOptimization(nlopt_algorithm alg, int steps, bool use_limits);
 
+	void Log(const char* note);
+
 public:
 	NlOptWrapper(const TSharedPtr<NlOptIface> iface);
 	~NlOptWrapper();
 
-	bool RunOptimization();
+	// logging freq in ms
+	bool RunOptimization(bool use_limits, int loggingFreq);
 };
 

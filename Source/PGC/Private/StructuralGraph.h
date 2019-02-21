@@ -10,6 +10,7 @@
 #include "LayoutGraph.h"
 #include "SplineUtil.h"
 #include "ParameterisedProfile.h"
+#include "IntermediateGraph.h"
 
 namespace StructuralGraph {
 	class SNode;
@@ -105,6 +106,7 @@ namespace StructuralGraph {
 	};
 
 	class SGraph {
+	private:
 		void RefreshTransforms() const;
 
 		// for the purpose of propagating up vectors when optimizing, we need every node in the graph to have a unambiguous parent
@@ -122,6 +124,22 @@ namespace StructuralGraph {
 		void MakeMeshReal(TSharedPtr<Mesh> mesh) const;
 		void MakeMeshSkeleton(TSharedPtr<Mesh> mesh) const;
 
+		void CalcEdgeStartParams(const TSharedPtr<SNode>& from_c, const TSharedPtr<SNode>& to_c,
+			const TSharedPtr<SNode>& from_n, const TSharedPtr<SNode>& to_n, float length, FVector& out1, FVector& out2);
+
+		using IGraph = IntermediateGraph::IGraph<TSharedPtr<SNode>>;
+		using INode = IntermediateGraph::INode<TSharedPtr<SNode>>;
+		using IEdge = IntermediateGraph::IEdge<TSharedPtr<SNode>>;
+
+		static void OptimizeInitialSetup(IGraph& graph);
+
+		enum class DebugMode {
+			Normal,
+			Skeleton,
+			IntermediateSkeleton
+		};
+
+		DebugMode DM = DebugMode::Normal;
 
 	public:
 		SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source);
@@ -129,14 +147,14 @@ namespace StructuralGraph {
 		// connect "from" to "to" directly with an edge and no regard to geometry...
 		void Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, double D0);
 		// connect "from" to "to" via "Divs" intermediate back-to-back nodes
-		void ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode> from_c,
-			const TSharedPtr<SNode> to_n, TSharedPtr<SNode> to_c,
+		void ConnectAndFillOut(TSharedPtr<SNode> from_c, TSharedPtr<SNode> to_c,
+			const FVector& int1, const FVector& int2, 
 			int divs, int twists,
 			float D0, const TArray<TSharedPtr<Profile::ParameterisedProfile>>& profiles);
 
 		int FindNodeIdx(const TSharedPtr<SNode>& node) const;
 
-		void MakeMesh(TSharedPtr<Mesh> mesh, bool skeleton_only) const;
+		void MakeMesh(TSharedPtr<Mesh> mesh) const;
 
 		TArray<TSharedPtr<SNode>> Nodes;
 		TArray<TSharedPtr<SEdge>> Edges;

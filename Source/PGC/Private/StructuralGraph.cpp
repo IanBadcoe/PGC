@@ -1,6 +1,9 @@
 #include "StructuralGraph.h"
 
 #include "Util.h"
+#include "SetupOptFunction.h"
+
+#include "IntermediateGraph.h"
 
 PRAGMA_DISABLE_OPTIMIZATION
 
@@ -10,6 +13,16 @@ using namespace Profile;
 SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source)
 	: _ProfileSource(profile_source)
 {
+	// just a collection of the data we need to pass to and from the IGraph before we build our own full connections
+	struct ConnCurve {
+		TSharedPtr<SNode> FromConn;
+		TSharedPtr<SNode> ToConn;
+		TSharedPtr<INode> Intermediate1Node;
+		TSharedPtr<INode> Intermediate2Node;
+
+		TSharedPtr<LayoutGraph::Edge> Edge;
+	};
+
 	for (const auto& n : input->GetNodes())
 	{
 		auto new_node = MakeShared<SNode>(nullptr, SNode::Type::Junction);
@@ -85,41 +98,185 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_sour
 		}
 	}
 
-	// fill-in out edges
+	// we'll need the radii to copy to the INodes in a moment, so let's compute radii for what we've got...
+	for (auto &n : Nodes)
+	{
+		n->FindRadius();
+	}
+
+	IGraph i_graph;
+
+	// make an IGraph node for every node (Junction and Connector) that we have...
+	for (const auto& n : Nodes)
+	{
+		auto new_junction = MakeShared<INode>(n->Radius, n->Position, n);
+		i_graph.Nodes.Push(new_junction);
+	}
+
+	// add IEdges in the same way
+	for (const auto& e : Edges)
+	{
+		auto from_node_idx = FindNodeIdx(e->FromNode.Pin());
+		auto to_node_idx = FindNodeIdx(e->ToNode.Pin());
+
+		i_graph.Connect(i_graph.Nodes[from_node_idx], i_graph.Nodes[to_node_idx], e->D0);
+	}
+
+	TArray<ConnCurve> IntermediatePoints;
+
+	// for each edge in the input, add a couple of intermediate points to the IGraph
+	// and connect them with the desired edge lengths
+
+	// this is really hard to understand, because in input edges and connectors are different classes on the
+	// node, but here, and in IGraph, connectors are nodes in their own right (and attached to the original nodes
+	// ("junctions") by more edges) so what we are doing is
+	// for each node in the input
+	//   for each connector on that node
+	//     if it has an edge attached
+	//       find the corresponding four nodes (from, from-connector, to, to-connector) in this object
+	//       (that we made just above)
+	//       then from their indices find the corresponding nodes in the IGraph
+	//       then add two extra nodes to the IGraph (representing corners in the edge)
+	//       and connect from-connector -> int1 -> int2 -> to-connector
+	//       setting the lengths to 1/3 of the total desired length on each
+	//
+	//       and store some meta-data about what we did in IntermediatePoints, so we know how to read the intermediate positions back
+	//       after optimization
+
 	for (int i = 0; i < input->GetNodes().Num(); i++)
 	{
 		// the start of Nodes correspond to the nodes in input
-		auto here_node = Nodes[i];
-		auto n = input->GetNodes()[i];
+		auto here_from_node = Nodes[i];
+		auto input_node = input->GetNodes()[i];
 
-		for (int j = 0; j < n->Edges.Num(); j++)
+		for (int from_conn_idx = 0; from_conn_idx < input_node->Edges.Num(); from_conn_idx++)
 		{
-			auto edge = n->Edges[j].Pin();
+			auto input_edge = input_node->Edges[from_conn_idx].Pin();
 
-			if (edge.IsValid() && edge->FromNode == n)
+			if (input_edge.IsValid())
 			{
-				auto to_node = edge->ToNode.Pin();
-				auto to_idx = input->FindNodeIdx(to_node);
+				if (input_edge->FromNode == input_node)
+				{
+					auto input_from_node = input_edge->FromNode.Pin();
 
-				auto to_conn_idx = to_node->FindConnectorIdx(edge->ToConnector.Pin());
+					auto input_to_node = input_edge->ToNode.Pin();
+					auto to_node_idx = input->FindNodeIdx(input_to_node);
+					auto from_node_idx = input->FindNodeIdx(input_from_node);
 
-				// loop-back edges should only be considered in one direction
-				if (edge->ToNode == edge->FromNode && to_conn_idx == j)
-					continue;
+					auto to_conn_idx = input_to_node->FindConnectorIdx(input_edge->ToConnector.Pin());
 
-				auto here_edge = here_node->Edges[j].Pin();
-				auto here_conn_node = here_edge->ToNode.Pin();
+					// loop-back edges should only be considered in one direction
+					if (input_edge->ToNode == input_edge->FromNode && to_conn_idx == from_conn_idx)
+						continue;
 
-				auto here_to_node = Nodes[to_idx];
-				auto here_to_conn_node = here_to_node->Edges[to_conn_idx].Pin()->ToNode.Pin();
+					auto here_from_conn_node = here_from_node->Edges[from_conn_idx].Pin()->ToNode.Pin();
 
-				auto profiles = _ProfileSource->GetCompatibleProfileSequence(here_conn_node->Profile, here_to_conn_node->Profile,
-					edge->Divs);
+					auto here_to_node = Nodes[to_node_idx];
+					auto here_to_conn_node = here_to_node->Edges[to_conn_idx].Pin()->ToNode.Pin();
 
-				ConnectAndFillOut(here_node, here_conn_node, here_to_node, here_to_conn_node,
-					edge->Divs, edge->Twists,
-					input->SegLength, profiles);
+					auto here_to_conn_idx = FindNodeIdx(here_to_conn_node);
+					auto here_from_conn_idx = FindNodeIdx(here_from_conn_node);
+
+					FVector int1, int2;
+
+					CalcEdgeStartParams(here_from_conn_node, here_to_conn_node, here_from_node, here_to_node,
+						input_edge->Divs * input->SegLength, int1, int2);
+
+					IntermediatePoints.Push(ConnCurve{});
+					auto& cc = IntermediatePoints.Last();
+
+					cc.FromConn = here_from_conn_node;
+					cc.ToConn = here_to_conn_node;
+
+					cc.Edge = input_edge;
+
+					auto new_int1 = MakeShared<INode>(here_from_node->Radius, int1, TSharedPtr<SNode>());
+					i_graph.Nodes.Push(new_int1);
+					cc.Intermediate1Node = new_int1;
+
+					auto new_int2 = MakeShared<INode>(here_to_node->Radius, int2, TSharedPtr<SNode>());
+					i_graph.Nodes.Push(new_int2);
+					cc.Intermediate2Node = new_int2;
+
+					auto length = cc.Edge->Divs * input->SegLength;
+
+					i_graph.Connect(i_graph.Nodes[here_from_conn_idx], new_int1, length / 3);
+					i_graph.Connect(new_int1, new_int2, length / 3);
+					i_graph.Connect(new_int2, i_graph.Nodes[here_to_conn_idx], length / 3);
+				}
 			}
+		}
+	}
+
+	OptimizeInitialSetup(i_graph);
+
+	// copy node positions back from IGraph to us
+	for (const auto& n : i_graph.Nodes)
+	{
+		if (n->Reference.IsValid())
+		{
+			n->Reference->Position = n->Position;
+
+			// refresh the up-vector on junctions for how it may have rotated
+			if (n->Reference->MyType == StructuralGraph::SNode::Type::Junction) {
+				TArray<FVector> rel_verts;
+
+				for (const auto& e : n->Edges)
+				{
+					// makes no difference to the normal making verts relative (except maybe improving precision)
+					// and we need them relative for the angles
+					rel_verts.Emplace(e.Pin()->OtherNode(n).Pin()->Position - n->Position);
+				}
+
+				n->Reference->CachedUp = Util::NewellPolyNormal(rel_verts);
+
+				// and set its connectors the same way up
+				for (const auto& e : n->Reference->Edges)
+				{
+					e.Pin()->OtherNode(n->Reference).Pin()->CachedUp = n->Reference->CachedUp;
+				}
+			}
+		}
+	}
+
+	// fill-out our connections using the intermediate points from the IGraph
+	for (const auto& conn : IntermediatePoints)
+	{
+		auto from_c = conn.FromConn;
+		auto to_c = conn.ToConn;
+
+		auto profiles = _ProfileSource->GetCompatibleProfileSequence(from_c->Profile, to_c->Profile,
+			conn.Edge->Divs);
+
+		auto int_pos1 = conn.Intermediate1Node->Position;
+		auto int_pos2 = conn.Intermediate2Node->Position;
+
+		if (DM != DebugMode::IntermediateSkeleton)
+		{
+			ConnectAndFillOut(from_c, to_c, int_pos1, int_pos2,
+				conn.Edge->Divs, conn.Edge->Twists,
+				input->SegLength, profiles);
+		}
+		else
+		{
+			auto int1n = MakeShared<SNode>(profiles[0], SNode::Type::Connection);
+			int1n->Position = int_pos1;
+			int1n->CachedUp = from_c->CachedUp;
+			int1n->Forward = (int_pos2 - int_pos1).GetSafeNormal();
+			Nodes.Push(int1n);
+
+			auto length = conn.Edge->Divs * input->SegLength;
+
+			Connect(from_c, int1n, length / 3);
+
+			auto int2n = MakeShared<SNode>(profiles[0], SNode::Type::Connection);
+			int2n->Position = int_pos2;
+			int2n->CachedUp = to_c->CachedUp;
+			int2n->Forward = (to_c->Position - int_pos2).GetSafeNormal();
+			Nodes.Push(int2n);
+
+			Connect(int1n, int2n, length / 3);
+			Connect(int2n, to_c, length / 3);
 		}
 	}
 
@@ -462,61 +619,22 @@ void SGraph::Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, dou
 	n2->Edges.Add(Edges.Last());
 }
 
-//// calculate the distance to the intersection with a plane along a line
-//// return false if there is no intersection of it the  convergence is small enough than
-//// numerical precision might be a problem
-//static bool dist_to_plane(const FVector& line_start, const FVector& line_dir, const FVector& plane_point, const FVector& plane_normal, float& out)
-//{
-//	auto normals_ratio = FVector::DotProduct(line_dir, plane_normal);
-//
-//	// quite a loose tolerance but I'm only interested in broadly close collisions at the moment
-//	if (FMath::Abs(normals_ratio) < 1.0E-6f)
-//	{
-//		return false;
-//	}
-//
-//	auto rel_pos = line_start - plane_point;
-//
-//	// project vector between the two points onto the plane normal
-//
-//	auto proj = FVector::DotProduct(rel_pos, plane_normal);
-//
-//	// the distance along the line is longer than this in the ratio of normals_ratio
-//
-//	auto line_dist = proj / normals_ratio;
-//
-//	out = line_dist;
-//
-//	return true;
-//}
-
-void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode> from_c, const TSharedPtr<SNode> to_n, TSharedPtr<SNode> to_c,
-	int divs, int twists, 
-	float D0, const TArray<TSharedPtr<ParameterisedProfile>>& profiles)
+void SGraph::CalcEdgeStartParams(const TSharedPtr<SNode>& from_c, const TSharedPtr<SNode>& to_c,
+	const TSharedPtr<SNode>& from_n, const TSharedPtr<SNode>& to_n, float length,
+	FVector& out1, FVector& out2)
 {
-	// profiles.Num() is generally less than divs since we need lots of divs to give us a smooth curve but the profile does not change
-	// that often...
-
-	// in order to divide an edge once we need three "frames"
-	// the start node
-	// the division
-	// the end node
-	// adding one to give us an interpolation range of 0 -> divs + 1
-	// which for one div means start @ 0, div @ 1, end @ 2 etc
-	divs += 1;
-
-	const auto from_pos = from_c->Position;
-	const auto to_pos = to_c->Position;
+	const auto& from_pos = from_n->Position;
+	const auto& to_pos = to_n->Position;
 
 	auto dist = FVector::Distance(from_pos, to_pos);
 
 	// if the end points are further apart than our nominal length
-	// take the actual distance as the working length so as to get suitable curvy curves
+	// take the actual distance as the working length so as to get suitably curvy curves
 	// otherwise use the nominal length so as not to build something sillily compressed
-	auto working_length = FMath::Max(D0 * divs, dist);
+	auto working_length = FMath::Max(length, dist);
 
-	auto from_forward = from_pos - from_n->Position;
-	auto to_forward = to_pos - to_n->Position;
+	auto from_forward = from_c->Position - from_pos;
+	auto to_forward = to_c->Position - to_pos;
 
 	from_forward.Normalize();
 	to_forward.Normalize();
@@ -549,6 +667,40 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 		intermediate2 = to_pos + to_forward * working_length / 2;
 	}
 
+	out1 = intermediate1;
+	out2 = intermediate2;
+}
+
+void StructuralGraph::SGraph::OptimizeInitialSetup(IGraph& i_graph)
+{
+	auto SOF = MakeShared<SetupOptFunction>(i_graph,
+		1.0, 1.0, 1.0, 1.0, 1.0);
+
+	NlOptWrapper opt(SOF);
+
+	opt.RunOptimization(true, 100);
+}
+
+
+void SGraph::ConnectAndFillOut(TSharedPtr<SNode> from_c, TSharedPtr<SNode> to_c,
+	const FVector& int1, const FVector& int2, 
+	int divs, int twists, 
+	float D0, const TArray<TSharedPtr<ParameterisedProfile>>& profiles)
+{
+	// profiles.Num() is generally less than divs since we need lots of divs to give us a smooth curve but the profile does not change
+	// that often...
+
+	// in order to divide an edge once we need three "frames"
+	// the start node
+	// the division
+	// the end node
+	// adding one to give us an interpolation range of 0 -> divs + 1
+	// which for one div means start @ 0, div @ 1, end @ 2 etc
+	divs += 1;
+
+	const auto from_pos = from_c->Position;
+	const auto to_pos = to_c->Position;
+
 	// we haven't started using "Rotation" yet...
 	const auto from_up = from_c->CachedUp;
 	const auto to_up = to_c->CachedUp;
@@ -569,9 +721,9 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 	for (auto i = 0; i <= divs; i++) {
 		float t = (float)i / divs;
 
-		FVector pos = SplineUtil::CubicBezier(t, from_pos, intermediate1, intermediate2, to_pos);
+		FVector pos = SplineUtil::CubicBezier(t, from_pos, int1, int2, to_pos);
 
-		FVector forward = SplineUtil::CubicBezierTangent(t, from_pos, intermediate1, intermediate2, to_pos);
+		FVector forward = SplineUtil::CubicBezierTangent(t, from_pos, int1, int2, to_pos);
 
 		forward.Normalize();
 
@@ -586,7 +738,7 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 		frames.Add({pos, current_up, forward });
 	}
 
-	auto angle_mismatch = Util::SignedAngle(to_up, frames.Last().up, frames.Last().forward);
+	auto angle_mismatch = Util::SignedAngle(to_up, frames.Last().up, frames.Last().forward, false);
 
 	angle_mismatch += twists * PI;
 
@@ -596,7 +748,7 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 
 		auto angle_correct = t * -angle_mismatch;
 
-		FVector forward = SplineUtil::CubicBezierTangent(t, from_pos, intermediate1, intermediate2, to_pos);
+		FVector forward = SplineUtil::CubicBezierTangent(t, from_pos, int1, int2, to_pos);
 
 		forward.Normalize();
 
@@ -606,20 +758,19 @@ void SGraph::ConnectAndFillOut(const TSharedPtr<SNode> from_n, TSharedPtr<SNode>
 		check(FMath::Abs(FVector::DotProduct(frames[i].forward, frames[i].up)) < 1e-4f);
 	}
 
-	auto check_up = frames.Last().up;
-
-	auto angle_check = FVector::DotProduct(frames.Last().up, to_up);
+	auto angle_check = Util::SignedAngle(to_up, frames.Last().up, frames.Last().forward, false);
 
 	bool rolling = (twists & 1) != 0;
 
 	// we expect to come out either 100% up or 100% down, according to whether we have an odd number of half-twists or not
+	// 5 degrees is quite tolerant but it shouldn't matter too much
 	if (rolling)
 	{
-		check(angle_check < -0.99f);
+		check(FMath::Abs(angle_check) > 175.0f / 180.0f * PI);
 	}
 	else
 	{
-		check(angle_check > 0.99f);
+		check(FMath::Abs(angle_check) < 5.0f / 180.0f * PI);
 	}
 
 	auto curr_node = from_c;
@@ -667,13 +818,13 @@ int SGraph::FindNodeIdx(const TSharedPtr<SNode>& node) const
 	return -1;
 }
 
-void SGraph::MakeMesh(TSharedPtr<Mesh> mesh, bool skeleton_only) const
+void SGraph::MakeMesh(TSharedPtr<Mesh> mesh) const
 {
 	mesh->Clear();
 
 	RefreshTransforms();
 
-	if (skeleton_only)
+	if (DM != DebugMode::Normal)
 	{
 		MakeMeshSkeleton(mesh);
 	}
@@ -761,10 +912,8 @@ inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) const {
 		OrdCon oc;
 		oc.ConNode = Edges[i].Pin()->OtherNode(this).Pin();
 		oc.Axis = (oc.ConNode->Position - Position).GetSafeNormal();
-		oc.Angle = Util::SignedAngle(oc.Axis, connectors[0].Axis, CachedUp);
+		oc.Angle = Util::SignedAngle(oc.Axis, connectors[0].Axis, CachedUp, true);
 		oc.Flipped = FVector::DotProduct(oc.ConNode->Forward, oc.Axis) < 0;
-
-		if (oc.Angle < 0) oc.Angle += PI * 2;
 
 		bool found = false;
 
@@ -1273,12 +1422,14 @@ void SNode::CalcRotation()
 
 	check(FMath::Abs(plane_check) < 1e-4f);
 
-	Rotation = Util::SignedAngle(here_up_ref, CachedUp, Forward);
+	Rotation = Util::SignedAngle(here_up_ref, CachedUp, Forward, false);
 
 	FVector keep = CachedUp;
 	ApplyRotation();
 	check(FMath::Abs(FVector::DotProduct(CachedUp, Forward)) < 1e-4f);
-	check((keep - CachedUp).Size() < 1e-1f);
+// this was checking that our up didn't move just as a result of calculating Rotation, however
+// now we've also moved Forward since CachedUp was calculated
+//	check((keep - CachedUp).Size() < 1e-1f);
 }
 
 void SNode::ApplyRotation()
@@ -1339,4 +1490,6 @@ const FVector SNode::ProjectParentUp() const
 	return proj_up.GetSafeNormal();
 }
 
+
 PRAGMA_ENABLE_OPTIMIZATION
+
