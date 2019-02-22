@@ -14,7 +14,7 @@ NlOptWrapper::~NlOptWrapper()
 {
 }
 
-bool NlOptWrapper::RunOptimization(bool use_limits, int loggingFreq)
+bool NlOptWrapper::RunOptimization(bool use_limits, int loggingFreq, double precision, double* out_energy)
 {
 	LoggingFreq = loggingFreq;
 	First = true;
@@ -49,35 +49,32 @@ bool NlOptWrapper::RunOptimization(bool use_limits, int loggingFreq)
 	// conclusion: SubPlex is best, but if I could do a simpler optimisation on the starting config first it might work
 	// more reliably/faster (Done now: see SetupOptFunction)
 
-	auto ret = RunOptimization(NLOPT_LN_SBPLX, 1000000, use_limits);
+	auto ret = RunOptimization(NLOPT_LN_SBPLX, 1000000, use_limits, precision, out_energy);
 
-	if (ret)
+	if (loggingFreq != -1)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("-------------------------------------"));
-		UE_LOG(LogTemp, Warning, TEXT("Converged"));
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("-------------------------------------"));
-		UE_LOG(LogTemp, Warning, TEXT("Not Converged"));
-	}
+		if (ret)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("-------------------------------------"));
+			UE_LOG(LogTemp, Warning, TEXT("Converged"));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("-------------------------------------"));
+			UE_LOG(LogTemp, Warning, TEXT("Not Converged"));
+		}
 
-	Log("(final)");
+		Log("(final)");
+	}
 
 	timeUtc = FDateTime::UtcNow();
 	int64 end = timeUtc.ToUnixTimestamp() * 1000 + timeUtc.GetMillisecond();
 
-	UE_LOG(LogTemp, Warning, TEXT("Time elapsed: %ldms"), end - start);
-	UE_LOG(LogTemp, Warning, TEXT("-------------------------------------"));
-
-	//if (RunOptimization(NLOPT_LN_SBPLX, 10000))
-	//{
-	//	return true;
-	//}
-
-	//UE_LOG(LogTemp, Warning, TEXT("Simplex Completed"));
-
-	//return RunOptimization(NLOPT_LD_SLSQP, 10000);
+	if (loggingFreq != -1)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Time elapsed: %ldms"), end - start);
+		UE_LOG(LogTemp, Warning, TEXT("-------------------------------------"));
+	}
 
 	return ret;
 }
@@ -104,8 +101,14 @@ double NlOptWrapper::f_callback_inner(unsigned n, const double * x, double * gra
 		BestEnergyComponents = NlIface->GetLastEnergyTerms();
 	}
 
+	if (LoggingFreq == -1)
+	{
+		First = false;
+		return ret;
+	}
+
 	// don't log too often as it really slows us down...
-	if (First || now - last_update > LoggingFreq)
+	if (First || now - last_update >= LoggingFreq)
 	{
 		Log(First ? "(initial)" : "");
 
@@ -116,11 +119,12 @@ double NlOptWrapper::f_callback_inner(unsigned n, const double * x, double * gra
 	return ret;
 }
 
-bool NlOptWrapper::RunOptimization(nlopt_algorithm alg, int steps, bool use_limits)
+bool NlOptWrapper::RunOptimization(nlopt_algorithm alg, int steps, bool use_limits, double precision, double* out_energy)
 {
 	nlopt_opt NlOpt = nlopt_create(alg, NlIface->GetSize());
 	nlopt_set_min_objective(NlOpt, &f_callback, this);
-	nlopt_set_ftol_rel(NlOpt, 1.0E-6);
+	nlopt_set_ftol_rel(NlOpt, precision);
+	nlopt_set_ftol_abs(NlOpt, precision);
 	nlopt_set_maxeval(NlOpt, steps);
 
 	TArray<double> initial_step;
@@ -146,7 +150,7 @@ bool NlOptWrapper::RunOptimization(nlopt_algorithm alg, int steps, bool use_limi
 
 	double val = 0.0;
 
-	auto res = nlopt_optimize(NlOpt, state.GetData(), &val);
+	auto res = nlopt_optimize(NlOpt, state.GetData(), out_energy ? out_energy : &val);
 
 	NlIface->SetState(state.GetData(), NlIface->GetSize());
 

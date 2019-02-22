@@ -128,7 +128,7 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_sour
 	}
 
 	// fill-out our connections using the intermediate points from the IGraph
-	for (const auto& conn : i_graph->IntermediatePoints)
+	for (const auto& conn : i_graph->GraphMD.IntermediatePoints)
 	{
 		auto from_c = conn.FromConn;
 		auto to_c = conn.ToConn;
@@ -139,7 +139,7 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_sour
 		auto int_pos1 = conn.Intermediate1Node->Position;
 		auto int_pos2 = conn.Intermediate2Node->Position;
 
-		if (DM != DebugMode::IntermediateSkeleton)
+		if (DM != DebugMode::Skeleton)
 		{
 			ConnectAndFillOut(from_c, to_c, int_pos1, int_pos2,
 				conn.Edge->Divs, conn.Edge->Twists,
@@ -390,8 +390,8 @@ void StructuralGraph::SGraph::MakeMeshSkeleton(TSharedPtr<Mesh> mesh) const
 		{
 			TArray<FVector> poly;
 
-			poly.Add(from_p + orth1 * dist / 10);
-			poly.Add(from_p + orth2 * dist / 10);
+			poly.Add(from_p + orth1);
+			poly.Add(from_p + orth2);
 			poly.Add(to_p);
 
 			Util::AddPolyToMesh(mesh, poly, { PGCEdgeType::Sharp, PGCEdgeType::Sharp, PGCEdgeType::Sharp }, 0);
@@ -400,8 +400,8 @@ void StructuralGraph::SGraph::MakeMeshSkeleton(TSharedPtr<Mesh> mesh) const
 		{
 			TArray<FVector> poly;
 
-			poly.Add(from_p - orth1 * dist / 10);
-			poly.Add(from_p + orth2 * dist / 10);
+			poly.Add(from_p - orth1);
+			poly.Add(from_p + orth2);
 			poly.Add(to_p);
 
 			Util::AddPolyToMeshReversed(mesh, poly, { PGCEdgeType::Sharp, PGCEdgeType::Sharp, PGCEdgeType::Sharp }, 0);
@@ -410,8 +410,8 @@ void StructuralGraph::SGraph::MakeMeshSkeleton(TSharedPtr<Mesh> mesh) const
 		{
 			TArray<FVector> poly;
 
-			poly.Add(from_p + orth1 * dist / 10);
-			poly.Add(from_p - orth2 * dist / 10);
+			poly.Add(from_p + orth1);
+			poly.Add(from_p - orth2);
 			poly.Add(to_p);
 
 			Util::AddPolyToMeshReversed(mesh, poly, { PGCEdgeType::Sharp, PGCEdgeType::Sharp, PGCEdgeType::Sharp }, 0);
@@ -420,8 +420,8 @@ void StructuralGraph::SGraph::MakeMeshSkeleton(TSharedPtr<Mesh> mesh) const
 		{
 			TArray<FVector> poly;
 
-			poly.Add(from_p - orth1 * dist / 10);
-			poly.Add(from_p - orth2 * dist / 10);
+			poly.Add(from_p - orth1);
+			poly.Add(from_p - orth2);
 			poly.Add(to_p);
 
 			Util::AddPolyToMesh(mesh, poly, { PGCEdgeType::Sharp, PGCEdgeType::Sharp, PGCEdgeType::Sharp }, 0);
@@ -430,10 +430,10 @@ void StructuralGraph::SGraph::MakeMeshSkeleton(TSharedPtr<Mesh> mesh) const
 		{
 			TArray<FVector> poly;
 
-			poly.Add(from_p - orth2 * dist / 10);
-			poly.Add(from_p - orth1 * dist / 10);
-			poly.Add(from_p + orth2 * dist / 10);
-			poly.Add(from_p + orth1 * dist / 10);
+			poly.Add(from_p - orth2);
+			poly.Add(from_p - orth1);
+			poly.Add(from_p + orth2);
+			poly.Add(from_p + orth1);
 
 			Util::AddPolyToMesh(mesh, poly, { PGCEdgeType::Sharp, PGCEdgeType::Sharp, PGCEdgeType::Sharp, PGCEdgeType::Sharp }, 0);
 		}
@@ -443,7 +443,7 @@ void StructuralGraph::SGraph::MakeMeshSkeleton(TSharedPtr<Mesh> mesh) const
 	{
 		auto p1 = n->Position;
 		auto p2 = p1 + n->Forward;
-		auto p3 = p1 + n->CachedTransform.GetUnitAxis(EAxis::Z) * 5;
+		auto p3 = p1 + n->CachedTransform.GetUnitAxis(EAxis::Z) * 3;
 		auto p4 = p1 + FVector::CrossProduct(n->Forward, n->CachedUp);
 
 		{
@@ -559,14 +559,18 @@ void SGraph::CalcEdgeStartParams(const TSharedPtr<SNode>& from_c, const TSharedP
 	out2 = intermediate2;
 }
 
-void StructuralGraph::SGraph::OptimizeInitialSetup(TSharedPtr<IGraph> i_graph)
+double StructuralGraph::SGraph::OptimizeIGraph(TSharedPtr<IGraph> i_graph, double precision, bool final)
 {
 	auto SOF = MakeShared<SetupOptFunction>(i_graph,
-		1.0, 1.0, 1.0, 1.0, 1.0);
+		10.0, 100.0, 10.0, 1.0, 1.0);
 
 	NlOptWrapper opt(SOF);
 
-	opt.RunOptimization(true, 1000);
+	double ret;
+
+	opt.RunOptimization(true, final ? 50 : -1, precision, &ret);
+
+	return ret;
 }
 
 
@@ -584,8 +588,8 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 	// add IEdges in the same way
 	for (const auto& e : Edges)
 	{
-		auto from_node_idx = FindNodeIdx(e->FromNode.Pin());
-		auto to_node_idx = FindNodeIdx(e->ToNode.Pin());
+		auto from_node_idx = FindNodeIdx(e->FromNode);
+		auto to_node_idx = FindNodeIdx(e->ToNode);
 
 		i_graph->Connect(i_graph->Nodes[from_node_idx], i_graph->Nodes[to_node_idx], e->D0);
 	}
@@ -648,8 +652,8 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 					CalcEdgeStartParams(here_from_conn_node, here_to_conn_node, here_from_node, here_to_node,
 						input_edge->Divs * input->SegLength, int1, int2);
 
-					i_graph->IntermediatePoints.Push(ConnCurve{});
-					auto& cc = i_graph->IntermediatePoints.Last();
+					i_graph->GraphMD.IntermediatePoints.AddDefaulted(1);
+					auto& cc = i_graph->GraphMD.IntermediatePoints.Last();
 
 					cc.FromConn = here_from_conn_node;
 					cc.ToConn = here_to_conn_node;
@@ -674,9 +678,54 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 		}
 	}
 
-	OptimizeInitialSetup(i_graph);
+	TArray<TSharedPtr<IGraph>> population{ i_graph };
 
-	return i_graph;
+	auto box = i_graph->CalcBoundingBox();
+	
+	FVector c, e;	
+	box.GetCenterAndExtents(c, e);
+
+	auto scale = e.GetAbsMax();
+
+	box = box.ExpandBy(scale / 2);
+
+	for (int i = 0; i < 31; i++)
+	{
+		population.Push(i_graph->Randomize(box));
+	}
+
+	struct GEnergyDiffer {
+		bool operator()(const TSharedPtr<IGraph>& a, const TSharedPtr<IGraph>& b) const
+		{
+			return a->GraphMD.Energy < b->GraphMD.Energy;
+		}
+	};
+
+	for (const auto p : { 0.1, 0.01, 0.001, 0.03, 0.0001 })
+	{
+		for (int i = 0; i < population.Num(); i++)
+		{
+			auto& g = population[i];
+
+			g->GraphMD.Energy = OptimizeIGraph(g, p, false);
+		}
+
+		population.Sort(GEnergyDiffer());
+
+		for (int i = 0; i < population.Num(); i++)
+		{
+			auto& g = population[i];
+
+			UE_LOG(LogTemp, Warning, TEXT("Individual-%i: Energy: %f"), i, g->GraphMD.Energy);
+		}
+
+		// discard the worst half
+		population.RemoveAt(population.Num() / 2, population.Num() / 2);
+	}
+
+	auto energy = OptimizeIGraph(population[0], 0.00001, true);
+
+	return population[0];
 }
 
 void SGraph::ConnectAndFillOut(TSharedPtr<SNode> from_c, TSharedPtr<SNode> to_c,
@@ -802,7 +851,7 @@ void SGraph::ConnectAndFillOut(TSharedPtr<SNode> from_c, TSharedPtr<SNode> to_c,
 	Connect(curr_node, to_c, D0);
 }
 
-int SGraph::FindNodeIdx(const TSharedPtr<SNode>& node) const
+int SGraph::FindNodeIdx(const TWeakPtr<SNode>& node) const
 {
 	for (int i = 0; i < Nodes.Num(); i++)
 	{

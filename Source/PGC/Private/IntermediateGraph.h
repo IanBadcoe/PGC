@@ -9,14 +9,16 @@ namespace IntermediateGraph {
 	template <typename NM>
 	class IEdge {
 	public:
-		TWeakPtr<INode<NM>> FromNode;
-		TWeakPtr<INode<NM>> ToNode;
+		using INode = INode<NM>;
+
+		TWeakPtr<INode> FromNode;
+		TWeakPtr<INode> ToNode;
 
 		const double D0;
 
-		IEdge(TWeakPtr<INode<NM>> fromNode, TWeakPtr<INode<NM>> toNode, double d0);
+		IEdge(TWeakPtr<INode> fromNode, TWeakPtr<INode> toNode, double d0);
 
-		TWeakPtr<INode<NM>> OtherNode(const INode<NM>* n) const
+		TWeakPtr<INode> OtherNode(const INode* n) const
 		{
 			if (FromNode.Pin().Get() == n)
 			{
@@ -27,12 +29,12 @@ namespace IntermediateGraph {
 			return FromNode;
 		}
 
-		TWeakPtr<INode<NM>> OtherNode(const TWeakPtr<INode<NM>>& n) const
+		TWeakPtr<INode> OtherNode(const TWeakPtr<INode>& n) const
 		{
 			return OtherNode(n.Pin().Get());
 		}
 
-		bool Contains(const TWeakPtr<INode<NM>>& e)
+		bool Contains(const TWeakPtr<INode>& e)
 		{
 			return FromNode == e || ToNode == e;
 		}
@@ -41,12 +43,14 @@ namespace IntermediateGraph {
 	template <typename NM>
 	class INode {
 	public:
-		TArray<TWeakPtr<IEdge<NM>>> Edges;
+		using IEdge = IEdge<NM>;
+
+		INode() = default;
+
+		TArray<TWeakPtr<IEdge>> Edges;
 
 		float Radius = 0.0f;
-
 		FVector Position;
-
 		NM Reference;
 
 		INode(float radius, const FVector& pos,
@@ -62,15 +66,27 @@ namespace IntermediateGraph {
 	template <typename NM, typename GM>
 	class IGraph {
 	public:
+		using INode = INode<NM>;
+		using IEdge = IEdge<NM>;
+
 		IGraph();
+		IGraph(const IGraph& rhs);
 
 		// connect "from" to "to" directly with an edge and no regard to geometry...
-		void Connect(const TSharedPtr<INode<NM>> n1, const TSharedPtr<INode<NM>> n2, double D0);
+		void Connect(const TSharedPtr<INode> n1, const TSharedPtr<INode> n2, double D0);
 		// connect "from" to "to" via "Divs" intermediate back-to-back nodes
 		
-		TArray<TSharedPtr<INode<NM>>> Nodes;
-		TArray<TSharedPtr<IEdge<NM>>> Edges;
+		TArray<TSharedPtr<INode>> Nodes;
+		TArray<TSharedPtr<IEdge>> Edges;
 
-		TArray<GM> IntermediatePoints;
+		GM GraphMD;
+
+		// randomizes all node positions within box
+		TSharedPtr<IGraph> Randomize(const FBox& box) const;
+
+		FBox CalcBoundingBox() const;
+
+		int FindNodeIdx(const TWeakPtr<INode>& node) const;
+
 	};
 }

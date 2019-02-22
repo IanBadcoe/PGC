@@ -122,18 +122,6 @@ double OptFunction::UnconnectedNodeNodeDist_Val(const FVector& p1, const FVector
 	return FMath::Pow((dist - D) / D, 2);
 }
 
-//double OptFunction::UnconnectedNodeNodeDist_Grad(const FVector & pGrad, const FVector & pOther, float D0, int axis)
-//{
-//	check(axis >= 0 && axis < 3);
-//
-//	float dist = FVector::Dist(pGrad, pOther);
-//
-//	if (dist >= D0)
-//		return 0.0;
-//
-//	return 2 * (pGrad[axis] - pOther[axis]) * (dist - D0) / dist * 0.01;
-//}
-
 double OptFunction::ConnectedNodeNodeTorsion_Val(const FVector & up1, const FVector & up2, const FVector & p1, const FVector & p2, bool flipped)
 {
 	auto axis = (p2 - p1).GetSafeNormal();
@@ -364,80 +352,12 @@ double OptFunction::f(int n, const double* x, double* grad)
 		}
 	}
 
-//	if (grad)
-//	{
-//		for (int par = 0; par < n; par++)
-//		{
-//			grad[par] = 0;
-//
-//			auto i = ParamToNode(par);
-//			auto axis = ParamToParamInNode(par);
-//			TSharedPtr<SNode> node_i = G->Nodes[i];
-//
-//			for (int j = 0; j < G->Nodes.Num(); j++)
-//			{
-//				if (j != i)
-//				{
-//					auto idxs = JoinIdxs{ i, j };
-//					TSharedPtr<SNode> node_j = G->Nodes[j];
-//
-//					if (axis < 3)
-//					{
-//						// node distances depend only on positions
-//						// the node whose gradient we are calculating always gets passed first into the gradient function
-//						if (Connected.Contains(idxs))
-//						{
-//							{
-//								auto here_grad = ConnectedNodeNodeDist_Grad(node_i->Position, node_j->Position, Connected[idxs].D0, axis);
-//
-//#ifndef UE_BUILD_RELEASE
-//								double diff = here_grad - check_grad(node_i->Position, node_j->Position, axis, 1e-3, Connected[idxs].D0, ConnectedNodeNodeDist_Val);
-//								check(abs(diff) < 1E-2);
-//#endif
-//
-//								grad[par] += here_grad;
-//							}
-//						}
-//						else
-//						{
-//							float radius = node_i->Radius + node_j->Radius;
-//
-//							auto here_grad = UnconnectedNodeNodeDist_Grad(node_i->Position, node_j->Position, radius, axis);
-//
-//#ifndef UE_BUILD_RELEASE
-//							double diff = here_grad - check_grad(node_i->Position, node_j->Position, axis, 1e-3, radius, UnconnectedNodeNodeDist_Val);
-//							check(abs(diff) < 1E-2);
-//#endif
-//
-//							grad[par] += here_grad;
-//						}
-//					}
-//					else
-//					{
-//						// torsions depend only on normals
-//						if (Connected.Contains(idxs))
-//						{
-//							grad[par] = 0;
-//							// we need the raw up for the actual param value of the one we're getting the gradient for...
-////							auto here_grad = ConnectedNodeNodeTorsion_Grad(node_i->Up, node_j->Up, axis - 3);
-////
-////#ifndef UE_BUILD_RELEASE
-////							double check = check_grad(node_i->Up, node_j->Up, axis - 3, 1e-4, ConnectedNodeNodeTorsion_Val);
-////							check(abs(check - here_grad) < 2E-2);
-////#endif
-////
-////							grad[par] += here_grad;
-//						}
-//					}
-//				}
-//			}
-//		}
-//	}
-
 	return ConnectedEnergy
 		+ UnconnectedEnergy
 		+ TorsionEnergy
-		+ BendEnergy;
+		+ BendEnergy
+		* JunctionAngleEnergy
+		+ JunctionPlanarEnergy;
 }
 
 void OptFunction::GetInitialStepSize(double* steps, int n) const
@@ -482,12 +402,12 @@ void OptFunction::SetState(const double* x, int n)
 
 TArray<FString> OptFunction::GetEnergyTermNames() const
 {
-	return TArray<FString> { "Connected", "Unconnected", "Torsion", "Bend" };
+	return TArray<FString> { "Connected", "Unconnected", "Torsion", "Bend", "Junction Angles", "Junction Planar" };
 }
 
 TArray<double> OptFunction::GetLastEnergyTerms() const
 {
-	return TArray<double> { ConnectedEnergy, UnconnectedEnergy, TorsionEnergy, BendEnergy };
+	return TArray<double> { ConnectedEnergy, UnconnectedEnergy, TorsionEnergy, BendEnergy, JunctionAngleEnergy, JunctionPlanarEnergy };
 }
 
 void Opt::OptFunction::GetLimits(double* lower, double* upper, int n) const

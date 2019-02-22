@@ -18,16 +18,22 @@ namespace StructuralGraph {
 	using INode = IntermediateGraph::INode<TSharedPtr<SNode>>;
 	using IEdge = IntermediateGraph::IEdge<TSharedPtr<SNode>>;
 
-	// a collection of data we need to pass to and from the IGraph before we build our own full connections
-	struct ConnCurve {
-		TSharedPtr<SNode> FromConn;
-		TSharedPtr<SNode> ToConn;
-		TSharedPtr<INode> Intermediate1Node;
-		TSharedPtr<INode> Intermediate2Node;
+	struct IGraphMetaData
+	{
+		// a collection of data we need to pass to and from the IGraph before we build our own full connections
+		struct ConnCurve {
+			TSharedPtr<SNode> FromConn;
+			TSharedPtr<SNode> ToConn;
+			TSharedPtr<INode> Intermediate1Node;
+			TSharedPtr<INode> Intermediate2Node;
 
-		TSharedPtr<LayoutGraph::Edge> Edge;
+			TSharedPtr<LayoutGraph::Edge> Edge;
+		};
+
+		TArray<ConnCurve> IntermediatePoints;
+		double Energy;
 	};
-	using IGraph = IntermediateGraph::IGraph<TSharedPtr<SNode>, ConnCurve>;
+	using IGraph = IntermediateGraph::IGraph<TSharedPtr<SNode>, IGraphMetaData>;
 
 	class SEdge {
 	public:
@@ -141,7 +147,7 @@ namespace StructuralGraph {
 		void CalcEdgeStartParams(const TSharedPtr<SNode>& from_c, const TSharedPtr<SNode>& to_c,
 			const TSharedPtr<SNode>& from_n, const TSharedPtr<SNode>& to_n, float length, FVector& out1, FVector& out2);
 
-		static void OptimizeInitialSetup(TSharedPtr<IGraph> graph);
+		static double OptimizeIGraph(TSharedPtr<IGraph> graph, double precision, bool final);
 
 		enum class DebugMode {
 			Normal,
@@ -149,7 +155,7 @@ namespace StructuralGraph {
 			IntermediateSkeleton
 		};
 
-		DebugMode DM = DebugMode::Normal;
+		DebugMode DM = DebugMode::IntermediateSkeleton;
 
 	public:
 		SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source);
@@ -164,7 +170,7 @@ namespace StructuralGraph {
 			int divs, int twists,
 			float D0, const TArray<TSharedPtr<Profile::ParameterisedProfile>>& profiles);
 
-		int FindNodeIdx(const TSharedPtr<SNode>& node) const;
+		int FindNodeIdx(const TWeakPtr<SNode>& node) const;
 
 		void MakeMesh(TSharedPtr<Mesh> mesh) const;
 

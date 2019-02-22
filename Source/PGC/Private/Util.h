@@ -344,7 +344,8 @@ inline ParamPair FindSegSegClosestPointParamsSlow(const GVector& P0, const GVect
 
 	NlOptWrapper nlow(of);
 
-	nlow.RunOptimization(true, -1);
+	// need extra precision for this to work...
+	nlow.RunOptimization(true, -1, 1e-9, nullptr);
 
 	return { (float)of->s, (float)of->t };
 }

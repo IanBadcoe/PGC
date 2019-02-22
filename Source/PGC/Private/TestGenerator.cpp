@@ -119,7 +119,7 @@ void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh, TArray<FPGCNodePosition>& N
 	//OptimizerInterface->GetState(state.GetData(), sz);
 	//OptimizerInterface->SetState(state.GetData(), sz);
 
-	Optimizer->RunOptimization(true, 1000);
+	Optimizer->RunOptimization(true, 1000, 1e-3, nullptr);
 
 	StructuralGraph->MakeMesh(mesh);
 

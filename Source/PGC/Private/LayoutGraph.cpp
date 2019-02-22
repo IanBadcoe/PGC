@@ -39,7 +39,7 @@ void Graph::Connect(int nodeFrom, int nodeFromConnector, int nodeTo, int nodeToC
 	edge->Twists = twists;
 }
 
-int Graph::FindNodeIdx(const TSharedPtr<Node>& node) const
+int Graph::FindNodeIdx(const TWeakPtr<Node>& node) const
 {
 	for (int i = 0; i < Nodes.Num(); i++)
 	{

@@ -97,7 +97,7 @@ public:
 	//	int divs = 10, int twists = 0,
 	//	const TArray<TSharedPtr<ParameterisedProfile>>& profiles = TArray<TSharedPtr<ParameterisedProfile>>());
 
-	int FindNodeIdx(const TSharedPtr<Node>& node) const;
+	int FindNodeIdx(const TWeakPtr<Node>& node) const;
 
 	const TArray<TSharedPtr<Node>>& GetNodes() const { return Nodes; }
 	const TArray<TSharedPtr<Edge>>& GetEdges() const { return Edges; }

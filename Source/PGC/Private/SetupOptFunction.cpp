@@ -217,7 +217,7 @@ void SetupOptFunction::GetInitialStepSize(double * steps, int n) const
 
 	for (int i = 0; i < n; i++)
 	{
-		steps[i] = 0.1f;
+		steps[i] = 10.0;
 	}
 }
 
