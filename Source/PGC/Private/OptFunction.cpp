@@ -155,11 +155,6 @@ double OptFunction::ConnectedNodeNodeTorsion_Val(const FVector & up1, const FVec
 	return FMath::Pow(angle / PI, 2);
 }
 
-//double OptFunction::ConnectedNodeNodeTorsion_Grad(const FVector & upGrad, const FVector & upOther, const FVector & pGrad, const FVector & pOther, bool flipped, int axis)
-//{
-//	return 0.0;
-//}
-
 double OptFunction::ConnectedNodeNodeDist_Val(const FVector& p1, const FVector& p2, float D0)
 {
 	float dist = FVector::Dist(p1, p2);
@@ -183,17 +178,90 @@ double Opt::OptFunction::ConnectedNodeNodeBend_Val(const FVector& prev_pos, cons
 	return FMath::Pow(angle / PI, 2);
 }
 
-//double OptFunction::ConnectedNodeNodeDist_Grad(const FVector& pGrad, const FVector& pOther, float D0, int axis)
-//{
-//	check(axis >= 0 && axis < 3);
-//		
-//	float dist = FVector::Dist(pGrad, pOther);
-//	
-//	return 2 * (pGrad[axis] - pOther[axis]) * (dist - D0) / dist;
-//}
+double OptFunction::JunctionAngle_Energy(const TSharedPtr<SNode> node)
+{
+	// the normal calculation cannot work for less than a triangle
+	// if we ever get genuine 2-edge junctions, then we can add an alternative form of this that just uses the angle between
+	// them (and this is zero for 0 or 1 edges)
+	check(node->Edges.Num() > 2);
 
-OptFunction::OptFunction(TSharedPtr<SGraph> g, double connected_scale, double unconnected_scale, double torsion_scale, double bend_scale)
-	: G(g), ConnectedScale(connected_scale), UnconnectedScale(unconnected_scale), TorsionScale(torsion_scale), BendScale(bend_scale)
+	TArray<FVector> rel_verts;
+
+	for (const auto& e : node->Edges)
+	{
+		// makes no difference to the normal making verts relative (except maybe improving precision)
+		// and we need them relative for the angles
+		rel_verts.Emplace(e.Pin()->OtherNode(node).Pin()->Position - node->Position);
+	}
+
+	FVector plane_normal = Util::NewellPolyNormal(rel_verts);
+
+	TArray<float> angles;
+
+	angles.Emplace(0);
+
+	for (int i = 1; i < rel_verts.Num(); i++)
+	{
+		angles.Emplace(Util::SignedAngle(rel_verts[0], rel_verts[i], plane_normal, true));
+	}
+
+	angles.Sort();
+
+	angles.Emplace(2 * PI);
+
+	for (int i = angles.Num() - 1; i > 0; i--)
+	{
+		angles[i] = angles[i] - angles[i - 1];
+
+		check(angles[i] >= 0);
+		check(angles[i] <= 2 * PI);
+	}
+
+	angles.RemoveAt(0);
+
+	auto target = 2 * PI / angles.Num();
+
+	float ret = 0.0f;
+
+	for (const auto& ang : angles)
+	{
+		ret += FMath::Pow((ang - target) / target, 2);
+	}
+
+	return ret;
+}
+
+double OptFunction::JunctionPlanar_Energy(const TSharedPtr<SNode> node)
+{
+	check(node->MyType == StructuralGraph::SNode::Type::Junction);
+
+	TArray<FVector> rel_verts;
+
+	for (const auto& e : node->Edges)
+	{
+		// makes no difference to the normal making verts relative (except maybe improving precision)
+		// and we need them relative for the angles
+		rel_verts.Emplace(e.Pin()->OtherNode(node).Pin()->Position - node->Position);
+	}
+
+	FVector plane_normal = Util::NewellPolyNormal(rel_verts);
+
+	float ret{ 0 };
+
+	for (const auto& v : rel_verts)
+	{
+		ret += FMath::Pow(FVector::DotProduct(v, plane_normal), 2);
+	}
+
+	return ret;
+}
+
+OptFunction::OptFunction(TSharedPtr<SGraph> g,
+	double connected_scale, double unconnected_scale, double torsion_scale,
+	double bend_scale, double jangle_scale, double jplanar_scale)
+	: G(g),
+	  ConnectedScale(connected_scale), UnconnectedScale(unconnected_scale), TorsionScale(torsion_scale),
+	  BendScale(bend_scale), JunctionAngleScale(jangle_scale), JunctionPlanarScale(jplanar_scale)
 {
 	for (const auto& n : G->Nodes)
 	{
@@ -250,6 +318,8 @@ double OptFunction::f(int n, const double* x, double* grad)
 	UnconnectedEnergy = 0;
 	TorsionEnergy = 0;
 	BendEnergy = 0;
+	JunctionAngleEnergy = 0;
+	JunctionPlanarEnergy = 0;
 
 	SetState(x, n);
 
@@ -276,8 +346,13 @@ double OptFunction::f(int n, const double* x, double* grad)
 		}
 
 		// Junctions attach their connectors at all angles, so this could be counterproductive for them
-		if (node_a->MyType != SNode::Type::Junction &&
-			node_a->Edges.Num() == 2)
+		if (node_a->MyType == SNode::Type::Junction)
+		{
+			JunctionAngleEnergy += JunctionAngle_Energy(node_a) * JunctionAngleScale;
+
+			JunctionPlanarEnergy += JunctionPlanar_Energy(node_a) * JunctionPlanarScale;
+		}
+		else if (node_a->Edges.Num() == 2)
 		{
 			const auto& pos = node_a->Position;
 			const auto& pos_other1 = node_a->Edges[0].Pin()->OtherNode(node_a).Pin()->Position;

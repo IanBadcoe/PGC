@@ -23,9 +23,9 @@ class SetupOptFunction : public NlOptIface {
 	double EdgeEdgeEnergy = 0;
 
 	static double EdgeLength_Energy(const FVector& p1, const FVector& p2, double D0);
-	static double NodeAngle_Energy(const TSharedPtr<INode> node);
+	static double JunctionAngle_Energy(const TSharedPtr<INode> node);
 	static double EdgeAngle_Energy(const TSharedPtr<INode> node);
-	static double NodePlanar_Energy(const TSharedPtr<INode> node);
+	static double JunctionPlanar_Energy(const TSharedPtr<INode> node);
 	static double EdgeEdge_Energy(const TSharedPtr<IEdge> e1, const TSharedPtr<IEdge> e2);
 
 	struct EdgePair {

@@ -89,7 +89,7 @@ void ATestGenerator::EnsureOptimizer()
 	{
 		check(!OptimizerInterface.IsValid());
 
-		OptimizerInterface = MakeShared<Opt::OptFunction>(StructuralGraph, 1.0, 1.0, 100.0, 10.0);
+		OptimizerInterface = MakeShared<Opt::OptFunction>(StructuralGraph, 1.0, 1.0, 100.0, 100.0, 10.0, 10.0);
 
 		Optimizer = MakeShared<NlOptWrapper>(OptimizerInterface);
 	}
@@ -109,7 +109,7 @@ void ATestGenerator::Tick(float DeltaTime)
 	// ...
 }
 
-void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh)
+void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh, TArray<FPGCNodePosition>& Nodes)
 {
 	EnsureGraphs();
 
@@ -124,18 +124,11 @@ void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh)
 	Optimizer->RunOptimization(true, 1000);
 
 	StructuralGraph->MakeMesh(mesh);
-}
 
-bool ATestGenerator::NeedsRefinement()
-{
-	return true;
-}
-
-void ATestGenerator::Refine()
-{
-	//EnsureOptimizer();
-
-	//Optimizer->RunOptimization();
+	for (const auto& n : StructuralGraph->Nodes)
+	{
+		Nodes.Emplace(n->Position, n->CachedUp);
+	}
 }
 
 TSharedPtr<ParameterisedProfile> TestProfileSource::GetProfile() const
@@ -222,13 +215,16 @@ void TestGraph::Generate()
 {
 	// NODE ROTATIONS ARE IN THE ORDER X, Y, Z and DEGREES
 	Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 0 }, FVector{ 0, 0, 0 }));
-//	Nodes.Add(MakeShared<YJunction>(FVector{ 30, 0, 0 }, FVector{ 0, 0, 180 }));
+	Nodes.Add(MakeShared<YJunction>(FVector{ 30, 0, 0 }, FVector{ 0, 0, 180 }));
 	Nodes.Add(MakeShared<YJunction>(FVector{ -10, 20, 0 }, FVector{ 0, 0, 180 }));
-//	Nodes.Add(MakeShared<YJunction>(FVector{ -10, -20, 0 }, FVector{ 0, 0, 180 }));
+	Nodes.Add(MakeShared<YJunction>(FVector{ -10, -20, 0 }, FVector{ 0, 0, 180 }));
 
-	Connect(0, 0, 1, 0, 20, 0);
-	Connect(0, 1, 1, 1, 20, 0);
-	Connect(0, 2, 1, 2, 20, 0);
+	Connect(0, 0, 1, 0, 20, 1);
+	Connect(0, 1, 2, 0, 20, 0);
+	Connect(0, 2, 3, 0, 20, 0);
+	Connect(1, 1, 2, 1, 20, 0);
+	Connect(1, 2, 3, 1, 20, 0);
+	Connect(2, 2, 3, 2, 20, 0);
 
 	//Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 0 }, FVector{ 0, 0, 0 }));
 	//Nodes.Add(MakeShared<YJunction>(FVector{ 0, 0, 100 }, FVector{ 0, 0, 0 }));

@@ -360,6 +360,20 @@ struct FPGCTriangleSet {
 };
 
 USTRUCT(BlueprintType)
+struct FPGCNodePosition {
+	GENERATED_USTRUCT_BODY()
+
+	FPGCNodePosition() = default;
+	FPGCNodePosition(const FVector& pos, const FVector& up) : Position(pos), UpVector(up) {}
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PGC Mesh")
+	FVector Position;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PGC Mesh")
+	FVector UpVector;
+};
+
+USTRUCT(BlueprintType)
 struct FPGCMeshResult {
 	GENERATED_USTRUCT_BODY()
 
@@ -380,6 +394,9 @@ struct FPGCMeshResult {
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PGC Mesh")
 	TArray<FPGCDebugEdge> AutoEdges;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PGC Mesh")
+	TArray<FPGCNodePosition> Nodes;
 };
 
 UENUM(BlueprintType)

@@ -20,6 +20,8 @@ class PGC_API UPGCMesh : public UActorComponent
 	// using PGCEdgeType::Auto
 	TSharedPtr<Mesh> InitialMesh{ MakeShared<Mesh>(FMath::Cos(FMath::DegreesToRadians(20.0f))) };
 
+	TArray<FPGCNodePosition> Nodes;
+
 	TScriptInterface<IPGCGenerator> Generator;
 
 public:	
@@ -41,7 +43,7 @@ public:
 
 		InitialMesh->Clear();
 
-		Generator->MakeMesh(InitialMesh);
+		Generator->MakeMesh(InitialMesh, Nodes);
 	}
 	
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate", Keywords = "PGC, procedural"), Category = "PGC")
@@ -50,11 +52,5 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Channels", Keywords = "PGC, procedural"), Category = "PGC")
 		FPGCMeshResult GenerateChannels(int NumDivisions, bool InsideOut, bool Triangularise, PGCDebugEdgeType DebugEdges,
 			int StartChannel, int EndChannel);
-
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Needs Refinement", Keywords = "PGC, procedural"), Category = "PGC")
-		bool NeedsRefinement();
-
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Refine", Keywords = "PGC, procedural"), Category = "PGC")
-		void Refine();
 
 };

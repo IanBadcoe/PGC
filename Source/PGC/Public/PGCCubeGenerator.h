@@ -35,7 +35,5 @@ public:
 	UPROPERTY(EditAnywhere)
 	TArray<FPGCCube> Cubes;
 
-	virtual void MakeMesh(TSharedPtr<Mesh> mesh) override;
-	virtual bool NeedsRefinement() override;
-	virtual void Refine() override;
+	virtual void MakeMesh(TSharedPtr<Mesh> mesh, TArray<FPGCNodePosition>& Nodes) override;
 };

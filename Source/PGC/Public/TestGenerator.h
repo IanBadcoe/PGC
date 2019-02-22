@@ -23,7 +23,7 @@ public:
 
 class TestGraph : public LayoutGraph::Graph {
 public:
-	TestGraph() : LayoutGraph::Graph(1.5f) {}
+	TestGraph() : LayoutGraph::Graph(5.0f) {}
 
 	void Generate();
 };
@@ -71,12 +71,6 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	// Inherited via IPGCGenerator
-	virtual void MakeMesh(TSharedPtr<Mesh> mesh);
-
-
-	// Inherited via IPGCGenerator
-	virtual bool NeedsRefinement() override;
-
-	virtual void Refine() override;
+	virtual void MakeMesh(TSharedPtr<Mesh> mesh, TArray<FPGCNodePosition>& Nodes) override;
 
 };

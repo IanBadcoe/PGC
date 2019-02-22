@@ -28,24 +28,15 @@ void APGCCubeGenerator::Tick(float DeltaTime)
 
 }
 
-void APGCCubeGenerator::MakeMesh(TSharedPtr<Mesh> mesh)
+void APGCCubeGenerator::MakeMesh(TSharedPtr<Mesh> mesh, TArray<FPGCNodePosition>& Nodes)
 {
 	for (auto& cube : Cubes)
 	{
+		Nodes.Emplace(FVector{(float)cube.X, (float)cube.Y, (float)cube.Z}, FVector{0.0f, 0.0f, 1.0f});
 		mesh->AddCube(cube);
 	}
 
 	mesh->CheckConsistent(true);
-}
-
-bool APGCCubeGenerator::NeedsRefinement()
-{
-	return false;
-}
-
-void APGCCubeGenerator::Refine()
-{
-	check(false);
 }
 
 PRAGMA_ENABLE_OPTIMIZATION

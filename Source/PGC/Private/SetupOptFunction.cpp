@@ -13,7 +13,7 @@ double SetupOptFunction::EdgeLength_Energy(const FVector & p1, const FVector & p
 	return FMath::Pow((D0 - len) / D0, 2);
 }
 
-double SetupOptFunction::NodeAngle_Energy(const TSharedPtr<INode> node)
+double SetupOptFunction::JunctionAngle_Energy(const TSharedPtr<INode> node)
 {
 	// the normal calculation cannot work for less than a triangle
 	// if we ever get genuine 2-edge junctions, then we can add an alternative form of this that just uses the angle between
@@ -81,8 +81,8 @@ double SetupOptFunction::EdgeAngle_Energy(const TSharedPtr<INode> node)
 
 	auto ang = FMath::Acos(cos);
 
-	// ignore any bend up to 60 degrees
-	auto tol = PI / 3;
+	// ignore any bend up to 30 degrees
+	static const auto tol = PI / 6;
 
 	if (ang < tol)
 	{
@@ -92,7 +92,7 @@ double SetupOptFunction::EdgeAngle_Energy(const TSharedPtr<INode> node)
 	return FMath::Pow((ang - tol) / (PI - tol), 2);
 }
 
-double SetupOptFunction::NodePlanar_Energy(const TSharedPtr<INode> node)
+double SetupOptFunction::JunctionPlanar_Energy(const TSharedPtr<INode> node)
 {
 	check(node->Reference.IsValid() && node->Reference->MyType == StructuralGraph::SNode::Type::Junction);
 
@@ -185,8 +185,8 @@ double SetupOptFunction::f(int n, const double * x, double * grad)
 	{
 		if (node->Reference.IsValid() && node->Reference->MyType == StructuralGraph::SNode::Type::Junction)
 		{
-			NodeAngleEnergy += NodeAngle_Energy(node);
-			PlanarEnergy += NodePlanar_Energy(node);
+			NodeAngleEnergy += JunctionAngle_Energy(node);
+			PlanarEnergy += JunctionPlanar_Energy(node);
 		}
 		else
 		{

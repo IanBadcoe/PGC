@@ -678,7 +678,7 @@ void StructuralGraph::SGraph::OptimizeInitialSetup(IGraph& i_graph)
 
 	NlOptWrapper opt(SOF);
 
-	opt.RunOptimization(true, 100);
+	opt.RunOptimization(true, 1000);
 }
 
 

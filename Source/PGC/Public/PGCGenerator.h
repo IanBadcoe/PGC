@@ -27,12 +27,7 @@ class PGC_API IPGCGenerator
 	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
 public:
 	
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Needs Refinement", Keywords = "PGC, procedural"), Category = "PGC")
-		virtual bool NeedsRefinement() = 0;
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Refine", Keywords = "PGC, procedural"), Category = "PGC")
-		virtual void Refine() = 0;
-
 	// use in C++ only
-	virtual void MakeMesh(TSharedPtr<Mesh> mesh) = 0;
+	virtual void MakeMesh(TSharedPtr<Mesh> mesh, TArray<FPGCNodePosition>& Nodes) = 0;
 
 };

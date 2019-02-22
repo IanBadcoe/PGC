@@ -52,6 +52,8 @@ FPGCMeshResult UPGCMesh::GenerateMergeChannels(int NumDivisions, bool InsideOut,
 
 	out_mesh->BakeAllChannelsIntoOne(ret, InsideOut, DebugEdges);
 
+	ret.Nodes = Nodes;
+
 	return ret;
 }
 
@@ -77,20 +79,7 @@ FPGCMeshResult UPGCMesh::GenerateChannels(int NumDivisions, bool InsideOut, bool
 
 	out_mesh->BakeChannels(ret, InsideOut, DebugEdges, StartChannel, EndChannel);
 
+	ret.Nodes = Nodes;
+
 	return ret;
 }
-
-bool UPGCMesh::NeedsRefinement()
-{
-	if (Generator.GetObject())
-		return Generator->NeedsRefinement();
-
-	return false;
-}
-
-void UPGCMesh::Refine()
-{
-	if (Generator.GetObject())
-		Generator->Refine();
-}
-

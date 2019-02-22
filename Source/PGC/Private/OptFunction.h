@@ -38,28 +38,30 @@ class OptFunction : public NlOptIface {
 	double UnconnectedEnergy;
 	double TorsionEnergy;
 	double BendEnergy;
+	double JunctionAngleEnergy;
+	double JunctionPlanarEnergy;
 
 	const double ConnectedScale;
 	const double UnconnectedScale;
 	const double TorsionScale;
 	const double BendScale;
+	const double JunctionAngleScale;
+	const double JunctionPlanarScale;
 
 	static double UnconnectedNodeNodeDist_Val(const FVector& p1, const FVector& p2, float D0);
-	//static double UnconnectedNodeNodeDist_Grad(const FVector& pGrad, const FVector& pOther, float D0, int axis);
-
 	// torsion in a parent-child pair is theoretically defined by the Rotation on the child,
 	// however not all connections are parent-child pairs, so more general to do our own torsion
 	// calculation
 	static double ConnectedNodeNodeTorsion_Val(const FVector& up1, const FVector& up2, const FVector& p1, const FVector& p2, bool flipped);
-	//static double ConnectedNodeNodeTorsion_Grad(const FVector& upGrad, const FVector& upOther, const FVector& pGrad, const FVector& pOther, bool flipped, int axis);
-
 	static double ConnectedNodeNodeDist_Val(const FVector& p1, const FVector& p2, float D0);
-	//static double ConnectedNodeNodeDist_Grad(const FVector& pGrad, const FVector& pOther, float D0, int axis);
-
 	static double ConnectedNodeNodeBend_Val(const FVector& prev_pos, const FVector& pos, const FVector& next_pos);
+	static double JunctionAngle_Energy(const TSharedPtr<StructuralGraph::SNode> node);
+	static double JunctionPlanar_Energy(const TSharedPtr<StructuralGraph::SNode> node);
 
 public:
-	OptFunction(TSharedPtr<StructuralGraph::SGraph> g, double connected_scale, double unconnected_scale, double torsion_scale, double bend_scale);
+	OptFunction(TSharedPtr<StructuralGraph::SGraph> g,
+		double connected_scale, double unconnected_scale, double torsion_scale,
+		double bend_scale, double jangle_scale, double jplanar_scale);
 	virtual ~OptFunction() = default;
 
 	// Inherited via NlOptIface
