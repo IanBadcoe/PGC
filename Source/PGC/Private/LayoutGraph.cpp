@@ -5,7 +5,8 @@
 
 PRAGMA_DISABLE_OPTIMIZATION
 
-using namespace LayoutGraph;
+namespace LayoutGraph
+{
 
 BackToBack::BackToBack(const FVector& pos, const FVector& rot)
 	: Node({ MakeShared<ConnectorInst>(FVector{ 0, 3, 0 }, FVector{ 1, 0, 0 }, FVector{ 0, 0, 1 }),
@@ -123,6 +124,8 @@ Edge::Edge(TWeakPtr<Node> fromNode, TWeakPtr<Node> toNode, TWeakPtr<ConnectorIns
 	FromConnector(fromConnector), ToConnector(toConnector) {
 	check(FromNode.Pin()->FindConnectorIdx(FromConnector.Pin()) != -1);
 	check(ToNode.Pin()->FindConnectorIdx(ToConnector.Pin()) != -1);
+}
+
 }
 
 PRAGMA_ENABLE_OPTIMIZATION

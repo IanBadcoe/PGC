@@ -7,22 +7,14 @@
 
 PRAGMA_DISABLE_OPTIMIZATION
 
-using namespace StructuralGraph;
+namespace StructuralGraph
+{
+
 using namespace Profile;
 
 SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source)
 	: _ProfileSource(profile_source)
 {
-	// just a collection of the data we need to pass to and from the IGraph before we build our own full connections
-	struct ConnCurve {
-		TSharedPtr<SNode> FromConn;
-		TSharedPtr<SNode> ToConn;
-		TSharedPtr<INode> Intermediate1Node;
-		TSharedPtr<INode> Intermediate2Node;
-
-		TSharedPtr<LayoutGraph::Edge> Edge;
-	};
-
 	for (const auto& n : input->GetNodes())
 	{
 		auto new_node = MakeShared<SNode>(nullptr, SNode::Type::Junction);
@@ -104,114 +96,10 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_sour
 		n->FindRadius();
 	}
 
-	IGraph i_graph;
-
-	// make an IGraph node for every node (Junction and Connector) that we have...
-	for (const auto& n : Nodes)
-	{
-		auto new_junction = MakeShared<INode>(n->Radius, n->Position, n);
-		i_graph.Nodes.Push(new_junction);
-	}
-
-	// add IEdges in the same way
-	for (const auto& e : Edges)
-	{
-		auto from_node_idx = FindNodeIdx(e->FromNode.Pin());
-		auto to_node_idx = FindNodeIdx(e->ToNode.Pin());
-
-		i_graph.Connect(i_graph.Nodes[from_node_idx], i_graph.Nodes[to_node_idx], e->D0);
-	}
-
-	TArray<ConnCurve> IntermediatePoints;
-
-	// for each edge in the input, add a couple of intermediate points to the IGraph
-	// and connect them with the desired edge lengths
-
-	// this is really hard to understand, because in input edges and connectors are different classes on the
-	// node, but here, and in IGraph, connectors are nodes in their own right (and attached to the original nodes
-	// ("junctions") by more edges) so what we are doing is
-	// for each node in the input
-	//   for each connector on that node
-	//     if it has an edge attached
-	//       find the corresponding four nodes (from, from-connector, to, to-connector) in this object
-	//       (that we made just above)
-	//       then from their indices find the corresponding nodes in the IGraph
-	//       then add two extra nodes to the IGraph (representing corners in the edge)
-	//       and connect from-connector -> int1 -> int2 -> to-connector
-	//       setting the lengths to 1/3 of the total desired length on each
-	//
-	//       and store some meta-data about what we did in IntermediatePoints, so we know how to read the intermediate positions back
-	//       after optimization
-
-	for (int i = 0; i < input->GetNodes().Num(); i++)
-	{
-		// the start of Nodes correspond to the nodes in input
-		auto here_from_node = Nodes[i];
-		auto input_node = input->GetNodes()[i];
-
-		for (int from_conn_idx = 0; from_conn_idx < input_node->Edges.Num(); from_conn_idx++)
-		{
-			auto input_edge = input_node->Edges[from_conn_idx].Pin();
-
-			if (input_edge.IsValid())
-			{
-				if (input_edge->FromNode == input_node)
-				{
-					auto input_from_node = input_edge->FromNode.Pin();
-
-					auto input_to_node = input_edge->ToNode.Pin();
-					auto to_node_idx = input->FindNodeIdx(input_to_node);
-					auto from_node_idx = input->FindNodeIdx(input_from_node);
-
-					auto to_conn_idx = input_to_node->FindConnectorIdx(input_edge->ToConnector.Pin());
-
-					// loop-back edges should only be considered in one direction
-					if (input_edge->ToNode == input_edge->FromNode && to_conn_idx == from_conn_idx)
-						continue;
-
-					auto here_from_conn_node = here_from_node->Edges[from_conn_idx].Pin()->ToNode.Pin();
-
-					auto here_to_node = Nodes[to_node_idx];
-					auto here_to_conn_node = here_to_node->Edges[to_conn_idx].Pin()->ToNode.Pin();
-
-					auto here_to_conn_idx = FindNodeIdx(here_to_conn_node);
-					auto here_from_conn_idx = FindNodeIdx(here_from_conn_node);
-
-					FVector int1, int2;
-
-					CalcEdgeStartParams(here_from_conn_node, here_to_conn_node, here_from_node, here_to_node,
-						input_edge->Divs * input->SegLength, int1, int2);
-
-					IntermediatePoints.Push(ConnCurve{});
-					auto& cc = IntermediatePoints.Last();
-
-					cc.FromConn = here_from_conn_node;
-					cc.ToConn = here_to_conn_node;
-
-					cc.Edge = input_edge;
-
-					auto new_int1 = MakeShared<INode>(here_from_node->Radius, int1, TSharedPtr<SNode>());
-					i_graph.Nodes.Push(new_int1);
-					cc.Intermediate1Node = new_int1;
-
-					auto new_int2 = MakeShared<INode>(here_to_node->Radius, int2, TSharedPtr<SNode>());
-					i_graph.Nodes.Push(new_int2);
-					cc.Intermediate2Node = new_int2;
-
-					auto length = cc.Edge->Divs * input->SegLength;
-
-					i_graph.Connect(i_graph.Nodes[here_from_conn_idx], new_int1, length / 3);
-					i_graph.Connect(new_int1, new_int2, length / 3);
-					i_graph.Connect(new_int2, i_graph.Nodes[here_to_conn_idx], length / 3);
-				}
-			}
-		}
-	}
-
-	OptimizeInitialSetup(i_graph);
+	auto i_graph = IntermediateOptimize(input);
 
 	// copy node positions back from IGraph to us
-	for (const auto& n : i_graph.Nodes)
+	for (const auto& n : i_graph->Nodes)
 	{
 		if (n->Reference.IsValid())
 		{
@@ -240,7 +128,7 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_sour
 	}
 
 	// fill-out our connections using the intermediate points from the IGraph
-	for (const auto& conn : IntermediatePoints)
+	for (const auto& conn : i_graph->IntermediatePoints)
 	{
 		auto from_c = conn.FromConn;
 		auto to_c = conn.ToConn;
@@ -671,7 +559,7 @@ void SGraph::CalcEdgeStartParams(const TSharedPtr<SNode>& from_c, const TSharedP
 	out2 = intermediate2;
 }
 
-void StructuralGraph::SGraph::OptimizeInitialSetup(IGraph& i_graph)
+void StructuralGraph::SGraph::OptimizeInitialSetup(TSharedPtr<IGraph> i_graph)
 {
 	auto SOF = MakeShared<SetupOptFunction>(i_graph,
 		1.0, 1.0, 1.0, 1.0, 1.0);
@@ -681,6 +569,115 @@ void StructuralGraph::SGraph::OptimizeInitialSetup(IGraph& i_graph)
 	opt.RunOptimization(true, 1000);
 }
 
+
+TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimize(TSharedPtr<LayoutGraph::Graph> input)
+{
+	auto i_graph = MakeShared<IGraph>();
+
+	// make an IGraph node for every node (Junction and Connector) that we have...
+	for (const auto& n : Nodes)
+	{
+		auto new_junction = MakeShared<INode>(n->Radius, n->Position, n);
+		i_graph->Nodes.Push(new_junction);
+	}
+
+	// add IEdges in the same way
+	for (const auto& e : Edges)
+	{
+		auto from_node_idx = FindNodeIdx(e->FromNode.Pin());
+		auto to_node_idx = FindNodeIdx(e->ToNode.Pin());
+
+		i_graph->Connect(i_graph->Nodes[from_node_idx], i_graph->Nodes[to_node_idx], e->D0);
+	}
+
+	// for each edge in the input, add a couple of intermediate points to the IGraph
+	// and connect them with the desired edge lengths
+
+	// this is really hard to understand, because in input edges and connectors are different classes on the
+	// node, but here, and in IGraph, connectors are nodes in their own right (and attached to the original nodes
+	// ("junctions") by more edges) so what we are doing is
+	// for each node in the input
+	//   for each connector on that node
+	//     if it has an edge attached
+	//       find the corresponding four nodes (from, from-connector, to, to-connector) in this object
+	//       (that we made just above)
+	//       then from their indices find the corresponding nodes in the IGraph
+	//       then add two extra nodes to the IGraph (representing corners in the edge)
+	//       and connect from-connector -> int1 -> int2 -> to-connector
+	//       setting the lengths to 1/3 of the total desired length on each
+	//
+	//       and store some meta-data about what we did in IntermediatePoints, so we know how to read the intermediate positions back
+	//       after optimization
+
+	for (int i = 0; i < input->GetNodes().Num(); i++)
+	{
+		// the start of Nodes correspond to the nodes in input
+		auto here_from_node = Nodes[i];
+		auto input_node = input->GetNodes()[i];
+
+		for (int from_conn_idx = 0; from_conn_idx < input_node->Edges.Num(); from_conn_idx++)
+		{
+			auto input_edge = input_node->Edges[from_conn_idx].Pin();
+
+			if (input_edge.IsValid())
+			{
+				if (input_edge->FromNode == input_node)
+				{
+					auto input_from_node = input_edge->FromNode.Pin();
+
+					auto input_to_node = input_edge->ToNode.Pin();
+					auto to_node_idx = input->FindNodeIdx(input_to_node);
+					auto from_node_idx = input->FindNodeIdx(input_from_node);
+
+					auto to_conn_idx = input_to_node->FindConnectorIdx(input_edge->ToConnector.Pin());
+
+					// loop-back edges should only be considered in one direction
+					if (input_edge->ToNode == input_edge->FromNode && to_conn_idx == from_conn_idx)
+						continue;
+
+					auto here_from_conn_node = here_from_node->Edges[from_conn_idx].Pin()->ToNode.Pin();
+
+					auto here_to_node = Nodes[to_node_idx];
+					auto here_to_conn_node = here_to_node->Edges[to_conn_idx].Pin()->ToNode.Pin();
+
+					auto here_to_conn_idx = FindNodeIdx(here_to_conn_node);
+					auto here_from_conn_idx = FindNodeIdx(here_from_conn_node);
+
+					FVector int1, int2;
+
+					CalcEdgeStartParams(here_from_conn_node, here_to_conn_node, here_from_node, here_to_node,
+						input_edge->Divs * input->SegLength, int1, int2);
+
+					i_graph->IntermediatePoints.Push(ConnCurve{});
+					auto& cc = i_graph->IntermediatePoints.Last();
+
+					cc.FromConn = here_from_conn_node;
+					cc.ToConn = here_to_conn_node;
+
+					cc.Edge = input_edge;
+
+					auto new_int1 = MakeShared<INode>(here_from_node->Radius, int1, TSharedPtr<SNode>());
+					i_graph->Nodes.Push(new_int1);
+					cc.Intermediate1Node = new_int1;
+
+					auto new_int2 = MakeShared<INode>(here_to_node->Radius, int2, TSharedPtr<SNode>());
+					i_graph->Nodes.Push(new_int2);
+					cc.Intermediate2Node = new_int2;
+
+					auto length = cc.Edge->Divs * input->SegLength;
+
+					i_graph->Connect(i_graph->Nodes[here_from_conn_idx], new_int1, length / 3);
+					i_graph->Connect(new_int1, new_int2, length / 3);
+					i_graph->Connect(new_int2, i_graph->Nodes[here_to_conn_idx], length / 3);
+				}
+			}
+		}
+	}
+
+	OptimizeInitialSetup(i_graph);
+
+	return i_graph;
+}
 
 void SGraph::ConnectAndFillOut(TSharedPtr<SNode> from_c, TSharedPtr<SNode> to_c,
 	const FVector& int1, const FVector& int2, 
@@ -1490,6 +1487,7 @@ const FVector SNode::ProjectParentUp() const
 	return proj_up.GetSafeNormal();
 }
 
+}
 
 PRAGMA_ENABLE_OPTIMIZATION
 

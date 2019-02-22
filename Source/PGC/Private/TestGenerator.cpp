@@ -4,15 +4,13 @@
 
 PRAGMA_DISABLE_OPTIMIZATION
 
-using namespace LayoutGraph;
-using namespace StructuralGraph;
-using namespace Profile;
+// namespaces are not supported by UnrealHeaderTool...
+// and we have uberized builds, so don't want usings outside a namespace...
 
 // class statics
 
-TMap<FString, TSharedPtr<ParameterisedRoadbedShape>> TestProfileSource::Roadbeds;
-TArray <TSharedPtr<ParameterisedProfile>> TestProfileSource::Profiles;
-
+TMap<FString, TSharedPtr<Profile::ParameterisedRoadbedShape>> TestProfileSource::Roadbeds;
+TArray <TSharedPtr<Profile::ParameterisedProfile>> TestProfileSource::Profiles;
 
 static bool s_inited = false;
 
@@ -57,8 +55,8 @@ static void Init()
 	//TestProfileSource::AddRoadbed("RoundShortL", MakeShared<ParameterisedRoadbedShape>(0.5f, 0, 0, 0, 5, 6));
 
 	// test only!!!
-	TestProfileSource::AddRoadbed("test1", MakeShared<ParameterisedRoadbedShape>(1.0f, 1.0f, 0.5f, 0.5f, 6, 11, 5, 7), true, { 3.0f });
-	TestProfileSource::AddRoadbed("test2", MakeShared<ParameterisedRoadbedShape>(1.0f, 1.0f, 0, 0, 6, 11, 5, 7), true, { 3.0f });
+	TestProfileSource::AddRoadbed("test1", MakeShared<Profile::ParameterisedRoadbedShape>(1.0f, 1.0f, 0.5f, 0.5f, 6, 11, 5, 7), true, { 3.0f });
+	TestProfileSource::AddRoadbed("test2", MakeShared<Profile::ParameterisedRoadbedShape>(1.0f, 1.0f, 0, 0, 6, 11, 5, 7), true, { 3.0f });
 }
 
 // Sets default values
@@ -77,7 +75,7 @@ void ATestGenerator::EnsureGraphs()
 
 	if (!StructuralGraph.IsValid())
 	{
-		StructuralGraph = MakeShared<SGraph>(TopologicalGraph, &ProfileSource);
+		StructuralGraph = MakeShared<StructuralGraph::SGraph>(TopologicalGraph, &ProfileSource);
 	}
 }
 
@@ -99,7 +97,7 @@ void ATestGenerator::EnsureOptimizer()
 void ATestGenerator::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 }
 
 void ATestGenerator::Tick(float DeltaTime)
@@ -131,19 +129,22 @@ void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh, TArray<FPGCNodePosition>& N
 	}
 }
 
-TSharedPtr<ParameterisedProfile> TestProfileSource::GetProfile() const
+TSharedPtr<Profile::ParameterisedProfile> TestProfileSource::GetProfile() const
 {
 	return Profiles[FMath::RandRange(0, Profiles.Num() - 1)];
 }
 
-TArray<TSharedPtr<ParameterisedProfile>> TestProfileSource::GetCompatibleProfileSequence(TSharedPtr<ParameterisedProfile> from, TSharedPtr<ParameterisedProfile> to, int steps) const
+TArray<TSharedPtr<Profile::ParameterisedProfile>> TestProfileSource::GetCompatibleProfileSequence(
+	TSharedPtr<Profile::ParameterisedProfile> from,
+	TSharedPtr<Profile::ParameterisedProfile> to,
+	int steps) const
 {
 	// must have room for at least the start and end-points
 	check(steps >= 2);
 
 	auto here_num = steps / 5;
 
-	TArray<TSharedPtr<ParameterisedProfile>> keys;
+	TArray<TSharedPtr<Profile::ParameterisedProfile>> keys;
 
 	keys.Add(from);
 
@@ -169,7 +170,7 @@ TArray<TSharedPtr<ParameterisedProfile>> TestProfileSource::GetCompatibleProfile
 		}
 	}
 
-	TArray<TSharedPtr<ParameterisedProfile>> ret;
+	TArray<TSharedPtr<Profile::ParameterisedProfile>> ret;
 
 	for (int i = 0; i < steps; i++)
 	{
@@ -195,7 +196,7 @@ void TestProfileSource::AddRoadbed(FString name, TSharedPtr<Profile::Parameteris
 		//	Profiles.Add(MakeShared<ParameterisedProfile>(width, other.Value, roadbed));
 		//}
 
-		Profiles.Add(MakeShared<ParameterisedProfile>(width, roadbed, roadbed));
+		Profiles.Add(MakeShared<Profile::ParameterisedProfile>(width, roadbed, roadbed));
 	}
 
 	Roadbeds.Add(name) = roadbed;

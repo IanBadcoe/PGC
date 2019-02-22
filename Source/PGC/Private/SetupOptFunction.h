@@ -4,11 +4,11 @@
 #include "StructuralGraph.h"
 
 class SetupOptFunction : public NlOptIface {
-	using IGraph = IntermediateGraph::IGraph<TSharedPtr<SNode>>;
-	using IEdge = IntermediateGraph::IEdge<TSharedPtr<SNode>>;
-	using INode = IntermediateGraph::INode<TSharedPtr<SNode>>;
+	using IGraph = StructuralGraph::IGraph;
+	using IEdge = StructuralGraph::IEdge;
+	using INode = StructuralGraph::INode;
 
-	const IGraph& Graph;
+	const TSharedPtr<IGraph> Graph;
 
 	const double NodeAngleDistEnergyScale;
 	const double EdgeAngleEnergyScale;
@@ -36,7 +36,7 @@ class SetupOptFunction : public NlOptIface {
 	TArray<EdgePair> CollidableEdges;
 
 public:
-	SetupOptFunction(const IGraph& graph,
+	SetupOptFunction(const TSharedPtr<IGraph> graph,
 		double nade_scale, double eae_scale, double pe_scale, double le_scale, double eee_scale);
 	virtual ~SetupOptFunction() {}
 

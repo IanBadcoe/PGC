@@ -2,7 +2,8 @@
 
 PRAGMA_DISABLE_OPTIMIZATION
 
-using namespace Profile;
+namespace Profile
+{
 
 ParameterisedProfile::ParameterisedProfile(float width,
 	const TArray<float> barriers,
@@ -287,5 +288,6 @@ bool ParameterisedRoadbedShape::operator==(const ParameterisedRoadbedShape& rhs)
 		&& EndDriveIdx == rhs.EndDriveIdx;
 };
 
+}
 
 PRAGMA_ENABLE_OPTIMIZATION

@@ -140,7 +140,7 @@ double SetupOptFunction::EdgeEdge_Energy(const TSharedPtr<IEdge> e1, const TShar
 	return FMath::Pow((combined_radius - dist) / combined_radius, 2);
 }
 
-SetupOptFunction::SetupOptFunction(const IGraph & graph, double nade_scale, double eae_scale, double pe_scale, double le_scale, double eee_scale)
+SetupOptFunction::SetupOptFunction(const TSharedPtr<IGraph> graph, double nade_scale, double eae_scale, double pe_scale, double le_scale, double eee_scale)
 	: Graph(graph),
 	NodeAngleDistEnergyScale(nade_scale),
 	EdgeAngleEnergyScale(eae_scale),
@@ -148,9 +148,9 @@ SetupOptFunction::SetupOptFunction(const IGraph & graph, double nade_scale, doub
 	LengthEnergyScale(le_scale),
 	EdgeEdgeEnergyScale(eee_scale)
 {
-	for (const auto& e1 : Graph.Edges)
+	for (const auto& e1 : Graph->Edges)
 	{
-		for (const auto& e2 : Graph.Edges)
+		for (const auto& e2 : Graph->Edges)
 		{
 			// just examine one triangle from the NxN matrix
 			if (e1 == e2)
@@ -176,12 +176,12 @@ double SetupOptFunction::f(int n, const double * x, double * grad)
 
 	SetState(x, n);
 
-	for (const auto& e : Graph.Edges)
+	for (const auto& e : Graph->Edges)
 	{
 		LengthEnergy += EdgeLength_Energy(e->FromNode.Pin()->Position, e->ToNode.Pin()->Position, e->D0);
 	}
 
-	for (const auto& node : Graph.Nodes)
+	for (const auto& node : Graph->Nodes)
 	{
 		if (node->Reference.IsValid() && node->Reference->MyType == StructuralGraph::SNode::Type::Junction)
 		{
@@ -208,7 +208,7 @@ double SetupOptFunction::f(int n, const double * x, double * grad)
 
 int SetupOptFunction::GetSize() const
 {
-	return Graph.Nodes.Num() * 3;
+	return Graph->Nodes.Num() * 3;
 }
 
 void SetupOptFunction::GetInitialStepSize(double * steps, int n) const
@@ -227,7 +227,7 @@ void SetupOptFunction::GetLimits(double * lower, double * upper, int n) const
 
 	int i = 0;
 
-	for (const auto& node : Graph.Nodes)
+	for (const auto& node : Graph->Nodes)
 	{
 		check(i + 2 < n);
 
@@ -249,7 +249,7 @@ void SetupOptFunction::GetState(double * x, int n) const
 
 	int i = 0;
 
-	for (const auto& node : Graph.Nodes)
+	for (const auto& node : Graph->Nodes)
 	{
 		check(i + 2 < n);
 
@@ -267,7 +267,7 @@ void SetupOptFunction::SetState(const double * x, int n)
 
 	int i = 0;
 
-	for (const auto& node : Graph.Nodes)
+	for (const auto& node : Graph->Nodes)
 	{
 		check(i + 2 < n);
 

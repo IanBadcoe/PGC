@@ -15,6 +15,20 @@
 namespace StructuralGraph {
 	class SNode;
 
+	using INode = IntermediateGraph::INode<TSharedPtr<SNode>>;
+	using IEdge = IntermediateGraph::IEdge<TSharedPtr<SNode>>;
+
+	// a collection of data we need to pass to and from the IGraph before we build our own full connections
+	struct ConnCurve {
+		TSharedPtr<SNode> FromConn;
+		TSharedPtr<SNode> ToConn;
+		TSharedPtr<INode> Intermediate1Node;
+		TSharedPtr<INode> Intermediate2Node;
+
+		TSharedPtr<LayoutGraph::Edge> Edge;
+	};
+	using IGraph = IntermediateGraph::IGraph<TSharedPtr<SNode>, ConnCurve>;
+
 	class SEdge {
 	public:
 		TWeakPtr<SNode> FromNode;
@@ -127,11 +141,7 @@ namespace StructuralGraph {
 		void CalcEdgeStartParams(const TSharedPtr<SNode>& from_c, const TSharedPtr<SNode>& to_c,
 			const TSharedPtr<SNode>& from_n, const TSharedPtr<SNode>& to_n, float length, FVector& out1, FVector& out2);
 
-		using IGraph = IntermediateGraph::IGraph<TSharedPtr<SNode>>;
-		using INode = IntermediateGraph::INode<TSharedPtr<SNode>>;
-		using IEdge = IntermediateGraph::IEdge<TSharedPtr<SNode>>;
-
-		static void OptimizeInitialSetup(IGraph& graph);
+		static void OptimizeInitialSetup(TSharedPtr<IGraph> graph);
 
 		enum class DebugMode {
 			Normal,
@@ -143,6 +153,8 @@ namespace StructuralGraph {
 
 	public:
 		SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source);
+
+		TSharedPtr<IGraph> IntermediateOptimize(TSharedPtr<LayoutGraph::Graph> input);
 
 		// connect "from" to "to" directly with an edge and no regard to geometry...
 		void Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, double D0);

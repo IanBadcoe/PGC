@@ -2,10 +2,12 @@
 
 #include "Util.h"
 
-using namespace Opt;
-using namespace StructuralGraph;
-
 PRAGMA_DISABLE_OPTIMIZATION
+
+namespace Opt
+{
+
+using namespace StructuralGraph;
 
 // a count of doubles
 #define PARAMS_PER_NODE 4
@@ -521,5 +523,7 @@ void Opt::OptFunction::GetLimits(double* lower, double* upper, int n) const
 //{
 //	::print_histo();
 //}
+
+}
 
 PRAGMA_ENABLE_OPTIMIZATION
