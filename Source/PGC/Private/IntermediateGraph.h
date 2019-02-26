@@ -16,7 +16,7 @@ namespace IntermediateGraph {
 
 		const double D0;
 
-		IEdge(TWeakPtr<INode> fromNode, TWeakPtr<INode> toNode, double d0);
+		IEdge(const TWeakPtr<INode>& fromNode, const TWeakPtr<INode>& toNode, double d0);
 
 		TWeakPtr<INode> OtherNode(const INode* n) const
 		{
@@ -51,12 +51,11 @@ namespace IntermediateGraph {
 
 		float Radius = 0.0f;
 		FVector Position;
-		NM Reference;
+		NM MD;
 
-		INode(float radius, const FVector& pos,
-			NM ref) : Radius(radius), Position(pos), Reference(ref) {}
-
+		INode(float radius, const FVector& pos, const NM& md) : Radius(radius), Position(pos), MD(md) {}
 		INode(const INode&) = delete;
+
 		const INode& operator=(const INode&) = delete;
 		virtual ~INode() = default;
 	};
@@ -73,13 +72,13 @@ namespace IntermediateGraph {
 		IGraph(const IGraph& rhs);
 
 		// connect "from" to "to" directly with an edge and no regard to geometry...
-		void Connect(const TSharedPtr<INode> n1, const TSharedPtr<INode> n2, double D0);
+		void Connect(const TSharedPtr<INode>& n1, const TSharedPtr<INode>& n2, double D0);
 		// connect "from" to "to" via "Divs" intermediate back-to-back nodes
 		
 		TArray<TSharedPtr<INode>> Nodes;
 		TArray<TSharedPtr<IEdge>> Edges;
 
-		GM GraphMD;
+		GM MD;
 
 		// randomizes all node positions within box
 		TSharedPtr<IGraph> Randomize(const FBox& box) const;

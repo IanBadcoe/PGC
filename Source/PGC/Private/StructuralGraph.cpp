@@ -11,6 +11,7 @@ namespace StructuralGraph
 {
 
 using namespace Profile;
+using namespace SetupOpt;
 
 SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source)
 	: _ProfileSource(profile_source)
@@ -101,12 +102,12 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_sour
 	// copy node positions back from IGraph to us
 	for (const auto& n : i_graph->Nodes)
 	{
-		if (n->Reference.IsValid())
+		if (n->MD.Source.IsValid())
 		{
-			n->Reference->Position = n->Position;
+			n->MD.Source->Position = n->Position;
 
 			// refresh the up-vector on junctions for how it may have rotated
-			if (n->Reference->MyType == StructuralGraph::SNode::Type::Junction) {
+			if (n->MD.Type == INodeType::Junction) {
 				TArray<FVector> rel_verts;
 
 				for (const auto& e : n->Edges)
@@ -116,19 +117,19 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_sour
 					rel_verts.Emplace(e.Pin()->OtherNode(n).Pin()->Position - n->Position);
 				}
 
-				n->Reference->CachedUp = Util::NewellPolyNormal(rel_verts);
+				n->MD.Source->CachedUp = Util::NewellPolyNormal(rel_verts);
 
 				// and set its connectors the same way up
-				for (const auto& e : n->Reference->Edges)
+				for (const auto& e : n->MD.Source->Edges)
 				{
-					e.Pin()->OtherNode(n->Reference).Pin()->CachedUp = n->Reference->CachedUp;
+					e.Pin()->OtherNode(n->MD.Source).Pin()->CachedUp = n->MD.Source->CachedUp;
 				}
 			}
 		}
 	}
 
 	// fill-out our connections using the intermediate points from the IGraph
-	for (const auto& conn : i_graph->GraphMD.IntermediatePoints)
+	for (const auto& conn : i_graph->MD.IntermediatePoints)
 	{
 		auto from_c = conn.FromConn;
 		auto to_c = conn.ToConn;
@@ -580,6 +581,20 @@ double StructuralGraph::SGraph::OptimizeIGraph(TSharedPtr<IGraph> i_graph, doubl
 	return ret;
 }
 
+static INodeType TranslateType(SNode::Type t) {
+	switch (t) {
+	case SNode::Type::Junction:
+		return INodeType::Junction;
+	case SNode::Type::JunctionConnector:
+		return INodeType::JunctionConnector;
+	case SNode::Type::Connection:
+		return INodeType::Connection;
+	default:
+		check(false);
+
+		return INodeType::Junction;
+	}
+}
 
 TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimize(TSharedPtr<LayoutGraph::Graph> input)
 {
@@ -588,7 +603,7 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 	// make an IGraph node for every node (Junction and Connector) that we have...
 	for (const auto& n : Nodes)
 	{
-		auto new_junction = MakeShared<INode>(n->Radius, n->Position, n);
+		auto new_junction = MakeShared<INode>(n->Radius, n->Position, INodeMetaData{ n, TranslateType(n->MyType) } );
 		i_graph->Nodes.Push(new_junction);
 	}
 
@@ -659,19 +674,19 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 					CalcEdgeStartParams(here_from_conn_node, here_to_conn_node, here_from_node, here_to_node,
 						input_edge->Divs * input->SegLength, int1, int2);
 
-					i_graph->GraphMD.IntermediatePoints.AddDefaulted(1);
-					auto& cc = i_graph->GraphMD.IntermediatePoints.Last();
+					i_graph->MD.IntermediatePoints.AddDefaulted(1);
+					auto& cc = i_graph->MD.IntermediatePoints.Last();
 
 					cc.FromConn = here_from_conn_node;
 					cc.ToConn = here_to_conn_node;
 
 					cc.Edge = input_edge;
 
-					auto new_int1 = MakeShared<INode>(here_from_node->Radius, int1, TSharedPtr<SNode>());
+					auto new_int1 = MakeShared<INode>(here_from_node->Radius, int1, INodeMetaData());
 					i_graph->Nodes.Push(new_int1);
 					cc.Intermediate1Node = new_int1;
 
-					auto new_int2 = MakeShared<INode>(here_to_node->Radius, int2, TSharedPtr<SNode>());
+					auto new_int2 = MakeShared<INode>(here_to_node->Radius, int2, INodeMetaData());
 					i_graph->Nodes.Push(new_int2);
 					cc.Intermediate2Node = new_int2;
 
@@ -704,7 +719,7 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 	auto scale = e.GetAbsMax();
 
 	// expand the box to its maximum size on all axes
-	auto expand_factor = (FVector{ scale, scale, scale } -e);
+	auto expand_factor = (FVector{ scale, scale, scale } - e);
 	box = box.ExpandBy(expand_factor);
 
 	for (auto& pop : all_species)
@@ -718,7 +733,7 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 	struct GEnergyDiffer {
 		bool operator()(const TSharedPtr<IGraph>& a, const TSharedPtr<IGraph>& b) const
 		{
-			return a->GraphMD.Energy < b->GraphMD.Energy;
+			return a->MD.Energy < b->MD.Energy;
 		}
 	};
 
@@ -732,7 +747,7 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 		{
 			for (auto& g : pop)
 			{
-				g->GraphMD.Energy = OptimizeIGraph(g, p, false);
+				g->MD.Energy = OptimizeIGraph(g, p, false);
 			}
 		}
 
@@ -744,7 +759,7 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 
 			for (auto& g : pop)
 			{
-				UE_LOG(LogTemp, Warning, TEXT("Individual Energy: %f"), g->GraphMD.Energy);
+				UE_LOG(LogTemp, Warning, TEXT("Individual Energy: %f"), g->MD.Energy);
 			}
 		}
 
@@ -761,7 +776,7 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 				for (int j = 0; j < Mutations; j++)
 				{
 					auto& node = new_individual->Nodes[FMath::RandRange(0, new_individual->Nodes.Num() - 1)];
-					if (FMath::RandRange(0.0f, 1.0f) > 0.5f && node->Reference.IsValid() && node->Reference->MyType == SNode::Type::Junction)
+					if (FMath::RandRange(0.0f, 1.0f) > 0.5f && node->MD.Source.IsValid() && node->MD.Type == INodeType::Junction)
 					{
 						auto eidx1 = FMath::RandRange(0, node->Edges.Num() - 1);
 						int eidx2;
@@ -781,15 +796,15 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 
 				}
 
-				new_individual->GraphMD.Energy = OptimizeIGraph(new_individual, p, false);
+				new_individual->MD.Energy = OptimizeIGraph(new_individual, p, false);
 
-				if (new_individual->GraphMD.Energy < all_species[pop_idx].Last()->GraphMD.Energy)
+				if (new_individual->MD.Energy < all_species[pop_idx].Last()->MD.Energy)
 				{
 					all_species[pop_idx].Last() = new_individual;
 
 					all_species[pop_idx].Sort(GEnergyDiffer());
 
-					UE_LOG(LogTemp, Warning, TEXT("New Individual in species: %d, at %f"), pop_idx, new_individual->GraphMD.Energy);
+					UE_LOG(LogTemp, Warning, TEXT("New Individual in species: %d, at %f"), pop_idx, new_individual->MD.Energy);
 				}
 			}
 		}
@@ -807,7 +822,7 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 
 		for (auto& g : pop)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Energy: %f"), g->GraphMD.Energy);
+			UE_LOG(LogTemp, Warning, TEXT("Energy: %f"), g->MD.Energy);
 		}
 	}
 

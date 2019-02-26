@@ -14,14 +14,11 @@ IGraph<NM, GM>::IGraph()
 
 template<typename NM, typename GM>
 IGraph<NM, GM>::IGraph(const IGraph& rhs)
-	: GraphMD(rhs.GraphMD)
+	: MD(rhs.MD)
 {
 	for (const auto& n : rhs.Nodes)
 	{
-		Nodes.Emplace(MakeShared<INode>());
-		Nodes.Last()->Position = n->Position;
-		Nodes.Last()->Radius = n->Radius;
-		Nodes.Last()->Reference = n->Reference;
+		Nodes.Emplace(MakeShared<INode>(n->Radius, n->Position, n->MD));
 	}
 
 	for (const auto& e : rhs.Edges)
@@ -34,7 +31,7 @@ IGraph<NM, GM>::IGraph(const IGraph& rhs)
 }
 
 template<typename NM, typename GM>
-void IGraph<NM, GM>::Connect(const TSharedPtr<INode> n1, const TSharedPtr<INode> n2, double D)
+void IGraph<NM, GM>::Connect(const TSharedPtr<INode>& n1, const TSharedPtr<INode>& n2, double D)
 {
 	Edges.Add(MakeShared<IEdge>(n1, n2, D));
 
@@ -84,7 +81,7 @@ int IGraph<NM, GM>::FindNodeIdx(const TWeakPtr<INode>& node) const
 }
 
 template<typename NM>
-IEdge<NM>::IEdge(TWeakPtr<INode> fromNode, TWeakPtr<INode> toNode, double d0)
+IEdge<NM>::IEdge(const TWeakPtr<INode>& fromNode, const TWeakPtr<INode>& toNode, double d0)
 	: FromNode(fromNode), ToNode(toNode), D0(d0) {
 }
 

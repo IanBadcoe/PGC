@@ -6,6 +6,11 @@
 
 PRAGMA_DISABLE_OPTIMIZATION
 
+namespace SetupOpt
+{
+
+using namespace StructuralGraph;
+
 double SetupOptFunction::EdgeLength_Energy(const FVector & p1, const FVector & p2, double D0)
 {
 	auto len = (p1 - p2).Size();
@@ -89,7 +94,7 @@ double SetupOptFunction::EdgeAngle_Energy(const TSharedPtr<INode> node)
 
 double SetupOptFunction::JunctionPlanar_Energy(const TSharedPtr<INode> node)
 {
-	check(node->Reference.IsValid() && node->Reference->MyType == StructuralGraph::SNode::Type::Junction);
+	check(node->MD.Source.IsValid() && node->MD.Type == INodeType::Junction);
 
 	TArray<FVector> rel_verts;
 
@@ -186,7 +191,7 @@ double SetupOptFunction::f(int n, const double * x, double * grad)
 
 	for (const auto& node : Graph->Nodes)
 	{
-		if (node->Reference.IsValid() && node->Reference->MyType == StructuralGraph::SNode::Type::Junction)
+		if (node->MD.Source.IsValid() && node->MD.Type == INodeType::Junction)
 		{
 			NodeAngleEnergy += JunctionAngle_Energy(node) * NodeAngleDistEnergyScale;
 			PlanarEnergy += JunctionPlanar_Energy(node) * PlanarEnergyScale;
@@ -290,6 +295,8 @@ TArray<FString> SetupOptFunction::GetEnergyTermNames() const
 TArray<double> SetupOptFunction::GetLastEnergyTerms() const
 {
 	return { NodeAngleEnergy, EdgeAngleEnergy, PlanarEnergy, LengthEnergy, EdgeEdgeEnergy };
+}
+
 }
 
 PRAGMA_ENABLE_OPTIMIZATION

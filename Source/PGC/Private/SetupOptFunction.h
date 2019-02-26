@@ -3,6 +3,9 @@
 #include "IntermediateGraph.h"
 #include "StructuralGraph.h"
 
+namespace SetupOpt
+{
+
 class SetupOptFunction : public NlOptIface {
 	using IGraph = StructuralGraph::IGraph;
 	using IEdge = StructuralGraph::IEdge;
@@ -63,5 +66,4 @@ public:
 	virtual TArray<double> GetLastEnergyTerms() const override;
 };
 
-
-
+}

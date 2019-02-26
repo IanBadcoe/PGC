@@ -15,26 +15,6 @@
 namespace StructuralGraph {
 	class SNode;
 
-	using INode = IntermediateGraph::INode<TSharedPtr<SNode>>;
-	using IEdge = IntermediateGraph::IEdge<TSharedPtr<SNode>>;
-
-	struct IGraphMetaData
-	{
-		// a collection of data we need to pass to and from the IGraph before we build our own full connections
-		struct ConnCurve {
-			TSharedPtr<SNode> FromConn;
-			TSharedPtr<SNode> ToConn;
-			TSharedPtr<INode> Intermediate1Node;
-			TSharedPtr<INode> Intermediate2Node;
-
-			TSharedPtr<LayoutGraph::Edge> Edge;
-		};
-
-		TArray<ConnCurve> IntermediatePoints;
-		double Energy;
-	};
-	using IGraph = IntermediateGraph::IGraph<TSharedPtr<SNode>, IGraphMetaData>;
-
 	class SEdge {
 	public:
 		TWeakPtr<SNode> FromNode;
@@ -124,6 +104,37 @@ namespace StructuralGraph {
 		virtual TArray<TSharedPtr<Profile::ParameterisedProfile>> GetCompatibleProfileSequence(TSharedPtr<Profile::ParameterisedProfile> from,
 			TSharedPtr<Profile::ParameterisedProfile> to, int steps) const = 0;
 	};
+
+	enum class INodeType {
+		Junction,
+		JunctionConnector,
+		Connection,
+		Intermediate
+	};
+	struct INodeMetaData {
+		INodeMetaData() = default;
+		INodeMetaData(const INodeMetaData& rhs) = default;
+		TSharedPtr<SNode> Source;
+		INodeType Type = INodeType::Intermediate;
+	};
+	using INode = IntermediateGraph::INode<INodeMetaData>;
+	struct IGraphMetaData
+	{
+		// a collection of data we need to pass to and from the IGraph before we build our own full connections
+		struct ConnCurve {
+			TSharedPtr<SNode> FromConn;
+			TSharedPtr<SNode> ToConn;
+			TSharedPtr<INode> Intermediate1Node;
+			TSharedPtr<INode> Intermediate2Node;
+
+			TSharedPtr<LayoutGraph::Edge> Edge;
+		};
+
+		TArray<ConnCurve> IntermediatePoints;
+		double Energy;
+	};
+	using IEdge = IntermediateGraph::IEdge<INodeMetaData>;
+	using IGraph = IntermediateGraph::IGraph<INodeMetaData, IGraphMetaData>;
 
 	class SGraph {
 	private:
