@@ -16,6 +16,8 @@ class SetupOptFunction : public NlOptIface {
 	const double LengthEnergyScale;
 	const double EdgeEdgeEnergyScale;
 
+	const double EdgeRadiusScale;		// scale-up nodes to try and allow some clearance
+
 	double NodeAngleEnergy = 0;
 	double EdgeAngleEnergy = 0;
 	double PlanarEnergy = 0;
@@ -26,7 +28,8 @@ class SetupOptFunction : public NlOptIface {
 	static double JunctionAngle_Energy(const TSharedPtr<INode> node);
 	static double EdgeAngle_Energy(const TSharedPtr<INode> node);
 	static double JunctionPlanar_Energy(const TSharedPtr<INode> node);
-	static double EdgeEdge_Energy(const TSharedPtr<IEdge> e1, const TSharedPtr<IEdge> e2);
+	// non-static to access radius scale, could pass in...
+	double EdgeEdge_Energy(const TSharedPtr<IEdge> e1, const TSharedPtr<IEdge> e2);
 
 	struct EdgePair {
 		TSharedPtr<IEdge> Edge1;
@@ -37,7 +40,9 @@ class SetupOptFunction : public NlOptIface {
 
 public:
 	SetupOptFunction(const TSharedPtr<IGraph> graph,
-		double nade_scale, double eae_scale, double pe_scale, double le_scale, double eee_scale);
+		double junction_angle_energy_scale, double edge_angle_energy_scale,
+		double planar_energy_scale, double length_energy_scale, double edge_edge_energy_scale,
+		double edge_radius_scale);
 	virtual ~SetupOptFunction() {}
 
 	// Inherited via NlOptIface

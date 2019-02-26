@@ -139,7 +139,7 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_sour
 		auto int_pos1 = conn.Intermediate1Node->Position;
 		auto int_pos2 = conn.Intermediate2Node->Position;
 
-		if (DM != DebugMode::Skeleton)
+		if (DM != DebugMode::IntermediateSkeleton)
 		{
 			ConnectAndFillOut(from_c, to_c, int_pos1, int_pos2,
 				conn.Edge->Divs, conn.Edge->Twists,
@@ -562,7 +562,14 @@ void SGraph::CalcEdgeStartParams(const TSharedPtr<SNode>& from_c, const TSharedP
 double StructuralGraph::SGraph::OptimizeIGraph(TSharedPtr<IGraph> i_graph, double precision, bool final)
 {
 	auto SOF = MakeShared<SetupOptFunction>(i_graph,
-		10.0, 100.0, 10.0, 1.0, 1.0);
+		1.0,		// NodeAngleDistEnergyScale
+		1.0,		// EdgeAngleEnergyScale
+		1.0,		// PlanarEnergyScale
+		1.0,		// LengthEnergyScale
+		1.0,		// EdgeEdgeEnergyScale
+
+		3.0			// edge radius scale
+	);
 
 	NlOptWrapper opt(SOF);
 
@@ -701,7 +708,7 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 		}
 	};
 
-	for (const auto p : { 0.1, 0.01, 0.001, 0.03, 0.0001 })
+	for (const auto p : { 0.1, 0.01, 0.001, 0.0001, 0.00001 })
 	{
 		for (int i = 0; i < population.Num(); i++)
 		{
@@ -723,7 +730,7 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 		population.RemoveAt(population.Num() / 2, population.Num() / 2);
 	}
 
-	auto energy = OptimizeIGraph(population[0], 0.00001, true);
+	auto energy = OptimizeIGraph(population[0], 0.0000001, true);
 
 	return population[0];
 }

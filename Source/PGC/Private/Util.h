@@ -197,7 +197,7 @@ inline FVector NewellPolyNormal(const TArray<FVector>& verts)
 // dist3D_Segment_to_Segment(): get the 3D minimum distance between 2 segments
 //    Input:  two 3D line segments S1 and S2
 //    Return: the shortest distance between S1 and S2
-float
+double
 dist3D_Segment_to_Segment(GVector P0, GVector P1, GVector Q0, GVector Q1)
 {
 	GVector   u = P1 - P0;
@@ -212,7 +212,7 @@ dist3D_Segment_to_Segment(GVector P0, GVector P1, GVector Q0, GVector Q1)
 	double    sc, sN, sD = D;       // sc = sN / sD, default sD = D >= 0
 	double    tc, tN, tD = D;       // tc = tN / tD, default tD = D >= 0
 
-	static const auto SMALL_NUM = 1E-9;
+	static const auto SMALL_NUM = 1E-6;
 
 	// compute the line parameters of the two closest points
 	if (D < SMALL_NUM) { // the lines are almost parallel
@@ -270,7 +270,6 @@ dist3D_Segment_to_Segment(GVector P0, GVector P1, GVector Q0, GVector Q1)
 	return dP.Size();   // return the closest distance
 }
 
-//template <typename T>
 struct ParamPair {
 	double s;
 	double t;
@@ -345,7 +344,7 @@ inline ParamPair FindSegSegClosestPointParamsSlow(const GVector& P0, const GVect
 	NlOptWrapper nlow(of);
 
 	// need extra precision for this to work...
-	nlow.RunOptimization(true, -1, 1e-9, nullptr);
+	nlow.RunOptimization(true, -1, 1e-20, nullptr);
 
 	return { (float)of->s, (float)of->t };
 }
@@ -353,14 +352,12 @@ inline ParamPair FindSegSegClosestPointParamsSlow(const GVector& P0, const GVect
 // find the separation between two line segments, each segment defined by a point at either end
 inline double SegmentSegmentDistance(const GVector& P0, const GVector& P1, const GVector& Q0, const GVector& Q1)
 {
-	// infinite rays lines on which each segment lies are P0 + s*u and Q0 + v*t
-	// we'll solve for the s and t of closest approach
-	auto u = P1 - P0;
-	auto v = Q1 - Q0;
-
 	auto dist = dist3D_Segment_to_Segment(P0, P1, Q0, Q1);
 
 #if 0
+	auto u = P1 - P0;
+	auto v = Q1 - Q0;
+
 	auto check_params = FindSegSegClosestPointParamsSlow(P0, u, Q0, v);
 
 	// we can't check distance at the found params

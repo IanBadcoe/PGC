@@ -62,6 +62,9 @@ double SetupOptFunction::JunctionAngle_Energy(const TSharedPtr<INode> node)
 	{
 		ret += FMath::Pow((ang - target) / target, 2);
 	}
+
+	// do not give junctions with more angles a higher energy
+	ret /= angles.Num();
 	
 	return ret;
 }
@@ -81,15 +84,7 @@ double SetupOptFunction::EdgeAngle_Energy(const TSharedPtr<INode> node)
 
 	auto ang = FMath::Acos(cos);
 
-	// ignore any bend up to 30 degrees
-	static const auto tol = PI / 6;
-
-	if (ang < tol)
-	{
-		return 0;
-	}
-
-	return FMath::Pow((ang - tol) / (PI - tol), 2);
+	return FMath::Pow(ang / PI, 2);
 }
 
 double SetupOptFunction::JunctionPlanar_Energy(const TSharedPtr<INode> node)
@@ -124,8 +119,9 @@ double SetupOptFunction::EdgeEdge_Energy(const TSharedPtr<IEdge> e1, const TShar
 	const auto& e2nf = e2->FromNode.Pin();
 	const auto& e2nt = e2->ToNode.Pin();
 
-	auto combined_radius = FMath::Max(e1nf->Radius, e1nt->Radius) +
-		FMath::Max(e2nf->Radius, e2nt->Radius);
+	// allow plenty of clearance for this approx arrangement
+	auto combined_radius = (FMath::Max(e1nf->Radius, e1nt->Radius) +
+		FMath::Max(e2nf->Radius, e2nt->Radius)) * EdgeRadiusScale;
 
 	auto dist = Util::SegmentSegmentDistance(
 		GVector(e1nf->Position),
@@ -140,13 +136,20 @@ double SetupOptFunction::EdgeEdge_Energy(const TSharedPtr<IEdge> e1, const TShar
 	return FMath::Pow((combined_radius - dist) / combined_radius, 2);
 }
 
-SetupOptFunction::SetupOptFunction(const TSharedPtr<IGraph> graph, double nade_scale, double eae_scale, double pe_scale, double le_scale, double eee_scale)
+SetupOptFunction::SetupOptFunction(const TSharedPtr<IGraph> graph,
+	double junction_angle_energy_scale, double edge_angle_energy_scale,
+	double planar_energy_scale, double length_energy_scale,
+	double edge_edge_energy_scale,
+	
+	double edge_radius_scale)
 	: Graph(graph),
-	NodeAngleDistEnergyScale(nade_scale),
-	EdgeAngleEnergyScale(eae_scale),
-	PlanarEnergyScale(pe_scale),
-	LengthEnergyScale(le_scale),
-	EdgeEdgeEnergyScale(eee_scale)
+	  NodeAngleDistEnergyScale(junction_angle_energy_scale),
+	  EdgeAngleEnergyScale(edge_angle_energy_scale),
+	  PlanarEnergyScale(planar_energy_scale),
+	  LengthEnergyScale(length_energy_scale),
+	  EdgeEdgeEnergyScale(edge_edge_energy_scale),
+
+	  EdgeRadiusScale(edge_radius_scale)
 {
 	for (const auto& e1 : Graph->Edges)
 	{
@@ -178,25 +181,25 @@ double SetupOptFunction::f(int n, const double * x, double * grad)
 
 	for (const auto& e : Graph->Edges)
 	{
-		LengthEnergy += EdgeLength_Energy(e->FromNode.Pin()->Position, e->ToNode.Pin()->Position, e->D0);
+		LengthEnergy += EdgeLength_Energy(e->FromNode.Pin()->Position, e->ToNode.Pin()->Position, e->D0) * LengthEnergyScale;
 	}
 
 	for (const auto& node : Graph->Nodes)
 	{
 		if (node->Reference.IsValid() && node->Reference->MyType == StructuralGraph::SNode::Type::Junction)
 		{
-			NodeAngleEnergy += JunctionAngle_Energy(node);
-			PlanarEnergy += JunctionPlanar_Energy(node);
+			NodeAngleEnergy += JunctionAngle_Energy(node) * NodeAngleDistEnergyScale;
+			PlanarEnergy += JunctionPlanar_Energy(node) * PlanarEnergyScale;
 		}
 		else
 		{
-			EdgeAngleEnergy += EdgeAngle_Energy(node);
+			EdgeAngleEnergy += EdgeAngle_Energy(node) * EdgeAngleEnergyScale;
 		}
 	}
 
 	for (const auto& ep : CollidableEdges)
 	{
-		EdgeEdgeEnergy += EdgeEdge_Energy(ep.Edge1, ep.Edge2);
+		EdgeEdgeEnergy += EdgeEdge_Energy(ep.Edge1, ep.Edge2) * EdgeEdgeEnergyScale;
 	}
 
 	return 	NodeAngleEnergy +

@@ -149,15 +149,15 @@ namespace StructuralGraph {
 
 		static double OptimizeIGraph(TSharedPtr<IGraph> graph, double precision, bool final);
 
+	public:
 		enum class DebugMode {
 			Normal,
 			Skeleton,
 			IntermediateSkeleton
 		};
 
-		DebugMode DM = DebugMode::IntermediateSkeleton;
+		const DebugMode DM = DebugMode::IntermediateSkeleton;
 
-	public:
 		SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source);
 
 		TSharedPtr<IGraph> IntermediateOptimize(TSharedPtr<LayoutGraph::Graph> input);
