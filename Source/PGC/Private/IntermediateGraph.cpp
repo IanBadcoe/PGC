@@ -43,24 +43,14 @@ void IGraph<NM, GM>::Connect(const TSharedPtr<INode> n1, const TSharedPtr<INode>
 	n2->Edges.Add(Edges.Last());
 }
 
-static FVector RandomPointInBox(const FBox& box) {
-	auto max = box.Max;
-	auto min = box.Min;
-
-	return FVector(
-		FMath::RandRange(min.X, max.X),
-		FMath::RandRange(min.Y, max.Y),
-		FMath::RandRange(min.Z, max.Z));
-}
-
 template<typename NM, typename GM>
-TSharedPtr<IGraph<NM, GM>> IGraph<NM, GM>::Randomize(const FBox & box) const
+TSharedPtr<IGraph<NM, GM>> IGraph<NM, GM>::Randomize(const FBox& box) const
 {
 	auto ret = MakeShared<IGraph>(*this);
 
 	for (auto& n : Nodes)
 	{
-		n->Position = RandomPointInBox(box);
+		n->Position = FMath::RandPointInBox(box);
 	}
 
 	return ret;

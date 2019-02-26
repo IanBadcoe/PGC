@@ -685,20 +685,34 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 		}
 	}
 
-	TArray<TSharedPtr<IGraph>> population{ i_graph };
+	// just to get a reasonable estimate of the required bound size
+	OptimizeIGraph(i_graph, 0.01, true);
+
+	static const auto NumSpecies = 10;
+	static const auto SpeciesSize = 2;
+	static const auto GenerationsPerLevel = 4;
+	static const auto Mutations = 1;
+
+	TArray<TArray<TSharedPtr<IGraph>>> all_species{ {i_graph} };
+	all_species.AddDefaulted(NumSpecies - 1);
 
 	auto box = i_graph->CalcBoundingBox();
-	
-	FVector c, e;	
+
+	FVector c, e;
 	box.GetCenterAndExtents(c, e);
 
 	auto scale = e.GetAbsMax();
 
-	box = box.ExpandBy(scale / 2);
+	// expand the box to its maximum size on all axes
+	auto expand_factor = (FVector{ scale, scale, scale } -e);
+	box = box.ExpandBy(expand_factor);
 
-	for (int i = 0; i < 31; i++)
+	for (auto& pop : all_species)
 	{
-		population.Push(i_graph->Randomize(box));
+		while (pop.Num() < SpeciesSize)
+		{
+			pop.Push(i_graph->Randomize(box));
+		}
 	}
 
 	struct GEnergyDiffer {
@@ -710,29 +724,98 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 
 	for (const auto p : { 0.1, 0.01, 0.001, 0.0001, 0.00001 })
 	{
-		for (int i = 0; i < population.Num(); i++)
-		{
-			auto& g = population[i];
+		UE_LOG(LogTemp, Warning, TEXT("Genetic algorithm optimizing to: %f "), p);
+		UE_LOG(LogTemp, Warning, TEXT("Optimizing initial all_species"), p);
 
-			g->GraphMD.Energy = OptimizeIGraph(g, p, false);
+		// optimize whole Species to current target gradient
+		for (const auto& pop : all_species)
+		{
+			for (auto& g : pop)
+			{
+				g->GraphMD.Energy = OptimizeIGraph(g, p, false);
+			}
 		}
 
-		population.Sort(GEnergyDiffer());
-
-		for (int i = 0; i < population.Num(); i++)
+		for (auto& pop : all_species)
 		{
-			auto& g = population[i];
+			pop.Sort(GEnergyDiffer());
 
-			UE_LOG(LogTemp, Warning, TEXT("Individual-%i: Energy: %f"), i, g->GraphMD.Energy);
+			UE_LOG(LogTemp, Warning, TEXT("---"));
+
+			for (auto& g : pop)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Individual Energy: %f"), g->GraphMD.Energy);
+			}
 		}
 
-		// discard the worst half
-		population.RemoveAt(population.Num() / 2, population.Num() / 2);
+		for (int i = 0; i < GenerationsPerLevel; i++)
+		{
+			for (auto pop_idx = 0; pop_idx < SpeciesSize; pop_idx++)
+			{
+				auto parent_idx = FMath::RandRange(0, SpeciesSize - 1);
+
+				const auto& parent = all_species[pop_idx][parent_idx];
+
+				auto new_individual = MakeShared<IGraph>(*parent);
+
+				for (int j = 0; j < Mutations; j++)
+				{
+					auto& node = new_individual->Nodes[FMath::RandRange(0, new_individual->Nodes.Num() - 1)];
+					if (FMath::RandRange(0.0f, 1.0f) > 0.5f && node->Reference.IsValid() && node->Reference->MyType == SNode::Type::Junction)
+					{
+						auto eidx1 = FMath::RandRange(0, node->Edges.Num() - 1);
+						int eidx2;
+
+						do
+						{
+							eidx2 = FMath::RandRange(0, node->Edges.Num() - 1);
+						} while (eidx1 == eidx2);
+
+						Swap(node->Edges[eidx1].Pin()->OtherNode(node).Pin()->Position,
+							node->Edges[eidx2].Pin()->OtherNode(node).Pin()->Position);
+					}
+					else
+					{
+						node->Position = FMath::RandPointInBox(box);
+					}
+
+				}
+
+				new_individual->GraphMD.Energy = OptimizeIGraph(new_individual, p, false);
+
+				if (new_individual->GraphMD.Energy < all_species[pop_idx].Last()->GraphMD.Energy)
+				{
+					all_species[pop_idx].Last() = new_individual;
+
+					all_species[pop_idx].Sort(GEnergyDiffer());
+
+					UE_LOG(LogTemp, Warning, TEXT("New Individual in species: %d, at %f"), pop_idx, new_individual->GraphMD.Energy);
+				}
+			}
+		}
 	}
 
-	auto energy = OptimizeIGraph(population[0], 0.0000001, true);
+	UE_LOG(LogTemp, Warning, TEXT("Final populations"));
 
-	return population[0];
+	TArray<TSharedPtr<IGraph>> temp;
+
+	for (const auto& pop : all_species)
+	{
+		temp.Push(pop[0]);
+
+		UE_LOG(LogTemp, Warning, TEXT("---"));
+
+		for (auto& g : pop)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Energy: %f"), g->GraphMD.Energy);
+		}
+	}
+
+	temp.Sort(GEnergyDiffer());
+
+	auto energy = OptimizeIGraph(temp[0], 0.0000001, true);
+
+	return temp[0];
 }
 
 void SGraph::ConnectAndFillOut(TSharedPtr<SNode> from_c, TSharedPtr<SNode> to_c,

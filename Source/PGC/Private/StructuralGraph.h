@@ -156,7 +156,7 @@ namespace StructuralGraph {
 			IntermediateSkeleton
 		};
 
-		const DebugMode DM = DebugMode::IntermediateSkeleton;
+		const DebugMode DM = DebugMode::Normal;
 
 		SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source);
 
