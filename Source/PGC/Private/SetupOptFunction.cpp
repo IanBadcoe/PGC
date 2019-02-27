@@ -94,7 +94,7 @@ double SetupOptFunction::EdgeAngle_Energy(const TSharedPtr<INode> node)
 
 double SetupOptFunction::JunctionPlanar_Energy(const TSharedPtr<INode> node)
 {
-	check(node->MD.Source.IsValid() && node->MD.Type == INodeType::Junction);
+	check(node->MD.Type == INodeType::Junction);
 
 	TArray<FVector> rel_verts;
 
@@ -191,7 +191,7 @@ double SetupOptFunction::f(int n, const double * x, double * grad)
 
 	for (const auto& node : Graph->Nodes)
 	{
-		if (node->MD.Source.IsValid() && node->MD.Type == INodeType::Junction)
+		if (node->MD.Type == INodeType::Junction)
 		{
 			NodeAngleEnergy += JunctionAngle_Energy(node) * NodeAngleDistEnergyScale;
 			PlanarEnergy += JunctionPlanar_Energy(node) * PlanarEnergyScale;

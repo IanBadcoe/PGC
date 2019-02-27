@@ -13,6 +13,36 @@ namespace StructuralGraph
 using namespace Profile;
 using namespace SetupOpt;
 
+static SNode::Type TranslateType(INodeType t) {
+	switch (t) {
+	case INodeType::Junction:
+		return SNode::Type::Junction;
+	case INodeType::JunctionConnector:
+		return SNode::Type::JunctionConnector;
+	case INodeType::Intermediate:
+	case INodeType::Connection:
+		return SNode::Type::Connection;
+	default:
+		check(false);
+		return SNode::Type::Connection;
+	}
+}
+
+static INodeType TranslateType(SNode::Type t) {
+	switch (t) {
+	case SNode::Type::Junction:
+		return INodeType::Junction;
+	case SNode::Type::JunctionConnector:
+		return INodeType::JunctionConnector;
+	case SNode::Type::Connection:
+		return INodeType::Connection;
+	default:
+		check(false);
+
+		return INodeType::Junction;
+	}
+}
+
 SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source)
 	: _ProfileSource(profile_source)
 {
@@ -99,6 +129,25 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_sour
 
 	auto i_graph = IntermediateOptimize(input);
 
+	// intermediate graph simple translation for debugging
+#if 1
+	Nodes.Empty();
+	Edges.Empty();
+
+	for (const auto& n : i_graph->Nodes)
+	{
+		Nodes.Push(MakeShared<SNode>(TSharedPtr<ParameterisedProfile>(), TranslateType(n->MD.Type)));
+		Nodes.Last()->Position = n->Position;
+	}
+
+	for (const auto& e : i_graph->Edges)
+	{
+		auto ifrom = i_graph->FindNodeIdx(e->FromNode);
+		auto ito = i_graph->FindNodeIdx(e->ToNode);
+
+		Connect(Nodes[ifrom], Nodes[ito], e->D0);
+	}
+#else
 	// copy node positions back from IGraph to us
 	for (const auto& n : i_graph->Nodes)
 	{
@@ -174,6 +223,7 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_sour
 		// now it is all laid out set the node radii
 		n->FindRadius();
 	}
+#endif
 
 	MakeIntoDAG();
 }
@@ -581,25 +631,95 @@ double StructuralGraph::SGraph::OptimizeIGraph(TSharedPtr<IGraph> i_graph, doubl
 	return ret;
 }
 
-static INodeType TranslateType(SNode::Type t) {
-	switch (t) {
-	case SNode::Type::Junction:
-		return INodeType::Junction;
-	case SNode::Type::JunctionConnector:
-		return INodeType::JunctionConnector;
-	case SNode::Type::Connection:
-		return INodeType::Connection;
-	default:
-		check(false);
 
-		return INodeType::Junction;
+TSharedPtr<INode> FindNeighbourOfType(const TSharedPtr<INode>& n, INodeType t)
+{
+	for (const auto& e : n->Edges)
+	{
+		auto on = e.Pin()->OtherNode(n).Pin();
+
+		if (on->MD.Type == t)
+			return on;
 	}
+
+	return TSharedPtr<INode>();
+}
+
+static TSharedPtr<IGraph> RadialInitModel(const TSharedPtr<IGraph>& graph, float scale)
+{
+	auto ret = MakeShared<IGraph>(*graph);
+
+	FBox box{ { -scale, -scale, -scale}, {scale, scale, scale} };
+
+	// this only works because the Nodes array is in the order Js -> JCs -> Is
+	for (auto& n : ret->Nodes)
+	{
+		switch (n->MD.Type)
+		{
+		case INodeType::Junction:
+		{
+			// junctions around the outside of a sphere
+			n->Position = FMath::RandPointInBox(box);
+			n->Position *= scale / n->Position.Size();
+			break;
+		}
+
+		case INodeType::JunctionConnector:
+		{
+			// JSs close to their Js
+			auto j = FindNeighbourOfType(n, INodeType::Junction);
+			n->Position = j->Position + FMath::VRand() * j->Radius;
+			break;
+		}
+
+		case INodeType::Intermediate:
+		{
+			// Is between their bracketing JCs
+			auto jc1 = FindNeighbourOfType(n, INodeType::JunctionConnector);
+			auto oi = FindNeighbourOfType(n, INodeType::Intermediate);
+			auto jc2 = FindNeighbourOfType(oi, INodeType::JunctionConnector);
+
+			// there's two Is between a pair of JCs
+			// position ourselves 1/3 of the way away from the closer one
+			n->Position = (jc1->Position * 2 + jc2->Position) / 3;
+			break;
+		}
+		}
+	}
+
+	return ret;
 }
 
 TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimize(TSharedPtr<LayoutGraph::Graph> input)
 {
 	auto i_graph = MakeShared<IGraph>();
 
+#if 0
+	i_graph->Nodes.Push(MakeShared<INode>(1.0f, FVector{ 0.0f, 0.0f, 0.0f }, INodeMetaData{ TSharedPtr<SNode>(), INodeType::Junction }));
+	i_graph->Nodes.Push(MakeShared<INode>(1.0f, FVector{ 10, 0, 0 }, INodeMetaData()));
+	i_graph->Nodes.Push(MakeShared<INode>(1.0f, FVector{ 0, 10, 0 }, INodeMetaData()));
+	i_graph->Nodes.Push(MakeShared<INode>(1.0f, FVector{ 0, 0, 10 }, INodeMetaData()));
+	i_graph->Nodes.Push(MakeShared<INode>(1.0f, FVector{ 10, 10, 0 }, INodeMetaData()));
+	i_graph->Nodes.Push(MakeShared<INode>(1.0f, FVector{ 0, 10, 10 }, INodeMetaData()));
+	i_graph->Nodes.Push(MakeShared<INode>(1.0f, FVector{ 10, 0, 10 }, INodeMetaData()));
+	i_graph->Nodes.Push(MakeShared<INode>(1.0f, FVector{ 15, 15, 0 }, INodeMetaData()));
+	i_graph->Nodes.Push(MakeShared<INode>(1.0f, FVector{ 0, 15, 15 }, INodeMetaData()));
+	i_graph->Nodes.Push(MakeShared<INode>(1.0f, FVector{ 15, 0, 15 }, INodeMetaData()));
+	i_graph->Nodes.Push(MakeShared<INode>(1.0f, FVector{ 10, 10, 10 }, INodeMetaData{ TSharedPtr<SNode>(), INodeType::Junction }));
+
+	i_graph->Connect(i_graph->Nodes[0], i_graph->Nodes[1], 3);
+	i_graph->Connect(i_graph->Nodes[0], i_graph->Nodes[2], 3);
+	i_graph->Connect(i_graph->Nodes[0], i_graph->Nodes[3], 3);
+	i_graph->Connect(i_graph->Nodes[1], i_graph->Nodes[4], 3);
+	i_graph->Connect(i_graph->Nodes[2], i_graph->Nodes[5], 3);
+	i_graph->Connect(i_graph->Nodes[3], i_graph->Nodes[6], 3);
+	i_graph->Connect(i_graph->Nodes[4], i_graph->Nodes[7], 3);
+	i_graph->Connect(i_graph->Nodes[5], i_graph->Nodes[8], 3);
+	i_graph->Connect(i_graph->Nodes[6], i_graph->Nodes[9], 3);
+	i_graph->Connect(i_graph->Nodes[7], i_graph->Nodes[10], 3);
+	i_graph->Connect(i_graph->Nodes[8], i_graph->Nodes[10], 3);
+	i_graph->Connect(i_graph->Nodes[9], i_graph->Nodes[10], 3);
+#else
 	// make an IGraph node for every node (Junction and Connector) that we have...
 	for (const auto& n : Nodes)
 	{
@@ -699,14 +819,15 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 			}
 		}
 	}
+#endif
 
 	// just to get a reasonable estimate of the required bound size
 	OptimizeIGraph(i_graph, 0.01, true);
 
-	static const auto NumSpecies = 10;
-	static const auto SpeciesSize = 2;
-	static const auto GenerationsPerLevel = 4;
-	static const auto Mutations = 1;
+	static const auto NumSpecies = 7;
+	static const auto SpeciesSize = 3;
+	static const auto BirthsPerSpeciesPerLevel = 10;
+	static const auto Mutations = 2;
 
 	TArray<TArray<TSharedPtr<IGraph>>> all_species{ {i_graph} };
 	all_species.AddDefaulted(NumSpecies - 1);
@@ -719,8 +840,29 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 	auto scale = e.GetAbsMax();
 
 	// expand the box to its maximum size on all axes
-	auto expand_factor = (FVector{ scale, scale, scale } - e);
+	auto expand_factor = (FVector{ scale, scale, scale } -e);
 	box = box.ExpandBy(expand_factor);
+
+	auto big_box = FBox(box[0] * 10, box[1] * 10);
+	auto small_box = FBox(box[0] * 0.1f, box[1] * 0.1f);
+
+	// we have six special types of species starting config
+	check(NumSpecies >= 6);
+
+	// setup a few species initialised different ways
+	for (int i = 0; i < SpeciesSize; i++)
+	{
+		// try huge
+		all_species[1].Push(i_graph->Randomize(big_box));
+		// try small
+		all_species[2].Push(i_graph->Randomize(small_box));
+		// radial junctions, junctions connectors close to them, intermediate points between jcs
+		all_species[3].Push(RadialInitModel(i_graph, scale));
+		// as above, big
+		all_species[4].Push(RadialInitModel(i_graph, scale * 10));
+		// as above, small
+		all_species[5].Push(RadialInitModel(i_graph, scale * 0.1));
+	}
 
 	for (auto& pop : all_species)
 	{
@@ -763,9 +905,9 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 			}
 		}
 
-		for (int i = 0; i < GenerationsPerLevel; i++)
+		for (int i = 0; i < BirthsPerSpeciesPerLevel; i++)
 		{
-			for (auto pop_idx = 0; pop_idx < SpeciesSize; pop_idx++)
+			for (auto pop_idx = 0; pop_idx < NumSpecies; pop_idx++)
 			{
 				auto parent_idx = FMath::RandRange(0, SpeciesSize - 1);
 

@@ -77,6 +77,7 @@ namespace StructuralGraph {
 
 		TSharedPtr<SNode> Parent;		// for the purposes of the DAG only...
 
+		SNode() = delete;
 		SNode(const TSharedPtr<Profile::ParameterisedProfile> profile, Type type) : Profile(profile), MyType(type)
 		{
 		}
@@ -167,7 +168,7 @@ namespace StructuralGraph {
 			IntermediateSkeleton
 		};
 
-		const DebugMode DM = DebugMode::Normal;
+		const DebugMode DM = DebugMode::IntermediateSkeleton;
 
 		SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source);
 
