@@ -43,8 +43,9 @@ static INodeType TranslateType(SNode::Type t) {
 	}
 }
 
-SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source)
-	: _ProfileSource(profile_source)
+SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source,
+	const FRandomStream& random_stream)
+	: Profiles(profile_source), RStream(random_stream)
 {
 	for (const auto& n : input->GetNodes())
 	{
@@ -130,7 +131,9 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_sour
 	auto i_graph = IntermediateOptimize(input);
 
 	// intermediate graph simple translation for debugging
-#if 1
+	// the difference between this and DM == IntermediateSkeleton is this doesn't even assume the
+	// nodes we started with still exist, basically for showing hacked-in debug data
+#if 0
 	Nodes.Empty();
 	Edges.Empty();
 
@@ -183,7 +186,7 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_sour
 		auto from_c = conn.FromConn;
 		auto to_c = conn.ToConn;
 
-		auto profiles = _ProfileSource->GetCompatibleProfileSequence(from_c->Profile, to_c->Profile,
+		auto profiles = Profiles->GetCompatibleProfileSequence(from_c->Profile, to_c->Profile,
 			conn.Edge->Divs);
 
 		auto int_pos1 = conn.Intermediate1Node->Position;
@@ -626,7 +629,7 @@ double StructuralGraph::SGraph::OptimizeIGraph(TSharedPtr<IGraph> i_graph, doubl
 
 	double ret;
 
-	opt.RunOptimization(true, final ? 50 : -1, precision, &ret);
+	opt.RunOptimization(true, final ? 500 : -1, precision, final ? 100000 : 1000, &ret);
 
 	return ret;
 }
@@ -645,11 +648,9 @@ TSharedPtr<INode> FindNeighbourOfType(const TSharedPtr<INode>& n, INodeType t)
 	return TSharedPtr<INode>();
 }
 
-static TSharedPtr<IGraph> RadialInitModel(const TSharedPtr<IGraph>& graph, float scale)
+static TSharedPtr<IGraph> RadialInitModel(const TSharedPtr<IGraph>& graph, float scale, FRandomStream& random_stream)
 {
 	auto ret = MakeShared<IGraph>(*graph);
-
-	FBox box{ { -scale, -scale, -scale}, {scale, scale, scale} };
 
 	// this only works because the Nodes array is in the order Js -> JCs -> Is
 	for (auto& n : ret->Nodes)
@@ -659,16 +660,15 @@ static TSharedPtr<IGraph> RadialInitModel(const TSharedPtr<IGraph>& graph, float
 		case INodeType::Junction:
 		{
 			// junctions around the outside of a sphere
-			n->Position = FMath::RandPointInBox(box);
-			n->Position *= scale / n->Position.Size();
+			n->Position = random_stream.VRand() * scale;
 			break;
 		}
 
 		case INodeType::JunctionConnector:
 		{
-			// JSs close to their Js
+			// JCs close to their Js
 			auto j = FindNeighbourOfType(n, INodeType::Junction);
-			n->Position = j->Position + FMath::VRand() * j->Radius;
+			n->Position = j->Position + random_stream.VRand() * j->Radius;
 			break;
 		}
 
@@ -843,32 +843,34 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 	auto expand_factor = (FVector{ scale, scale, scale } -e);
 	box = box.ExpandBy(expand_factor);
 
-	auto big_box = FBox(box[0] * 10, box[1] * 10);
-	auto small_box = FBox(box[0] * 0.1f, box[1] * 0.1f);
+	auto big_box = FBox(box[0] * 1.2f, box[1] * 1.2f);
+	auto small_box = FBox(box[0] * 0.8f, box[1] * 0.8f);
 
 	// we have six special types of species starting config
 	check(NumSpecies >= 6);
+
+	FRandomStream here_stream(RStream.RandHelper(INT_MAX));
 
 	// setup a few species initialised different ways
 	for (int i = 0; i < SpeciesSize; i++)
 	{
 		// try huge
-		all_species[1].Push(i_graph->Randomize(big_box));
+		all_species[1].Push(i_graph->Randomize(big_box, here_stream));
 		// try small
-		all_species[2].Push(i_graph->Randomize(small_box));
+		all_species[2].Push(i_graph->Randomize(small_box, here_stream));
 		// radial junctions, junctions connectors close to them, intermediate points between jcs
-		all_species[3].Push(RadialInitModel(i_graph, scale));
+		all_species[3].Push(RadialInitModel(i_graph, scale, here_stream));
 		// as above, big
-		all_species[4].Push(RadialInitModel(i_graph, scale * 10));
+		all_species[4].Push(RadialInitModel(i_graph, scale * 1.2, here_stream));
 		// as above, small
-		all_species[5].Push(RadialInitModel(i_graph, scale * 0.1));
+		all_species[5].Push(RadialInitModel(i_graph, scale * 0.8, here_stream));
 	}
 
 	for (auto& pop : all_species)
 	{
 		while (pop.Num() < SpeciesSize)
 		{
-			pop.Push(i_graph->Randomize(box));
+			pop.Push(i_graph->Randomize(box, here_stream));
 		}
 	}
 
@@ -879,10 +881,10 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 		}
 	};
 
-	for (const auto p : { 0.1, 0.01, 0.001, 0.0001, 0.00001 })
+	for (const auto p : { 0.1, 0.03, 0.01, 0.003, 0.001, 0.0003 })
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Genetic algorithm optimizing to: %f "), p);
-		UE_LOG(LogTemp, Warning, TEXT("Optimizing initial all_species"), p);
+		UE_LOG(LogTemp, Warning, TEXT("Optimizing initial species"), p);
 
 		// optimize whole Species to current target gradient
 		for (const auto& pop : all_species)
@@ -909,7 +911,7 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 		{
 			for (auto pop_idx = 0; pop_idx < NumSpecies; pop_idx++)
 			{
-				auto parent_idx = FMath::RandRange(0, SpeciesSize - 1);
+				auto parent_idx = here_stream.RandRange(0, SpeciesSize - 1);
 
 				const auto& parent = all_species[pop_idx][parent_idx];
 
@@ -917,15 +919,15 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 
 				for (int j = 0; j < Mutations; j++)
 				{
-					auto& node = new_individual->Nodes[FMath::RandRange(0, new_individual->Nodes.Num() - 1)];
-					if (FMath::RandRange(0.0f, 1.0f) > 0.5f && node->MD.Source.IsValid() && node->MD.Type == INodeType::Junction)
+					auto& node = new_individual->Nodes[here_stream.RandRange(0, new_individual->Nodes.Num() - 1)];
+					if (RStream.GetFraction() > 0.5f && node->MD.Source.IsValid() && node->MD.Type == INodeType::Junction)
 					{
-						auto eidx1 = FMath::RandRange(0, node->Edges.Num() - 1);
+						auto eidx1 = here_stream.RandRange(0, node->Edges.Num() - 1);
 						int eidx2;
 
 						do
 						{
-							eidx2 = FMath::RandRange(0, node->Edges.Num() - 1);
+							eidx2 = here_stream.RandRange(0, node->Edges.Num() - 1);
 						} while (eidx1 == eidx2);
 
 						Swap(node->Edges[eidx1].Pin()->OtherNode(node).Pin()->Position,
@@ -933,9 +935,8 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 					}
 					else
 					{
-						node->Position = FMath::RandPointInBox(box);
+						node->Position = Util::RandPointInBox(box, here_stream);
 					}
-
 				}
 
 				new_individual->MD.Energy = OptimizeIGraph(new_individual, p, false);
@@ -970,7 +971,7 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 
 	temp.Sort(GEnergyDiffer());
 
-	auto energy = OptimizeIGraph(temp[0], 0.0000001, true);
+	auto energy = OptimizeIGraph(temp[0], 0.00001, true);
 
 	return temp[0];
 }

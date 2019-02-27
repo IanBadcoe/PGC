@@ -14,21 +14,10 @@ NlOptWrapper::~NlOptWrapper()
 {
 }
 
-bool NlOptWrapper::RunOptimization(bool use_limits, int loggingFreq, double precision, double* out_energy)
+bool NlOptWrapper::RunOptimization(bool use_limits, int loggingFreq, double precision, int max_steps, double* out_energy)
 {
 	LoggingFreq = loggingFreq;
 	First = true;
-
-	//TArray<double> state;
-	//state.AddDefaulted(NlIface->GetSize());
-	//NlIface->GetState(state.GetData(), state.Num());
-
-	//for (int i = 0; i < state.Num(); i++)
-	//{
-	//	state[i] += FMath::FRand() * 0.4 - 0.2;
-	//}
-
-	//NlIface->SetState(state.GetData(), state.Num());
 
 	FDateTime timeUtc = FDateTime::UtcNow();
 	int64 start = timeUtc.ToUnixTimestamp() * 1000 + timeUtc.GetMillisecond();
@@ -49,7 +38,7 @@ bool NlOptWrapper::RunOptimization(bool use_limits, int loggingFreq, double prec
 	// conclusion: SubPlex is best, but if I could do a simpler optimisation on the starting config first it might work
 	// more reliably/faster (Done now: see SetupOptFunction)
 
-	auto ret = RunOptimization(NLOPT_LN_SBPLX, 1000000, use_limits, precision, out_energy);
+	auto ret = RunOptimization(NLOPT_LN_SBPLX, max_steps, use_limits, precision, out_energy);
 
 	if (loggingFreq != -1)
 	{
@@ -119,7 +108,8 @@ double NlOptWrapper::f_callback_inner(unsigned n, const double * x, double * gra
 	return ret;
 }
 
-bool NlOptWrapper::RunOptimization(nlopt_algorithm alg, int steps, bool use_limits, double precision, double* out_energy)
+bool NlOptWrapper::RunOptimization(nlopt_algorithm alg, int steps, bool use_limits,
+	double precision, double* out_energy)
 {
 	nlopt_opt NlOpt = nlopt_create(alg, NlIface->GetSize());
 	nlopt_set_min_objective(NlOpt, &f_callback, this);

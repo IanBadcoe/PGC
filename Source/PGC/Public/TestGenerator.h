@@ -30,16 +30,21 @@ public:
 
 class TestProfileSource : public StructuralGraph::ProfileSource {
 public:
+	TestProfileSource();
+	virtual ~TestProfileSource() = default;
+
 	// Inherited via ProfileSource
 	virtual TSharedPtr<Profile::ParameterisedProfile> GetProfile() const override;
 	virtual TArray<TSharedPtr<Profile::ParameterisedProfile>> GetCompatibleProfileSequence(TSharedPtr<Profile::ParameterisedProfile> from, TSharedPtr<Profile::ParameterisedProfile> to, int steps) const override;
 
-	static void AddRoadbed(FString name, TSharedPtr<Profile::ParameterisedRoadbedShape> roadbed,
+	void AddRoadbed(FString name, TSharedPtr<Profile::ParameterisedRoadbedShape> roadbed,
 		bool suppress_mirroring = false, TArray<float> sizes = {});
 
+	FRandomStream RStream;
+
 private:
-	static TMap<FString, TSharedPtr<Profile::ParameterisedRoadbedShape>> Roadbeds;
-	static TArray<TSharedPtr<Profile::ParameterisedProfile>> Profiles;
+	TMap<FString, TSharedPtr<Profile::ParameterisedRoadbedShape>> Roadbeds;
+	TArray<TSharedPtr<Profile::ParameterisedProfile>> Profiles;
 };
 
 UCLASS(BlueprintType)
@@ -61,6 +66,9 @@ class PGC_API ATestGenerator : public AActor, public IPGCGenerator
 public:	
 	// Sets default values for this actor's properties
 	ATestGenerator();
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "PGC Mesh")
+	FRandomStream RStream;
 
 protected:
 	// Called when the game starts or when spawned

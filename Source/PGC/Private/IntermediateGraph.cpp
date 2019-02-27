@@ -41,13 +41,13 @@ void IGraph<NM, GM>::Connect(const TSharedPtr<INode>& n1, const TSharedPtr<INode
 }
 
 template<typename NM, typename GM>
-TSharedPtr<IGraph<NM, GM>> IGraph<NM, GM>::Randomize(const FBox& box) const
+TSharedPtr<IGraph<NM, GM>> IGraph<NM, GM>::Randomize(const FBox& box, FRandomStream& random_stream) const
 {
 	auto ret = MakeShared<IGraph>(*this);
 
 	for (auto& n : Nodes)
 	{
-		n->Position = FMath::RandPointInBox(box);
+		n->Position = Util::RandPointInBox(box, random_stream);
 	}
 
 	return ret;

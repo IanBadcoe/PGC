@@ -81,7 +81,7 @@ namespace IntermediateGraph {
 		GM MD;
 
 		// randomizes all node positions within box
-		TSharedPtr<IGraph> Randomize(const FBox& box) const;
+		TSharedPtr<IGraph> Randomize(const FBox& box, FRandomStream& rand_stream) const;
 
 		FBox CalcBoundingBox() const;
 

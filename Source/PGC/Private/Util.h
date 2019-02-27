@@ -344,7 +344,7 @@ inline ParamPair FindSegSegClosestPointParamsSlow(const GVector& P0, const GVect
 	NlOptWrapper nlow(of);
 
 	// need extra precision for this to work...
-	nlow.RunOptimization(true, -1, 1e-20, nullptr);
+	nlow.RunOptimization(true, -1, 1e-20, 1000000, nullptr);
 
 	return { (float)of->s, (float)of->t };
 }
@@ -377,6 +377,13 @@ inline double SegmentSegmentDistance(const GVector& P0, const GVector& P1, const
 #endif
 
 	return dist;
+}
+
+FVector RandPointInBox(const FBox& box, FRandomStream& random_stream) {
+	FVector c, e;
+	box.GetCenterAndExtents(c, e);
+
+	return random_stream.VRand() * e + c;
 }
 
 }
