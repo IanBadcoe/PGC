@@ -42,8 +42,6 @@ void ATestGenerator::EnsureOptimizer()
 void ATestGenerator::BeginPlay()
 {
 	Super::BeginPlay();
-
-	ProfileSource.RStream = FRandomStream(RStream.RandHelper(INT_MAX));
 }
 
 void ATestGenerator::Tick(float DeltaTime)
@@ -55,6 +53,8 @@ void ATestGenerator::Tick(float DeltaTime)
 
 void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh, TArray<FPGCNodePosition>& Nodes)
 {
+	ProfileSource.RStream = FRandomStream(RStream.RandHelper(INT_MAX));
+
 	EnsureGraphs();
 
 	EnsureOptimizer();
