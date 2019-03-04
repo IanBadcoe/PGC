@@ -7,35 +7,9 @@ PRAGMA_DISABLE_OPTIMIZATION
 // Sets default values
 ATestGenerator::ATestGenerator()
 {
-}
-
-void ATestGenerator::EnsureGraphs()
-{
-	if (!TopologicalGraph.IsValid())
-	{
-		TopologicalGraph = MakeShared<TestGraph>();
-		TopologicalGraph->Generate();
-	}
-
-	if (!StructuralGraph.IsValid())
-	{
-		StructuralGraph = MakeShared<StructuralGraph::SGraph>(TopologicalGraph, &ProfileSource,
-			FRandomStream(RStream.RandHelper(INT_MAX)));
-	}
-}
-
-void ATestGenerator::EnsureOptimizer()
-{
-	EnsureGraphs();
-
-	if (!Optimizer.IsValid())
-	{
-		check(!OptimizerInterface.IsValid());
-
-		OptimizerInterface = MakeShared<Opt::OptFunction>(StructuralGraph, 1.0, 1.0, 100.0, 100.0, 10.0, 10.0);
-
-		Optimizer = MakeShared<NlOptWrapper>(OptimizerInterface);
-	}
+	TopologicalGraph = MakeShared<TestGraph>();
+	// assuming for the moment this is cheap...
+	TopologicalGraph->Generate();
 }
 
 // Called when the game starts or when spawned
@@ -51,22 +25,27 @@ void ATestGenerator::Tick(float DeltaTime)
 	// ...
 }
 
-void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh, TArray<FPGCNodePosition>& Nodes)
+uint32 ATestGenerator::SettingsHash() const
 {
-	ProfileSource.RStream = FRandomStream(RStream.RandHelper(INT_MAX));
+	return HashCombine(TopologicalGraph->GetTypeHash(), GetTypeHash(RStream.GetCurrentSeed()));
+}
 
-	EnsureGraphs();
+void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh, TSharedPtr<TArray<FPGCNodePosition>> Nodes) const
+{
+	// we won't change our' actual random stream, because the usual UE mechanaism for resetting it
+	// doesn't apply when we're invoked from some other Actor getting editted
+	FRandomStream throwaway_rstream(RStream);
 
-	EnsureOptimizer();
+	TSharedPtr<const StructuralGraph::ProfileSource> ProfileSource = MakeShared<const TestProfileSource>(FRandomStream(throwaway_rstream.RandHelper(INT_MAX)));
 
-	//int sz = OptimizerInterface->GetSize();
-	//TArray<double> state;
-	//state.AddDefaulted(sz);
-	//OptimizerInterface->GetState(state.GetData(), sz);
-	//OptimizerInterface->SetState(state.GetData(), sz);
+	auto StructuralGraph = MakeShared<StructuralGraph::SGraph>(TopologicalGraph, ProfileSource,
+		FRandomStream(throwaway_rstream.RandHelper(INT_MAX)));
 
 	if (StructuralGraph->DM != StructuralGraph::SGraph::DebugMode::IntermediateSkeleton)
 	{
+		auto OptimizerInterface = MakeShared<Opt::OptFunction>(StructuralGraph, 1.0, 1.0, 100.0, 100.0, 10.0, 10.0);
+		
+		auto Optimizer = MakeShared<NlOptWrapper>(OptimizerInterface);
 		Optimizer->RunOptimization(true, 1000, 1e-3, 100000, nullptr);
 	}
 
@@ -74,11 +53,12 @@ void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh, TArray<FPGCNodePosition>& N
 
 	for (const auto& n : StructuralGraph->Nodes)
 	{
-		Nodes.Emplace(n->Position, n->CachedUp);
+		Nodes->Emplace(n->Position, n->CachedUp);
 	}
 }
 
-TestProfileSource::TestProfileSource()
+TestProfileSource::TestProfileSource(const FRandomStream& random_stream)
+	: RStream(random_stream)
 {
 	//// tunnels
 	//AddRoadbed("SquareTunnel", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.5f, 0.5f, 0, -1));

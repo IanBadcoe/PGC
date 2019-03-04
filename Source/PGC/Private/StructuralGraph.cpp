@@ -43,7 +43,7 @@ static INodeType TranslateType(SNode::Type t) {
 	}
 }
 
-SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, ProfileSource* profile_source,
+SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, const TSharedPtr<const ProfileSource>& profile_source,
 	const FRandomStream& random_stream)
 	: Profiles(profile_source), RStream(random_stream)
 {

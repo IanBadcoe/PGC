@@ -52,4 +52,6 @@ public:
 
 	UPROPERTY(EditAnywhere)
 	PGCEdgeType EdgeTypes[PGCEdgeId::MAX];
+
+	uint32 GetTypeHash() const;
 };

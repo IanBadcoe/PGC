@@ -3,6 +3,11 @@
 #include "PGCMesh.h"
 
 
+//class static
+TMap<PGCMeshCache::CacheKey, PGCMeshCache::CacheVal> UPGCMesh::Cache;
+
+// --
+
 // Sets default values for this component's properties
 UPGCMesh::UPGCMesh()
 {
@@ -32,27 +37,83 @@ void UPGCMesh::TickComponent(float DeltaTime, ELevelTick TickType, FActorCompone
 	// ...
 }
 
-FPGCMeshResult UPGCMesh::GenerateMergeChannels(int NumDivisions, bool InsideOut, bool Triangularise, PGCDebugEdgeType DebugEdges)
+void UPGCMesh::SetGenerator(const TScriptInterface<IPGCGenerator>& gen)
 {
-	TSharedPtr<Mesh> out_mesh = InitialMesh;
-	
-	if (NumDivisions > 0)
+	Generator = gen;
+}
+
+void UPGCMesh::Generate(int NumDivisions, bool Triangularise)
+{
+	auto checksum = Generator->SettingsHash();
+	auto gname = Generator->GetName();
+
+	PGCMeshCache::CacheKey key{ gname, checksum, NumDivisions, Triangularise };
+
+	if (!Cache.Contains(key))
 	{
-		out_mesh = out_mesh->SubdivideN(NumDivisions);
+		RealGenerate(key, NumDivisions, Triangularise);
 	}
-	
-	if (Triangularise)	// do we ever want subdivision _and_ triangularisation?  No reason why not, but not needed it yet...
+
+	CurrentMesh = Cache[key].Geom;
+	CurrentNodes = Cache[key].Nodes;
+}
+
+void UPGCMesh::RealGenerate(PGCMeshCache::CacheKey key, int NumDivisions, bool Triangularise)
+{
+	bool need_another_divide = false;
+	if (Triangularise)
+	{
+		Generate(NumDivisions, false);
+	}
+	else if (NumDivisions > 0)
+	{
+		Generate(NumDivisions - 1, false);
+		need_another_divide = true;
+	}
+	else
+	{
+		auto out_mesh = MakeShared<Mesh>(FMath::Cos(FMath::DegreesToRadians(20.0f)));
+		auto out_nodes = MakeShared<TArray<FPGCNodePosition>>();
+
+		Generator->MakeMesh(out_mesh, out_nodes);
+		Cache.Add(PGCMeshCache::CacheKey{ key.GeneratorName, key.GeneratorConfigChecksum, 0, false }, { out_mesh, out_nodes });
+
+		return;
+	}
+
+	PGCMeshCache::CacheKey parent_key{ key.GeneratorName, key.GeneratorConfigChecksum, NumDivisions - 1, false };
+
+	check(Cache.Contains(parent_key));
+
+	// surfaces with normals differing by more than 20 degrees to be set sharp when
+	// using PGCEdgeType::Auto
+	auto out_mesh = Cache[parent_key].Geom;
+	auto out_nodes = Cache[parent_key].Nodes;
+
+	if (need_another_divide)
+	{
+		out_mesh = out_mesh->Subdivide();
+	}
+
+	if (Triangularise)
 	{
 		// can have some seriously non-planar faces without subdivision,
 		// this splits them around a central point, rather than fan from an random edge vertex
 		out_mesh = out_mesh->Triangularise();
 	}
 
+	Cache.Add(key, PGCMeshCache::CacheVal{ out_mesh, out_nodes });
+}
+
+FPGCMeshResult UPGCMesh::GenerateMergeChannels(int NumDivisions, bool InsideOut, bool Triangularise, PGCDebugEdgeType DebugEdges)
+{
+	Generate(NumDivisions, Triangularise);
+
 	FPGCMeshResult ret;
 
-	out_mesh->BakeAllChannelsIntoOne(ret, InsideOut, DebugEdges);
+	CurrentMesh->BakeAllChannelsIntoOne(ret, InsideOut, DebugEdges);
 
-	ret.Nodes = Nodes;
+	ret.Nodes = *CurrentNodes;
 
 	return ret;
 }
@@ -61,25 +122,13 @@ FPGCMeshResult UPGCMesh::GenerateChannels(int NumDivisions, bool InsideOut, bool
 	PGCDebugEdgeType DebugEdges,
 	int StartChannel, int EndChannel)
 {
-	TSharedPtr<Mesh> out_mesh = InitialMesh;
-
-	if (NumDivisions > 0)
-	{
-		out_mesh = out_mesh->SubdivideN(NumDivisions);
-	}
-	
-	if (Triangularise)
-	{
-		// can have some seriously non-planar faces without subdivision,
-		// this splits them around a central point, rather than fan from an random edge vertex
-		out_mesh = out_mesh->Triangularise();
-	}
+	Generate(NumDivisions, Triangularise);
 
 	FPGCMeshResult ret;
 
-	out_mesh->BakeChannels(ret, InsideOut, DebugEdges, StartChannel, EndChannel);
+	CurrentMesh->BakeChannels(ret, InsideOut, DebugEdges, StartChannel, EndChannel);
 
-	ret.Nodes = Nodes;
+	ret.Nodes = *CurrentNodes;
 
 	return ret;
 }

@@ -835,8 +835,8 @@ void Mesh::BakeChannelsIntoFaceChannel(FPGCMeshResult& mesh, bool insideOut, PGC
 			check(edge.EffectiveType == PGCEdgeType::Sharp || edge.EffectiveType == PGCEdgeType::Rounded);
 
 			// UV group doesn't matter as we won't be using UVs on the edge drawing anyway
-			auto vs = BakeVertex(Vertices[edge.StartVertIdx].ToMeshVertRaw(0));
-			auto ve = BakeVertex(Vertices[edge.EndVertIdx].ToMeshVertRaw(0));
+			auto vs = BakeVertex(Vertices[edge.StartVertIdx].ToMeshVertRaw(-1));
+			auto ve = BakeVertex(Vertices[edge.EndVertIdx].ToMeshVertRaw(-1));
 
 			if (edge.EffectiveType == PGCEdgeType::Rounded)
 			{
@@ -855,8 +855,8 @@ void Mesh::BakeChannelsIntoFaceChannel(FPGCMeshResult& mesh, bool insideOut, PGC
 			check(edge.SetType != PGCEdgeType::Unset);
 
 			// UV group doesn't matter as we won't be using UVs on the edge drawing anyway
-			auto vs = BakeVertex(Vertices[edge.StartVertIdx].ToMeshVertRaw(0));
-			auto ve = BakeVertex(Vertices[edge.EndVertIdx].ToMeshVertRaw(0));
+			auto vs = BakeVertex(Vertices[edge.StartVertIdx].ToMeshVertRaw(-1));
+			auto ve = BakeVertex(Vertices[edge.EndVertIdx].ToMeshVertRaw(-1));
 
 			if (edge.SetType == PGCEdgeType::Rounded)
 			{

@@ -11,6 +11,8 @@
 #include "PGCGenerator.h"
 #include "NlOptWrapper.h"
 
+#include <typeinfo>
+
 #include "TestGenerator.generated.h"
 
 class YJunction : public LayoutGraph::Node {
@@ -30,7 +32,7 @@ public:
 
 class TestProfileSource : public StructuralGraph::ProfileSource {
 public:
-	TestProfileSource();
+	TestProfileSource(const FRandomStream& random_stream);
 	virtual ~TestProfileSource() = default;
 
 	// Inherited via ProfileSource
@@ -53,17 +55,8 @@ class PGC_API ATestGenerator : public AActor, public IPGCGenerator
 	GENERATED_BODY()
 
 	TSharedPtr<TestGraph> TopologicalGraph;
-	TSharedPtr<StructuralGraph::SGraph> StructuralGraph;
 
-	TSharedPtr<NlOptIface> OptimizerInterface;
-	TSharedPtr<NlOptWrapper> Optimizer;
-
-	TestProfileSource ProfileSource;
-
-	void EnsureGraphs();
-	void EnsureOptimizer();
-
-public:	
+public:
 	// Sets default values for this actor's properties
 	ATestGenerator();
 
@@ -79,6 +72,7 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	// Inherited via IPGCGenerator
-	virtual void MakeMesh(TSharedPtr<Mesh> mesh, TArray<FPGCNodePosition>& Nodes) override;
-
+	virtual void MakeMesh(TSharedPtr<Mesh> mesh, const TSharedPtr<TArray<FPGCNodePosition>> Nodes) const override;
+	virtual uint32 SettingsHash() const override;
+	virtual FString GetName() const override { return "ATestGenerator"; }
 };

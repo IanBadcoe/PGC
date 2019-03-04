@@ -8,14 +8,6 @@ PRAGMA_DISABLE_OPTIMIZATION
 namespace LayoutGraph
 {
 
-BackToBack::BackToBack(const FVector& pos, const FVector& rot)
-	: Node({ MakeShared<ConnectorInst>(FVector{ 0, 3, 0 }, FVector{ 1, 0, 0 }, FVector{ 0, 0, 1 }),
-			 MakeShared<ConnectorInst>(FVector{ 0, -3, 0 }, FVector{ -1, 0, 0 }, FVector{ 0, 0, 1 }),},
-		pos, rot)
-{
-}
-
-
 Graph::Graph(float segLength) : SegLength(segLength)
 {
 
@@ -52,12 +44,41 @@ int Graph::FindNodeIdx(const TWeakPtr<Node>& node) const
 	return -1;
 }
 
+int Graph::FindEdgeIdx(const TWeakPtr<Edge>& edge) const
+{
+	for (int i = 0; i < Edges.Num(); i++)
+	{
+		if (Edges[i] == edge)
+		{
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+uint32 Graph::GetTypeHash() const {
+	uint32 ret = ::GetTypeHash(SegLength);
+
+	for (const auto& n : Nodes)
+	{
+		ret = HashCombine(ret, n->GetTypeHash(*this));
+	}
+
+	for (const auto& e : Edges)
+	{
+		ret = HashCombine(ret, e->GetTypeHash(*this));
+	}
+
+	return ret;
+}
+
 Node::Node(int num_radial_connectors, const FVector& pos, const FVector& rot)
 	: Node(MakeRadialConnectors(num_radial_connectors), pos, rot)
 {
 }
 
-int Node::FindConnectorIdx(const TSharedPtr<ConnectorInst>& conn) const
+int Node::FindConnectorIdx(const TWeakPtr<ConnectorInst>& conn) const
 {
 	for (int i = 0; i < Connectors.Num(); i++)
 	{
@@ -113,6 +134,23 @@ const Node::ConnectorArray Node::MakeRadialConnectors(int num)
 	return ret;
 }
 
+uint32 Node::GetTypeHash(const Graph& graph) const
+{
+	uint32 ret = 0;
+
+	for (const auto& ci : Connectors)
+	{
+		ret = HashCombine(ret, ci->GetTypeHash());
+	}
+
+	for (const auto& e : Edges)
+	{
+		ret = HashCombine(ret, ::GetTypeHash(graph.FindEdgeIdx(e)));
+	}
+
+	return ret;
+}
+
 inline ConnectorInst::ConnectorInst(const FVector& pos, FVector forward, FVector up)
 {
 	// untransformed has the normal on X, the right on Y and Z up...
@@ -124,6 +162,17 @@ Edge::Edge(TWeakPtr<Node> fromNode, TWeakPtr<Node> toNode, TWeakPtr<ConnectorIns
 	FromConnector(fromConnector), ToConnector(toConnector) {
 	check(FromNode.Pin()->FindConnectorIdx(FromConnector.Pin()) != -1);
 	check(ToNode.Pin()->FindConnectorIdx(ToConnector.Pin()) != -1);
+}
+
+uint32 Edge::GetTypeHash(const Graph& graph) const
+{
+	uint32 ret = ::GetTypeHash(graph.FindNodeIdx(FromNode));
+	ret = HashCombine(ret, graph.FindNodeIdx(ToNode));
+
+	ret = HashCombine(ret, FromNode.Pin()->FindConnectorIdx(FromConnector));
+	ret = HashCombine(ret, ToNode.Pin()->FindConnectorIdx(ToConnector));
+
+	return ret;
 }
 
 }

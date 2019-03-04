@@ -171,7 +171,7 @@ namespace StructuralGraph {
 		const DebugMode DM = DebugMode::Skeleton;
 
 		SGraph(TSharedPtr<LayoutGraph::Graph> input,
-			ProfileSource* profile_source,
+			const TSharedPtr<const ProfileSource>& profile_source,
 			const FRandomStream& random_stream);
 
 		TSharedPtr<IGraph> IntermediateOptimize(TSharedPtr<LayoutGraph::Graph> input);
@@ -191,7 +191,7 @@ namespace StructuralGraph {
 		TArray<TSharedPtr<SNode>> Nodes;
 		TArray<TSharedPtr<SEdge>> Edges;
 
-		const ProfileSource* Profiles;
+		const TSharedPtr<const ProfileSource> Profiles;
 		FRandomStream RStream;
 	};
 }

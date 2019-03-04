@@ -21,3 +21,17 @@ FPGCCube::FPGCCube(int x, int y, int z)
 	Y = y;
 	Z = z;
 }
+
+uint32 FPGCCube::GetTypeHash() const
+{
+	auto ret = HashCombine(::GetTypeHash(X), ::GetTypeHash(Y));
+
+	ret = HashCombine(ret, ::GetTypeHash(Z));
+
+	for (const auto& et : EdgeTypes)
+	{
+		ret = HashCombine(ret, ::GetTypeHash(et));
+	}
+
+	return ret;
+}

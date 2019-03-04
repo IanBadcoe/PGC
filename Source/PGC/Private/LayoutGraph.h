@@ -8,6 +8,7 @@
 namespace LayoutGraph {
 
 class Node;
+class Graph;
 class ConnectorInst;
 
 class Edge {
@@ -28,6 +29,11 @@ public:
 
 	Edge(TWeakPtr<Node> fromNode, TWeakPtr<Node> toNode,
 		TWeakPtr<ConnectorInst> fromConnector, TWeakPtr<ConnectorInst> toConnector);
+
+	// Graph so we can use the indices of our nodes as their identities
+	// if we ever need a hash in the absence of the graph, we may need to embed
+	// the indices in the nodes
+	uint32 GetTypeHash(const Graph& graph) const;
 };
 
 class ConnectorInst {
@@ -39,6 +45,10 @@ public:
 	FTransform Transform;
 
 	ConnectorInst(const FVector& pos, FVector forward, FVector up);
+
+	uint32 GetTypeHash() const {
+		return Transform.ToMatrixWithScale().ComputeHash();
+	}
 };
 
 class Node {
@@ -66,18 +76,14 @@ public:
 	const Node& operator=(const Node&) = delete;
 	virtual ~Node() = default;
 
-	int FindConnectorIdx(const TSharedPtr<ConnectorInst>& conn) const;
+	int FindConnectorIdx(const TWeakPtr<ConnectorInst>& conn) const;
 
 	static const ConnectorArray MakeRadialConnectors(int count);
-};
 
-// built-in node type, used to connect edges end-to-end when filling-out their geometry
-class BackToBack : public Node {
-public:
-	// profiles not a matter for layout
-	//BackToBack(const TSharedPtr<ParameterisedProfile>& profile, const FVector& pos, const FVector& rot);
-	BackToBack(const FVector& pos, const FVector& rot);
-	virtual ~BackToBack() = default;
+	// Graph so we can use the indices of our edges as their identities
+	// if we ever need a hash in the absence of the graph, we may need to embed
+	// the indices in the edges
+	uint32 GetTypeHash(const Graph& g) const;
 };
 
 class Graph {
@@ -86,21 +92,18 @@ public:
 
 	Graph(float segLength);
 
-//		void MakeMesh(TSharedPtr<Mesh> mesh) const;
 	// connect "from" to "to" directly with an edge and no regard to geometry...
 	void Connect(int nodeFrom, int nodeFromconnector,
 		int nodeTo, int nodeToconnector,
 		int divs = 10, int twists = 0);
-	// profiles not a matter for layout
-	//void Connect(int nodeFrom, int nodeFromconnector,
-	//	int nodeTo, int nodeToconnector,
-	//	int divs = 10, int twists = 0,
-	//	const TArray<TSharedPtr<ParameterisedProfile>>& profiles = TArray<TSharedPtr<ParameterisedProfile>>());
 
 	int FindNodeIdx(const TWeakPtr<Node>& node) const;
+	int FindEdgeIdx(const TWeakPtr<Edge>& edge) const;
 
 	const TArray<TSharedPtr<Node>>& GetNodes() const { return Nodes; }
 	const TArray<TSharedPtr<Edge>>& GetEdges() const { return Edges; }
+
+	uint32 GetTypeHash() const;
 
 protected:
 	TArray<TSharedPtr<Node>> Nodes;

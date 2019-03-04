@@ -14,8 +14,7 @@ ParameterisedProfile::ParameterisedProfile(float width,
 	  BarrierHeights(barriers),
 	  OverhangWidths(overhangs),
 	  OutgoingSharp(outgoingSharps),
-	  IsDrivableEdge(isDrivableEdge),
-	  AbsoluteBound{ 0, 0 }
+	  IsDrivableEdge(isDrivableEdge)
 {
 	check(barriers.Num() == 4);
 	check(overhangs.Num() == 4);
@@ -79,6 +78,8 @@ void ParameterisedProfile::CheckConsistent() const {
 
 inline void ParameterisedProfile::CalcAbsoluteBound()
 {
+	AbsoluteBound = FVector2D::ZeroVector;
+
 	for (int i = 0; i < NumVerts; i++)
 	{
 		AbsoluteBound = FVector2D{

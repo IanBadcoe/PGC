@@ -28,6 +28,9 @@ class PGC_API IPGCGenerator
 public:
 	
 	// use in C++ only
-	virtual void MakeMesh(TSharedPtr<Mesh> mesh, TArray<FPGCNodePosition>& Nodes) = 0;
+	// conceptually const, may cache internally
+	virtual void MakeMesh(TSharedPtr<Mesh> mesh, const TSharedPtr<TArray<FPGCNodePosition>> Nodes) const = 0;
 
+	virtual uint32 SettingsHash() const = 0;
+	virtual FString GetName() const = 0;
 };

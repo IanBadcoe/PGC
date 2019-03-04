@@ -214,6 +214,11 @@ struct MeshVertMultiUV {
 	MeshMultiUV UVs;
 
 	MeshVertRaw ToMeshVertRaw(int UVGroup) const {
+		// -1 means just use any UVGroup we have...
+		// (used for debug line drawing, where we don't have any UVs...)
+		if (UVGroup == -1)
+			UVGroup = UVs.CreateConstIterator()->Key;
+
 		return MeshVertRaw{ Pos, UVs[UVGroup] };
 	}
 

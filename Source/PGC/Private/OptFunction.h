@@ -14,7 +14,7 @@ struct JoinIdxs {
 	}
 
 	static inline friend uint32 GetTypeHash(const JoinIdxs& other) {
-		return ::GetTypeHash(other.I.Get()) ^ ::GetTypeHash(other.J.Get()) * 37;
+		return HashCombine(::GetTypeHash(other.I.Get()), ::GetTypeHash(other.J.Get()));
 	}
 
 	bool operator==(const JoinIdxs& rhs) const {
