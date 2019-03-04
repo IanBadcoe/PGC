@@ -105,7 +105,8 @@ void UPGCMesh::RealGenerate(PGCMeshCache::CacheKey key, int NumDivisions, bool T
 	Cache.Add(key, PGCMeshCache::CacheVal{ out_mesh, out_nodes });
 }
 
-FPGCMeshResult UPGCMesh::GenerateMergeChannels(int NumDivisions, bool InsideOut, bool Triangularise, PGCDebugEdgeType DebugEdges)
+FPGCMeshResult UPGCMesh::GenerateMergeChannels(int NumDivisions, bool InsideOut, bool Triangularise, PGCDebugEdgeType DebugEdges,
+	PGCDebugMode dm)
 {
 	Generate(NumDivisions, Triangularise);
 
@@ -120,6 +121,7 @@ FPGCMeshResult UPGCMesh::GenerateMergeChannels(int NumDivisions, bool InsideOut,
 
 FPGCMeshResult UPGCMesh::GenerateChannels(int NumDivisions, bool InsideOut, bool Triangularise,
 	PGCDebugEdgeType DebugEdges,
+	PGCDebugMode dm,
 	int StartChannel, int EndChannel)
 {
 	Generate(NumDivisions, Triangularise);

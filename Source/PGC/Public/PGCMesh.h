@@ -75,10 +75,12 @@ public:
 		void SetGenerator(const TScriptInterface<IPGCGenerator>& gen);
 	
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate", Keywords = "PGC, procedural"), Category = "PGC")
-		FPGCMeshResult GenerateMergeChannels(int NumDivisions, bool InsideOut, bool Triangularise, PGCDebugEdgeType DebugEdges);
+		FPGCMeshResult GenerateMergeChannels(int NumDivisions, bool InsideOut, bool Triangularise, PGCDebugEdgeType DebugEdges,
+			PGCDebugMode dm);
 
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Channels", Keywords = "PGC, procedural"), Category = "PGC")
 		FPGCMeshResult GenerateChannels(int NumDivisions, bool InsideOut, bool Triangularise, PGCDebugEdgeType DebugEdges,
+			PGCDebugMode dm,
 			int StartChannel, int EndChannel);
 
 };

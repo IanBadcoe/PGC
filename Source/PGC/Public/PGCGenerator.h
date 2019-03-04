@@ -17,6 +17,15 @@ class UPGCGenerator : public UInterface
 	GENERATED_BODY()
 };
 
+
+UENUM(BlueprintType)
+enum class PGCDebugMode : uint8 {
+	Normal,
+	Skeleton,
+	IntermediateSkeleton
+};
+
+
 /**
  * 
  */
