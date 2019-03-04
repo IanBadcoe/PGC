@@ -72,7 +72,8 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	// Inherited via IPGCGenerator
-	virtual void MakeMesh(TSharedPtr<Mesh> mesh, const TSharedPtr<TArray<FPGCNodePosition>> Nodes) const override;
+	virtual void MakeMesh(TSharedPtr<Mesh> mesh, const TSharedPtr<TArray<FPGCNodePosition>> Nodes,
+		PGCDebugMode dm) const override;
 	virtual uint32 SettingsHash() const override;
 	virtual FString GetName() const override { return "ATestGenerator"; }
 };

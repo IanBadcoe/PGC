@@ -28,7 +28,8 @@ void APGCCubeGenerator::Tick(float DeltaTime)
 
 }
 
-void APGCCubeGenerator::MakeMesh(TSharedPtr<Mesh> mesh, const TSharedPtr<TArray<FPGCNodePosition>> Nodes) const
+void APGCCubeGenerator::MakeMesh(TSharedPtr<Mesh> mesh, const TSharedPtr<TArray<FPGCNodePosition>> Nodes,
+	PGCDebugMode /*dm*/) const
 {
 	for (auto& cube : Cubes)
 	{

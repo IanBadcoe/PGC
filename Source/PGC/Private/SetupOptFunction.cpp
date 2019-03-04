@@ -207,11 +207,11 @@ double SetupOptFunction::f(int n, const double * x, double * grad)
 		EdgeEdgeEnergy += EdgeEdge_Energy(ep.Edge1, ep.Edge2) * EdgeEdgeEnergyScale;
 	}
 
-	return 	NodeAngleEnergy +
-		EdgeAngleEnergy +
-		PlanarEnergy +
-		LengthEnergy +
-		EdgeEdgeEnergy;
+	return 	NodeAngleEnergy
+		+ EdgeAngleEnergy
+		+ PlanarEnergy
+		+ LengthEnergy
+		+ EdgeEdgeEnergy;
 }
 
 int SetupOptFunction::GetSize() const

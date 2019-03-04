@@ -18,11 +18,12 @@ class UPGCGenerator : public UInterface
 };
 
 
-UENUM(BlueprintType)
+UENUM()
 enum class PGCDebugMode : uint8 {
 	Normal,
 	Skeleton,
-	IntermediateSkeleton
+	IntermediateSkeleton,
+	RawIntermediateSkeleton
 };
 
 
@@ -38,7 +39,8 @@ public:
 	
 	// use in C++ only
 	// conceptually const, may cache internally
-	virtual void MakeMesh(TSharedPtr<Mesh> mesh, const TSharedPtr<TArray<FPGCNodePosition>> Nodes) const = 0;
+	virtual void MakeMesh(TSharedPtr<Mesh> mesh, const TSharedPtr<TArray<FPGCNodePosition>> Nodes,
+		PGCDebugMode dm) const = 0;
 
 	virtual uint32 SettingsHash() const = 0;
 	virtual FString GetName() const = 0;

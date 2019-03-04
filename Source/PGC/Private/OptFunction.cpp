@@ -356,7 +356,7 @@ double OptFunction::f(int n, const double* x, double* grad)
 		+ UnconnectedEnergy
 		+ TorsionEnergy
 		+ BendEnergy
-		* JunctionAngleEnergy
+		+ JunctionAngleEnergy
 		+ JunctionPlanarEnergy;
 }
 

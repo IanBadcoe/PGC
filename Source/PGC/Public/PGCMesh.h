@@ -19,12 +19,14 @@ struct CacheKey {
 	uint32 GeneratorConfigChecksum;
 	int NumDivisions;
 	bool Triangularise;
+	PGCDebugMode DM;
 
 	bool operator==(const CacheKey& rhs) const {
 		return GeneratorName == rhs.GeneratorName
 			&& GeneratorConfigChecksum == rhs.GeneratorConfigChecksum
 			&& NumDivisions == rhs.NumDivisions
-			&& Triangularise == rhs.Triangularise;
+			&& Triangularise == rhs.Triangularise
+			&& DM == rhs.DM;
 	}
 };
 
@@ -33,6 +35,7 @@ static uint32 GetTypeHash(const CacheKey& key) {
 
 	ret = HashCombine(ret, ::GetTypeHash(key.NumDivisions));
 	ret = HashCombine(ret, ::GetTypeHash(key.Triangularise));
+	ret = HashCombine(ret, ::GetTypeHash(key.DM));
 
 	return ret;
 }
@@ -56,8 +59,9 @@ class PGC_API UPGCMesh : public UActorComponent
 	TSharedPtr<Mesh> CurrentMesh;
 	TSharedPtr<TArray<FPGCNodePosition>> CurrentNodes;
 
-	void Generate(int NumDivisions, bool Triangularise);
-	void RealGenerate(PGCMeshCache::CacheKey key, int NumDivisions, bool Triangularise);
+	void Generate(int NumDivisions, bool Triangularise, PGCDebugMode dm);
+	void RealGenerate(PGCMeshCache::CacheKey key, int NumDivisions, bool Triangularise,
+		PGCDebugMode dm);
 
 public:	
 	// Sets default values for this component's properties

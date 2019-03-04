@@ -11,6 +11,7 @@
 #include "SplineUtil.h"
 #include "ParameterisedProfile.h"
 #include "IntermediateGraph.h"
+#include "PGCGenerator.h"
 
 namespace StructuralGraph {
 	class SNode;
@@ -115,7 +116,7 @@ namespace StructuralGraph {
 	struct INodeMetaData {
 		INodeMetaData() = default;
 		INodeMetaData(const INodeMetaData& rhs) = default;
-		TSharedPtr<SNode> Source;
+		int SourceIdx = -1;
 		INodeType Type = INodeType::Intermediate;
 	};
 	using INode = IntermediateGraph::INode<INodeMetaData>;
@@ -123,10 +124,10 @@ namespace StructuralGraph {
 	{
 		// a collection of data we need to pass to and from the IGraph before we build our own full connections
 		struct ConnCurve {
-			TSharedPtr<SNode> FromConn;
-			TSharedPtr<SNode> ToConn;
-			TSharedPtr<INode> Intermediate1Node;
-			TSharedPtr<INode> Intermediate2Node;
+			int FromConnIdx;
+			int ToConnIdx;
+			int Intermediate1NodeIdx;
+			int Intermediate2NodeIdx;
 
 			TSharedPtr<LayoutGraph::Edge> Edge;
 		};
@@ -161,17 +162,12 @@ namespace StructuralGraph {
 
 		static double OptimizeIGraph(TSharedPtr<IGraph> graph, double precision, bool final);
 
+		static TMap<uint32, TSharedPtr<IGraph>> IGraphCache;
+
 	public:
-		enum class DebugMode {
-			Normal,
-			Skeleton,
-			IntermediateSkeleton
-		};
-
-		const DebugMode DM = DebugMode::Skeleton;
-
 		SGraph(TSharedPtr<LayoutGraph::Graph> input,
 			const TSharedPtr<const ProfileSource>& profile_source,
+			PGCDebugMode dm,
 			const FRandomStream& random_stream);
 
 		TSharedPtr<IGraph> IntermediateOptimize(TSharedPtr<LayoutGraph::Graph> input);
@@ -186,7 +182,7 @@ namespace StructuralGraph {
 
 		int FindNodeIdx(const TWeakPtr<SNode>& node) const;
 
-		void MakeMesh(TSharedPtr<Mesh> mesh) const;
+		void MakeMesh(TSharedPtr<Mesh> mesh, PGCDebugMode dm) const;
 
 		TArray<TSharedPtr<SNode>> Nodes;
 		TArray<TSharedPtr<SEdge>> Edges;

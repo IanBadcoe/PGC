@@ -2,6 +2,7 @@
 
 #include "PGCMesh.h"
 
+PRAGMA_DISABLE_OPTIMIZATION
 
 //class static
 TMap<PGCMeshCache::CacheKey, PGCMeshCache::CacheVal> UPGCMesh::Cache;
@@ -42,32 +43,33 @@ void UPGCMesh::SetGenerator(const TScriptInterface<IPGCGenerator>& gen)
 	Generator = gen;
 }
 
-void UPGCMesh::Generate(int NumDivisions, bool Triangularise)
+void UPGCMesh::Generate(int NumDivisions, bool Triangularise, PGCDebugMode dm)
 {
 	auto checksum = Generator->SettingsHash();
 	auto gname = Generator->GetName();
 
-	PGCMeshCache::CacheKey key{ gname, checksum, NumDivisions, Triangularise };
+	PGCMeshCache::CacheKey key{ gname, checksum, NumDivisions, Triangularise, dm };
 
 	if (!Cache.Contains(key))
 	{
-		RealGenerate(key, NumDivisions, Triangularise);
+		RealGenerate(key, NumDivisions, Triangularise, dm);
 	}
 
 	CurrentMesh = Cache[key].Geom;
 	CurrentNodes = Cache[key].Nodes;
 }
 
-void UPGCMesh::RealGenerate(PGCMeshCache::CacheKey key, int NumDivisions, bool Triangularise)
+void UPGCMesh::RealGenerate(PGCMeshCache::CacheKey key, int NumDivisions, bool Triangularise,
+	PGCDebugMode dm)
 {
 	bool need_another_divide = false;
 	if (Triangularise)
 	{
-		Generate(NumDivisions, false);
+		Generate(NumDivisions, false, dm);
 	}
 	else if (NumDivisions > 0)
 	{
-		Generate(NumDivisions - 1, false);
+		Generate(NumDivisions - 1, false, dm);
 		need_another_divide = true;
 	}
 	else
@@ -75,13 +77,13 @@ void UPGCMesh::RealGenerate(PGCMeshCache::CacheKey key, int NumDivisions, bool T
 		auto out_mesh = MakeShared<Mesh>(FMath::Cos(FMath::DegreesToRadians(20.0f)));
 		auto out_nodes = MakeShared<TArray<FPGCNodePosition>>();
 
-		Generator->MakeMesh(out_mesh, out_nodes);
-		Cache.Add(PGCMeshCache::CacheKey{ key.GeneratorName, key.GeneratorConfigChecksum, 0, false }, { out_mesh, out_nodes });
+		Generator->MakeMesh(out_mesh, out_nodes, dm);
+		Cache.Add(PGCMeshCache::CacheKey{ key.GeneratorName, key.GeneratorConfigChecksum, 0, false, dm }, { out_mesh, out_nodes });
 
 		return;
 	}
 
-	PGCMeshCache::CacheKey parent_key{ key.GeneratorName, key.GeneratorConfigChecksum, NumDivisions - 1, false };
+	PGCMeshCache::CacheKey parent_key{ key.GeneratorName, key.GeneratorConfigChecksum, NumDivisions - 1, false, dm };
 
 	check(Cache.Contains(parent_key));
 
@@ -108,7 +110,7 @@ void UPGCMesh::RealGenerate(PGCMeshCache::CacheKey key, int NumDivisions, bool T
 FPGCMeshResult UPGCMesh::GenerateMergeChannels(int NumDivisions, bool InsideOut, bool Triangularise, PGCDebugEdgeType DebugEdges,
 	PGCDebugMode dm)
 {
-	Generate(NumDivisions, Triangularise);
+	Generate(NumDivisions, Triangularise, dm);
 
 	FPGCMeshResult ret;
 
@@ -124,7 +126,7 @@ FPGCMeshResult UPGCMesh::GenerateChannels(int NumDivisions, bool InsideOut, bool
 	PGCDebugMode dm,
 	int StartChannel, int EndChannel)
 {
-	Generate(NumDivisions, Triangularise);
+	Generate(NumDivisions, Triangularise, dm);
 
 	FPGCMeshResult ret;
 
@@ -134,3 +136,5 @@ FPGCMeshResult UPGCMesh::GenerateChannels(int NumDivisions, bool InsideOut, bool
 
 	return ret;
 }
+
+PRAGMA_ENABLE_OPTIMIZATION

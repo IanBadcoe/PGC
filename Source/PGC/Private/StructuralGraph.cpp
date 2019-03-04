@@ -10,6 +10,9 @@ PRAGMA_DISABLE_OPTIMIZATION
 namespace StructuralGraph
 {
 
+// static member
+TMap<uint32, TSharedPtr<IGraph>> SGraph::IGraphCache;
+
 using namespace Profile;
 using namespace SetupOpt;
 
@@ -44,6 +47,7 @@ static INodeType TranslateType(SNode::Type t) {
 }
 
 SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, const TSharedPtr<const ProfileSource>& profile_source,
+	PGCDebugMode dm,
 	const FRandomStream& random_stream)
 	: Profiles(profile_source), RStream(random_stream)
 {
@@ -131,102 +135,107 @@ SGraph::SGraph(TSharedPtr<LayoutGraph::Graph> input, const TSharedPtr<const Prof
 	auto i_graph = IntermediateOptimize(input);
 
 	// intermediate graph simple translation for debugging
-	// the difference between this and DM == IntermediateSkeleton is this doesn't even assume the
+	// the difference between this and dm == IntermediateSkeleton is this doesn't even assume the
 	// nodes we started with still exist, basically for showing hacked-in debug data
-#if 0
-	Nodes.Empty();
-	Edges.Empty();
 
-	for (const auto& n : i_graph->Nodes)
+	if (dm == PGCDebugMode::RawIntermediateSkeleton)
 	{
-		Nodes.Push(MakeShared<SNode>(TSharedPtr<ParameterisedProfile>(), TranslateType(n->MD.Type)));
-		Nodes.Last()->Position = n->Position;
-	}
+		Nodes.Empty();
+		Edges.Empty();
 
-	for (const auto& e : i_graph->Edges)
-	{
-		auto ifrom = i_graph->FindNodeIdx(e->FromNode);
-		auto ito = i_graph->FindNodeIdx(e->ToNode);
-
-		Connect(Nodes[ifrom], Nodes[ito], e->D0);
-	}
-#else
-	// copy node positions back from IGraph to us
-	for (const auto& n : i_graph->Nodes)
-	{
-		if (n->MD.Source.IsValid())
+		for (const auto& n : i_graph->Nodes)
 		{
-			n->MD.Source->Position = n->Position;
+			Nodes.Push(MakeShared<SNode>(TSharedPtr<ParameterisedProfile>(), TranslateType(n->MD.Type)));
+			Nodes.Last()->Position = n->Position;
+		}
 
-			// refresh the up-vector on junctions for how it may have rotated
-			if (n->MD.Type == INodeType::Junction) {
-				TArray<FVector> rel_verts;
+		for (const auto& e : i_graph->Edges)
+		{
+			auto ifrom = i_graph->FindNodeIdx(e->FromNode);
+			auto ito = i_graph->FindNodeIdx(e->ToNode);
 
-				for (const auto& e : n->Edges)
-				{
-					// makes no difference to the normal making verts relative (except maybe improving precision)
-					// and we need them relative for the angles
-					rel_verts.Emplace(e.Pin()->OtherNode(n).Pin()->Position - n->Position);
-				}
+			Connect(Nodes[ifrom], Nodes[ito], e->D0);
+		}
+	}
+	else
+	{
+		// copy node positions back from IGraph to us
+		for (const auto& n : i_graph->Nodes)
+		{
+			if (n->MD.SourceIdx != -1)
+			{
+				TSharedPtr<SNode> here_node = Nodes[n->MD.SourceIdx];
+				here_node->Position = n->Position;
 
-				n->MD.Source->CachedUp = Util::NewellPolyNormal(rel_verts);
+				// refresh the up-vector on junctions for how it may have rotated
+				if (n->MD.Type == INodeType::Junction) {
+					TArray<FVector> rel_verts;
 
-				// and set its connectors the same way up
-				for (const auto& e : n->MD.Source->Edges)
-				{
-					e.Pin()->OtherNode(n->MD.Source).Pin()->CachedUp = n->MD.Source->CachedUp;
+					for (const auto& e : n->Edges)
+					{
+						// makes no difference to the normal making verts relative (except maybe improving precision)
+						// and we need them relative for the angles
+						rel_verts.Emplace(e.Pin()->OtherNode(n).Pin()->Position - n->Position);
+					}
+
+					here_node->CachedUp = Util::NewellPolyNormal(rel_verts);
+
+					// and set its connectors the same way up
+					for (const auto& e : here_node->Edges)
+					{
+						e.Pin()->OtherNode(here_node).Pin()->CachedUp = here_node->CachedUp;
+					}
 				}
 			}
 		}
-	}
 
-	// fill-out our connections using the intermediate points from the IGraph
-	for (const auto& conn : i_graph->MD.IntermediatePoints)
-	{
-		auto from_c = conn.FromConn;
-		auto to_c = conn.ToConn;
-
-		auto profiles = Profiles->GetCompatibleProfileSequence(from_c->Profile, to_c->Profile,
-			conn.Edge->Divs);
-
-		auto int_pos1 = conn.Intermediate1Node->Position;
-		auto int_pos2 = conn.Intermediate2Node->Position;
-
-		if (DM != DebugMode::IntermediateSkeleton)
+		// fill-out our connections using the intermediate points from the IGraph
+		for (const auto& conn : i_graph->MD.IntermediatePoints)
 		{
-			ConnectAndFillOut(from_c, to_c, int_pos1, int_pos2,
-				conn.Edge->Divs, conn.Edge->Twists,
-				input->SegLength, profiles);
+			auto from_c = Nodes[conn.FromConnIdx];
+			auto to_c = Nodes[conn.ToConnIdx];
+
+			auto profiles = Profiles->GetCompatibleProfileSequence(from_c->Profile, to_c->Profile,
+				conn.Edge->Divs);
+
+			auto int_pos1 = i_graph->Nodes[conn.Intermediate1NodeIdx]->Position;
+			auto int_pos2 = i_graph->Nodes[conn.Intermediate2NodeIdx]->Position;
+
+			if (dm != PGCDebugMode::IntermediateSkeleton)
+			{
+				ConnectAndFillOut(from_c, to_c, int_pos1, int_pos2,
+					conn.Edge->Divs, conn.Edge->Twists,
+					input->SegLength, profiles);
+			}
+			else
+			{
+				auto int1n = MakeShared<SNode>(profiles[0], SNode::Type::Connection);
+				int1n->Position = int_pos1;
+				int1n->CachedUp = from_c->CachedUp;
+				int1n->Forward = (int_pos2 - int_pos1).GetSafeNormal();
+				Nodes.Push(int1n);
+
+				auto length = conn.Edge->Divs * input->SegLength;
+
+				Connect(from_c, int1n, length / 3);
+
+				auto int2n = MakeShared<SNode>(profiles[0], SNode::Type::Connection);
+				int2n->Position = int_pos2;
+				int2n->CachedUp = to_c->CachedUp;
+				int2n->Forward = (to_c->Position - int_pos2).GetSafeNormal();
+				Nodes.Push(int2n);
+
+				Connect(int1n, int2n, length / 3);
+				Connect(int2n, to_c, length / 3);
+			}
 		}
-		else
+
+		for (auto &n : Nodes)
 		{
-			auto int1n = MakeShared<SNode>(profiles[0], SNode::Type::Connection);
-			int1n->Position = int_pos1;
-			int1n->CachedUp = from_c->CachedUp;
-			int1n->Forward = (int_pos2 - int_pos1).GetSafeNormal();
-			Nodes.Push(int1n);
-
-			auto length = conn.Edge->Divs * input->SegLength;
-
-			Connect(from_c, int1n, length / 3);
-
-			auto int2n = MakeShared<SNode>(profiles[0], SNode::Type::Connection);
-			int2n->Position = int_pos2;
-			int2n->CachedUp = to_c->CachedUp;
-			int2n->Forward = (to_c->Position - int_pos2).GetSafeNormal();
-			Nodes.Push(int2n);
-
-			Connect(int1n, int2n, length / 3);
-			Connect(int2n, to_c, length / 3);
+			// now it is all laid out set the node radii
+			n->FindRadius();
 		}
 	}
-
-	for (auto &n : Nodes)
-	{
-		// now it is all laid out set the node radii
-		n->FindRadius();
-	}
-#endif
 
 	MakeIntoDAG();
 }
@@ -692,6 +701,15 @@ static TSharedPtr<IGraph> RadialInitModel(const TSharedPtr<IGraph>& graph, float
 
 TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimize(TSharedPtr<LayoutGraph::Graph> input)
 {
+	FRandomStream here_stream(RStream.RandHelper(INT_MAX));
+
+	auto hash = HashCombine(input->GetTypeHash(), ::GetTypeHash(here_stream.GetCurrentSeed()));
+
+	if (IGraphCache.Contains(hash))
+	{
+		return IGraphCache[hash];
+	}
+
 	auto i_graph = MakeShared<IGraph>();
 
 #if 0
@@ -723,7 +741,7 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 	// make an IGraph node for every node (Junction and Connector) that we have...
 	for (const auto& n : Nodes)
 	{
-		auto new_junction = MakeShared<INode>(n->Radius, n->Position, INodeMetaData{ n, TranslateType(n->MyType) } );
+		auto new_junction = MakeShared<INode>(n->Radius, n->Position, INodeMetaData{ FindNodeIdx(n), TranslateType(n->MyType) } );
 		i_graph->Nodes.Push(new_junction);
 	}
 
@@ -797,18 +815,18 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 					i_graph->MD.IntermediatePoints.AddDefaulted(1);
 					auto& cc = i_graph->MD.IntermediatePoints.Last();
 
-					cc.FromConn = here_from_conn_node;
-					cc.ToConn = here_to_conn_node;
+					cc.FromConnIdx = FindNodeIdx(here_from_conn_node);
+					cc.ToConnIdx = FindNodeIdx(here_to_conn_node);
 
 					cc.Edge = input_edge;
 
 					auto new_int1 = MakeShared<INode>(here_from_node->Radius, int1, INodeMetaData());
+					cc.Intermediate1NodeIdx = i_graph->Nodes.Num();
 					i_graph->Nodes.Push(new_int1);
-					cc.Intermediate1Node = new_int1;
 
 					auto new_int2 = MakeShared<INode>(here_to_node->Radius, int2, INodeMetaData());
+					cc.Intermediate2NodeIdx = i_graph->Nodes.Num();
 					i_graph->Nodes.Push(new_int2);
-					cc.Intermediate2Node = new_int2;
 
 					auto length = cc.Edge->Divs * input->SegLength;
 
@@ -848,8 +866,6 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 
 	// we have six special types of species starting config
 	check(NumSpecies >= 6);
-
-	FRandomStream here_stream(RStream.RandHelper(INT_MAX));
 
 	// setup a few species initialised different ways
 	for (int i = 0; i < SpeciesSize; i++)
@@ -920,7 +936,7 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 				for (int j = 0; j < Mutations; j++)
 				{
 					auto& node = new_individual->Nodes[here_stream.RandRange(0, new_individual->Nodes.Num() - 1)];
-					if (RStream.GetFraction() > 0.5f && node->MD.Source.IsValid() && node->MD.Type == INodeType::Junction)
+					if (here_stream.GetFraction() > 0.5f && node->MD.SourceIdx != -1 && node->MD.Type == INodeType::Junction)
 					{
 						auto eidx1 = here_stream.RandRange(0, node->Edges.Num() - 1);
 						int eidx2;
@@ -972,6 +988,8 @@ TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimiz
 	temp.Sort(GEnergyDiffer());
 
 	auto energy = OptimizeIGraph(temp[0], 0.00001, true);
+
+	IGraphCache.Add(hash, temp[0]);
 
 	return temp[0];
 }
@@ -1112,13 +1130,13 @@ int SGraph::FindNodeIdx(const TWeakPtr<SNode>& node) const
 	return -1;
 }
 
-void SGraph::MakeMesh(TSharedPtr<Mesh> mesh) const
+void SGraph::MakeMesh(TSharedPtr<Mesh> mesh, PGCDebugMode dm) const
 {
 	mesh->Clear();
 
 	RefreshTransforms();
 
-	if (DM != DebugMode::Normal)
+	if (dm != PGCDebugMode::Normal)
 	{
 		MakeMeshSkeleton(mesh);
 	}

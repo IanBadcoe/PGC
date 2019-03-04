@@ -30,18 +30,20 @@ uint32 ATestGenerator::SettingsHash() const
 	return HashCombine(TopologicalGraph->GetTypeHash(), GetTypeHash(RStream.GetCurrentSeed()));
 }
 
-void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh, TSharedPtr<TArray<FPGCNodePosition>> Nodes) const
+void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh, TSharedPtr<TArray<FPGCNodePosition>> Nodes,
+	PGCDebugMode dm) const
 {
-	// we won't change our' actual random stream, because the usual UE mechanaism for resetting it
-	// doesn't apply when we're invoked from some other Actor getting editted
+	// we won't change our' actual random stream, because the usual UE mechanism for resetting it
+	// doesn't apply when we're invoked from some other Actor getting edited
 	FRandomStream throwaway_rstream(RStream);
 
 	TSharedPtr<const StructuralGraph::ProfileSource> ProfileSource = MakeShared<const TestProfileSource>(FRandomStream(throwaway_rstream.RandHelper(INT_MAX)));
 
 	auto StructuralGraph = MakeShared<StructuralGraph::SGraph>(TopologicalGraph, ProfileSource,
+		dm,
 		FRandomStream(throwaway_rstream.RandHelper(INT_MAX)));
 
-	if (StructuralGraph->DM != StructuralGraph::SGraph::DebugMode::IntermediateSkeleton)
+	if (dm != PGCDebugMode::IntermediateSkeleton)
 	{
 		auto OptimizerInterface = MakeShared<Opt::OptFunction>(StructuralGraph, 1.0, 1.0, 100.0, 100.0, 10.0, 10.0);
 		
@@ -49,7 +51,7 @@ void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh, TSharedPtr<TArray<FPGCNodeP
 		Optimizer->RunOptimization(true, 1000, 1e-3, 100000, nullptr);
 	}
 
-	StructuralGraph->MakeMesh(mesh);
+	StructuralGraph->MakeMesh(mesh, dm);
 
 	for (const auto& n : StructuralGraph->Nodes)
 	{
