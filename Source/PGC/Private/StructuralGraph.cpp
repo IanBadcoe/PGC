@@ -315,7 +315,7 @@ void SGraph::MakeIntoDagInner(TSharedPtr<SNode> node, TSet<TSharedPtr<SNode>>& c
 	}
 }
 
-void StructuralGraph::SGraph::MakeMeshReal(TSharedPtr<Mesh> mesh) const
+void SGraph::MakeMeshReal(TSharedPtr<Mesh> mesh) const
 {
 	for (const auto& e : Edges)
 	{
@@ -428,7 +428,7 @@ void StructuralGraph::SGraph::MakeMeshReal(TSharedPtr<Mesh> mesh) const
 	}
 }
 
-void StructuralGraph::SGraph::MakeMeshSkeleton(TSharedPtr<Mesh> mesh) const
+void SGraph::MakeMeshSkeleton(TSharedPtr<Mesh> mesh) const
 {
 	for (const auto& e : Edges)
 	{
@@ -622,7 +622,7 @@ void SGraph::CalcEdgeStartParams(const TSharedPtr<SNode>& from_c, const TSharedP
 	out2 = intermediate2;
 }
 
-double StructuralGraph::SGraph::OptimizeIGraph(TSharedPtr<IGraph> i_graph, double precision, bool final)
+double SGraph::OptimizeIGraph(TSharedPtr<IGraph> i_graph, double precision, bool final)
 {
 	auto SOF = MakeShared<SetupOptFunction>(i_graph,
 		1.0,		// NodeAngleDistEnergyScale
@@ -699,7 +699,7 @@ static TSharedPtr<IGraph> RadialInitModel(const TSharedPtr<IGraph>& graph, float
 	return ret;
 }
 
-TSharedPtr<StructuralGraph::IGraph> StructuralGraph::SGraph::IntermediateOptimize(TSharedPtr<LayoutGraph::Graph> input)
+TSharedPtr<IGraph> SGraph::IntermediateOptimize(TSharedPtr<LayoutGraph::Graph> input)
 {
 	FRandomStream here_stream(RStream.RandHelper(INT_MAX));
 
@@ -1408,7 +1408,7 @@ inline void SNode::AddToMesh(TSharedPtr<Mesh> mesh) const {
 	}
 }
 
-void StructuralGraph::SNode::AddCeilingToMesh(TSharedPtr<Mesh> mesh, const TArray<OrdCon>& connectors, bool top) const
+void SNode::AddCeilingToMesh(TSharedPtr<Mesh> mesh, const TArray<OrdCon>& connectors, bool top) const
 {
 	// only proceed if we are completely closed
 	for (const auto& conn : connectors)
