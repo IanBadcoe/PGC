@@ -113,13 +113,24 @@ namespace StructuralGraph {
 		Connection,
 		Intermediate
 	};
+
 	struct INodeMetaData {
 		INodeMetaData() = default;
 		INodeMetaData(const INodeMetaData& rhs) = default;
 		int SourceIdx = -1;
 		INodeType Type = INodeType::Intermediate;
 	};
+
+	inline FArchive& operator<<(FArchive& Ar, INodeMetaData& nm)
+	{
+		Ar << nm.SourceIdx;
+		Ar << nm.Type;
+
+		return Ar;
+	}
+
 	using INode = IntermediateGraph::INode<INodeMetaData>;
+
 	struct IGraphMetaData
 	{
 		// a collection of data we need to pass to and from the IGraph before we build our own full connections
@@ -135,6 +146,7 @@ namespace StructuralGraph {
 		TArray<ConnCurve> IntermediatePoints;
 		double Energy;
 	};
+
 	using IEdge = IntermediateGraph::IEdge<INodeMetaData>;
 	using IGraph = IntermediateGraph::IGraph<INodeMetaData, IGraphMetaData>;
 
@@ -171,7 +183,7 @@ namespace StructuralGraph {
 		TSharedPtr<IGraph> IntermediateOptimize(TSharedPtr<LayoutGraph::Graph> input);
 
 		// connect "from" to "to" directly with an edge and no regard to geometry...
-		void Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, double D0);
+		void Connect(const TSharedPtr<SNode> from_n, const TSharedPtr<SNode> to_n, double D0);
 		// connect "from" to "to" via "Divs" intermediate back-to-back nodes
 		void ConnectAndFillOut(TSharedPtr<SNode> from_c, TSharedPtr<SNode> to_c,
 			const FVector& int1, const FVector& int2, 

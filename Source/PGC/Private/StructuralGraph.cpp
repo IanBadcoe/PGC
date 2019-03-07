@@ -559,13 +559,13 @@ void SGraph::RefreshTransforms() const
 	}
 }
 
-void SGraph::Connect(const TSharedPtr<SNode> n1, const TSharedPtr<SNode> n2, double D)
+void SGraph::Connect(const TSharedPtr<SNode> from_n, const TSharedPtr<SNode> to_n, double D)
 {
-	Edges.Add(MakeShared<SEdge>(n1, n2, D));
+	Edges.Add(MakeShared<SEdge>(from_n, to_n, D));
 
 	// edges are no particular order in nodes
-	n1->Edges.Add(Edges.Last());
-	n2->Edges.Add(Edges.Last());
+	from_n->Edges.Add(Edges.Last());
+	to_n->Edges.Add(Edges.Last());
 }
 
 void SGraph::CalcEdgeStartParams(const TSharedPtr<SNode>& from_c, const TSharedPtr<SNode>& to_c,

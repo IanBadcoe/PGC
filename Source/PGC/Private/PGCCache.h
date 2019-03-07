@@ -4,10 +4,7 @@
 #include "PGCGenerator.h"
 
 namespace Cache {
-
 using IGraph = StructuralGraph::IGraph;
-using SGraph = StructuralGraph::SGraph;
-
 
 class PGCCache
 {

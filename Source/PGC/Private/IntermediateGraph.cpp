@@ -31,13 +31,23 @@ IGraph<NM, GM>::IGraph(const IGraph& rhs)
 }
 
 template<typename NM, typename GM>
-void IGraph<NM, GM>::Connect(const TSharedPtr<INode>& n1, const TSharedPtr<INode>& n2, double D)
+void IGraph<NM, GM>::Connect(const TSharedPtr<INode>& from_n, const TSharedPtr<INode>& to_n, double D)
 {
-	Edges.Add(MakeShared<IEdge>(n1, n2, D));
+	Edges.Add(MakeShared<IEdge>());
+
+	Connect(Edges.Last(), from_n, to_n, D);
+}
+
+template<typename NM, typename GM>
+void IGraph<NM, GM>::Connect(const TSharedPtr<IEdge>& e, const TSharedPtr<INode>& from_n, const TSharedPtr<INode>& to_n, double D0)
+{
+	e->D0 = D0;
+	e->FromNode = from_n;
+	e->ToNode = to_n;
 
 	// edges are no particular order in nodes
-	n1->Edges.Add(Edges.Last());
-	n2->Edges.Add(Edges.Last());
+	from_n->Edges.Add(Edges.Last());
+	to_n->Edges.Add(Edges.Last());
 }
 
 template<typename NM, typename GM>
@@ -78,6 +88,38 @@ int IGraph<NM, GM>::FindNodeIdx(const TWeakPtr<INode>& node) const
 	}
 
 	return -1;
+}
+
+template<typename NM, typename GM>
+void IGraph<NM, GM>::Serialize(FArchive& Ar)
+{
+	auto num = Nodes.Num();
+
+	Ar << num;
+
+	for (int i = 0; i < num - Nodes.Num(); i++)
+	{
+		Nodes.Push(MakeShared<INode>());
+	}
+
+	for (auto& n : Nodes)
+	{
+		n->Serialize(Ar);
+	}
+
+	num = Edges.Num();
+
+	Ar << num;
+
+	for (int i = 0; i < num - Edges.Num(); i++)
+	{
+		Edges.Push(MakeShared<IEdge>());
+	}
+
+	for (auto& e : Edges)
+	{
+		SerializeEdge(e, Ar, *this);
+	}
 }
 
 template<typename NM>

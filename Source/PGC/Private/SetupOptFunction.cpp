@@ -11,7 +11,7 @@ namespace SetupOpt
 
 using namespace StructuralGraph;
 
-double SetupOptFunction::EdgeLength_Energy(const FVector & p1, const FVector & p2, double D0)
+double SetupOptFunction::EdgeLength_Energy(const FVector& p1, const FVector& p2, double D0)
 {
 	auto len = (p1 - p2).Size();
 

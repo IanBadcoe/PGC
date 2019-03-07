@@ -56,9 +56,12 @@ template <typename T> class TArrayIdx;
 template <typename T>
 class Idx {
 	friend class TArrayIdx<T>;
+	friend FArchive& operator<<(FArchive&, Idx& idx);
+
 	explicit operator int() const { return I; }
 
 public:
+	Idx() : I(-1) {}
 	explicit Idx(int i) : I(i) {}
 
 	bool Valid() const { return I != -1; }
@@ -71,9 +74,9 @@ public:
 	bool operator!=(const Idx& rhs) const { return I != rhs.I; }
 
 	Idx operator++() { I++; return *this; }
-	Idx operator++(int) { Idx temp{ *this }; I++; return temp; }
+	Idx operator++(int) { check(Valid());  Idx temp{ *this }; I++; return temp; }
 	Idx operator--() { I--; return *this; }
-	Idx operator--(int) { Idx temp{ *this }; I--; return temp; }
+	Idx operator--(int) { check(Valid()); Idx temp{ *this }; I--; return temp; }
 
 	// for very rare conversion out to other systems
 	int AsInt() const { return I; }
@@ -83,6 +86,12 @@ public:
 	inline friend uint32 GetTypeHash(const Idx idx)
 	{
 		return GetTypeHash(idx.I);
+	}
+
+	inline friend FArchive& operator<<(FArchive& Ar, Idx& idx) {
+		Ar << idx.I;
+
+		return Ar;
 	}
 
 private:
@@ -267,6 +276,13 @@ struct MeshVert : public MeshVertMultiUV {
 	MeshVertMultiUV WorkingNewPos;
 };
 
+inline FArchive& operator<<(FArchive& Ar, MeshVert& mv) {
+	Ar << mv.EdgeIdxs;
+	Ar << mv.FaceIdxs;
+
+	return Ar;
+}
+
 struct MeshEdge {
 	Idx<MeshVert> StartVertIdx = Idx<MeshVert>::None;
 	Idx<MeshVert> EndVertIdx = Idx<MeshVert>::None;
@@ -318,11 +334,26 @@ struct MeshEdge {
 	MeshVertMultiUV WorkingEdgeVertex;
 };
 
+inline FArchive& operator<<(FArchive& Ar, MeshEdge& me) {
+	Ar << me.StartVertIdx;
+	Ar << me.EndVertIdx;
+	Ar << me.ForwardFaceIdx;
+	Ar << me.BackwardsFaceIdx;
+	Ar << me.SetType;
+	Ar << me.EffectiveType;
+
+	return Ar;
+}
+
 struct MeshFace {
 	TArray<Idx<MeshVert>> VertIdxs;
 	TArray<Idx<MeshEdge>> EdgeIdxs;
 
 	int UVGroup = -1;		///< allow us to respect different UVs at shared vertices
+	int Channel;
+
+	// transient...
+	MeshVertMultiUV WorkingFaceVertex;
 
 	bool VertsAreRegular() const {
 		for (int i = 1; i < VertIdxs.Num(); i++)
@@ -334,11 +365,19 @@ struct MeshFace {
 		return true;
 	}
 
-	MeshVertMultiUV WorkingFaceVertex;
-	int Channel;
-
+	MeshFace() : Channel(-1) {}
 	MeshFace(int channel) : Channel(channel) {}
 };
+
+inline FArchive& operator<<(FArchive& Ar, MeshFace& mf)
+{
+	Ar << mf.VertIdxs;
+	Ar << mf.EdgeIdxs;
+	Ar << mf.UVGroup;
+	Ar << mf.Channel;
+
+	return Ar;
+}
 
 USTRUCT(BlueprintType)
 struct FPGCDebugEdge {
@@ -378,6 +417,14 @@ struct FPGCNodePosition {
 	FVector UpVector;
 };
 
+inline FArchive& operator<<(FArchive& Ar, FPGCNodePosition& pos)
+{
+	Ar << pos.Position;
+	Ar << pos.UpVector;
+
+	return Ar;
+}
+
 USTRUCT(BlueprintType)
 struct FPGCMeshResult {
 	GENERATED_USTRUCT_BODY()
@@ -413,6 +460,8 @@ enum class PGCDebugEdgeType : uint8 {
 
 class Mesh : public TSharedFromThis<Mesh>
 {
+	friend FArchive& operator<<(FArchive&, Mesh&);
+
 	TArrayIdx<MeshVert> Vertices;
 	TArrayIdx<MeshEdge> Edges;
 	TArrayIdx<MeshFace> Faces;
@@ -481,7 +530,11 @@ class Mesh : public TSharedFromThis<Mesh>
 
 public:	
 	// Sets default values for this actor's properties
-	Mesh(float cosAutoSharpAngleDegrees) : CosAutoSharpAngle(cosAutoSharpAngleDegrees) {}
+	Mesh(float cosAutoSharpAngleDegrees) : CosAutoSharpAngle(cosAutoSharpAngleDegrees) {
+		// initialised?
+		check(CosAutoSharpAngle != -2);
+	}
+	Mesh() : CosAutoSharpAngle(-2) {}
 
 	// if we are viewing a starting mesh, some faces can be very non-planar, and the arbitrary meshing of Bake isn't easy to look at
 	// so can do a pass of this, but on a divided mesh all faces should be smaller and flatter and that not matter...
@@ -519,5 +572,7 @@ public:
 	static void UnitTest();
 #endif
 };
+
+FArchive& operator<<(FArchive& Ar, Mesh& mesh);
 
 PRAGMA_ENABLE_OPTIMIZATION

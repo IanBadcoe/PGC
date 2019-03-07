@@ -122,7 +122,7 @@ double OptFunction::UnconnectedNodeNodeDist_Val(const FVector& p1, const FVector
 	return FMath::Pow((dist - D) / D, 2);
 }
 
-double OptFunction::ConnectedNodeNodeTorsion_Val(const FVector & up1, const FVector & up2, const FVector & p1, const FVector & p2, bool flipped)
+double OptFunction::ConnectedNodeNodeTorsion_Val(const FVector& up1, const FVector& up2, const FVector& p1, const FVector& p2, bool flipped)
 {
 	auto axis = (p2 - p1).GetSafeNormal();
 

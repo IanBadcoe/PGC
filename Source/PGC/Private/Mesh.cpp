@@ -80,7 +80,7 @@ Idx<MeshEdge> Mesh::AddFindEdge(Idx<MeshVert> idx1, Idx<MeshVert> idx2)
 	return Edges.LastIdx();
 }
 
-Idx<MeshVert> Mesh::FindVert(const FVector & pos) const
+Idx<MeshVert> Mesh::FindVert(const FVector& pos) const
 {
 	for (Idx<MeshVert> i{ 0 }; i < Vertices.Num(); i++)
 	{
@@ -1384,6 +1384,9 @@ void Mesh::CalcEffectiveType(MeshEdge& edge)
 
 	auto cos = FVector::DotProduct(e1normal, e2normal);
 
+	// initialised?
+	check(CosAutoSharpAngle != -2);
+
 	if (cos < CosAutoSharpAngle)
 	{
 		edge.EffectiveType = PGCEdgeType::Sharp;
@@ -1512,5 +1515,52 @@ void Mesh::BakeChannels(FPGCMeshResult& mesh, bool insideOut, PGCDebugEdgeType d
 //	return FVector::DistSquared(Pos, other.Pos) < tolerance * tolerance
 //		&& FVector2D::DistSquared(UV, other.UV) < tolerance * tolerance;
 //}
+
+FArchive& operator<<(FArchive& Ar, Mesh& mesh)
+{
+	int num = mesh.Vertices.Num().AsInt();
+
+	Ar << num;
+
+	for (int i = 0; i < num - mesh.Vertices.Num().AsInt(); i++)
+	{
+		mesh.Vertices.Push(MeshVert{});
+	}
+
+	for (auto& v : mesh.Vertices)
+	{
+		Ar << v;
+	}
+
+	num = mesh.Edges.Num().AsInt();
+
+	Ar << num;
+
+	for (int i = 0; i < num - mesh.Edges.Num().AsInt(); i++)
+	{
+		mesh.Edges.Push(MeshEdge{});
+	}
+
+	for (auto& e : mesh.Edges)
+	{
+		Ar << e;
+	}
+
+	num = mesh.Faces.Num().AsInt();
+
+	Ar << num;
+
+	for (int i = 0; i < num - mesh.Faces.Num().AsInt(); i++)
+	{
+		mesh.Faces.Push(MeshFace{});
+	}
+
+	for (auto& f : mesh.Faces)
+	{
+		Ar << f;
+	}
+
+	return Ar;
+}
 
 PRAGMA_ENABLE_OPTIMIZATION

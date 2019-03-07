@@ -144,7 +144,7 @@ FVector2D ParameterisedProfile::GetPoint(int idx) const {
 	return FVector2D{ x, y };
 }
 
-FVector ParameterisedProfile::GetTransformedVert(int vert_idx, const FTransform & trans) const
+FVector ParameterisedProfile::GetTransformedVert(int vert_idx, const FTransform& trans) const
 {
 	const auto point = GetPoint(vert_idx);
 
@@ -155,7 +155,7 @@ FVector ParameterisedProfile::GetTransformedVert(int vert_idx, const FTransform 
 	return trans.TransformPosition(temp);
 }
 
-FVector ParameterisedProfile::GetTransformedVert(VertTypes type, int quarter_idx, const FTransform & trans) const
+FVector ParameterisedProfile::GetTransformedVert(VertTypes type, int quarter_idx, const FTransform& trans) const
 {
 	int idx = quarter_idx * VertsPerQuarter;
 

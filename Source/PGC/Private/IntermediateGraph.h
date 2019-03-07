@@ -6,6 +6,9 @@ namespace IntermediateGraph {
 	template <typename NM>
 	class INode;
 
+	template <typename NM, typename GM>
+	class IGraph;
+
 	template <typename NM>
 	class IEdge {
 	public:
@@ -14,8 +17,9 @@ namespace IntermediateGraph {
 		TWeakPtr<INode> FromNode;
 		TWeakPtr<INode> ToNode;
 
-		const double D0;
+		double D0;
 
+		IEdge() : D0(0) {}
 		IEdge(const TWeakPtr<INode>& fromNode, const TWeakPtr<INode>& toNode, double d0);
 
 		TWeakPtr<INode> OtherNode(const INode* n) const
@@ -58,6 +62,8 @@ namespace IntermediateGraph {
 
 		const INode& operator=(const INode&) = delete;
 		virtual ~INode() = default;
+
+		void Serialize(FArchive& Ar);
 	};
 
 	// NM is "NodeMetadata" to be stored on each node
@@ -72,9 +78,10 @@ namespace IntermediateGraph {
 		IGraph(const IGraph& rhs);
 
 		// connect "from" to "to" directly with an edge and no regard to geometry...
-		void Connect(const TSharedPtr<INode>& n1, const TSharedPtr<INode>& n2, double D0);
-		// connect "from" to "to" via "Divs" intermediate back-to-back nodes
-		
+		void Connect(const TSharedPtr<INode>& from_n, const TSharedPtr<INode>& to_n, double D0);
+		// as above but when the edge already exists (happens in serialization)
+		void Connect(const TSharedPtr<IEdge>& e, const TSharedPtr<INode>& from_n, const TSharedPtr<INode>& to_n, double D0);
+
 		TArray<TSharedPtr<INode>> Nodes;
 		TArray<TSharedPtr<IEdge>> Edges;
 
@@ -87,5 +94,39 @@ namespace IntermediateGraph {
 
 		int FindNodeIdx(const TWeakPtr<INode>& node) const;
 
+		void Serialize(FArchive& Ar);
 	};
+
+	template<typename NM>
+	inline void INode<NM>::Serialize(FArchive& Ar)
+	{
+		Ar << Radius;
+
+		Ar << Position;
+
+		Ar << MD;
+	}
+
+	template<typename NM, typename GM>
+	inline void SerializeEdge(TSharedPtr<IEdge<NM>> edge, FArchive& Ar, IGraph<NM, GM>& graph)
+	{
+		Ar << edge->D0;
+
+		int fi, ti;
+
+
+		if (Ar.IsSaving())
+		{
+			fi = graph.FindNodeIdx(edge->FromNode);
+			ti = graph.FindNodeIdx(edge->ToNode);
+		}
+
+		Ar << fi;
+		Ar << ti;
+
+		if (!Ar.IsSaving())
+		{
+			graph.Connect(edge, graph.Nodes[fi], graph.Nodes[ti], edge->D0);
+		}
+	}
 }
