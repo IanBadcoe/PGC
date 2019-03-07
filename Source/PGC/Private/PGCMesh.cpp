@@ -2,12 +2,10 @@
 
 #include "PGCMesh.h"
 
+#include "PGCCache.h"
+
 PRAGMA_DISABLE_OPTIMIZATION
 
-//class static
-TMap<PGCMeshCache::CacheKey, PGCMeshCache::CacheVal> UPGCMesh::Cache;
-
-// --
 
 // Sets default values for this component's properties
 UPGCMesh::UPGCMesh()
@@ -48,21 +46,22 @@ void UPGCMesh::Generate(int NumDivisions, bool Triangularise, PGCDebugMode dm)
 	auto checksum = Generator->SettingsHash();
 	auto gname = Generator->GetName();
 
-	PGCMeshCache::CacheKey key{ gname, checksum, NumDivisions, Triangularise, dm };
+	auto mesh = Cache::PGCCache::GetMesh(gname, checksum, NumDivisions, Triangularise, dm);
 
-	if (!Cache.Contains(key))
+	if (!mesh.IsValid())
 	{
-		RealGenerate(key, NumDivisions, Triangularise, dm);
+		RealGenerate(gname, checksum, NumDivisions, Triangularise, dm);
 	}
 
-	CurrentMesh = Cache[key].Geom;
-	CurrentNodes = Cache[key].Nodes;
+	CurrentMesh = Cache::PGCCache::GetMesh(gname, checksum, NumDivisions, Triangularise, dm);
+	CurrentNodes = Cache::PGCCache::GetMeshNodes(gname, checksum, NumDivisions, Triangularise, dm);
 }
 
-void UPGCMesh::RealGenerate(PGCMeshCache::CacheKey key, int NumDivisions, bool Triangularise,
-	PGCDebugMode dm)
+void UPGCMesh::RealGenerate(const FString& generator_name, uint32 generator_hash,
+	int NumDivisions, bool Triangularise, PGCDebugMode dm)
 {
 	bool need_another_divide = false;
+
 	if (Triangularise)
 	{
 		Generate(NumDivisions, false, dm);
@@ -78,19 +77,17 @@ void UPGCMesh::RealGenerate(PGCMeshCache::CacheKey key, int NumDivisions, bool T
 		auto out_nodes = MakeShared<TArray<FPGCNodePosition>>();
 
 		Generator->MakeMesh(out_mesh, out_nodes, dm);
-		Cache.Add(PGCMeshCache::CacheKey{ key.GeneratorName, key.GeneratorConfigChecksum, 0, false, dm }, { out_mesh, out_nodes });
+		Cache::PGCCache::StoreMesh(generator_name, generator_hash, 0, false, dm, out_mesh, out_nodes);
 
 		return;
 	}
 
-	PGCMeshCache::CacheKey parent_key{ key.GeneratorName, key.GeneratorConfigChecksum, NumDivisions - 1, false, dm };
-
-	check(Cache.Contains(parent_key));
+	auto out_mesh = Cache::PGCCache::GetMesh(generator_name, generator_hash, NumDivisions - 1, false, dm);
+	check(out_mesh.IsValid());
 
 	// surfaces with normals differing by more than 20 degrees to be set sharp when
 	// using PGCEdgeType::Auto
-	auto out_mesh = Cache[parent_key].Geom;
-	auto out_nodes = Cache[parent_key].Nodes;
+	auto out_nodes = Cache::PGCCache::GetMeshNodes(generator_name, generator_hash, NumDivisions - 1, false, dm);
 
 	if (need_another_divide)
 	{
@@ -104,7 +101,7 @@ void UPGCMesh::RealGenerate(PGCMeshCache::CacheKey key, int NumDivisions, bool T
 		out_mesh = out_mesh->Triangularise();
 	}
 
-	Cache.Add(key, PGCMeshCache::CacheVal{ out_mesh, out_nodes });
+	Cache::PGCCache::StoreMesh(generator_name, generator_hash, NumDivisions, Triangularise, dm, out_mesh, out_nodes);
 }
 
 FPGCMeshResult UPGCMesh::GenerateMergeChannels(int NumDivisions, bool InsideOut, bool Triangularise, PGCDebugEdgeType DebugEdges,

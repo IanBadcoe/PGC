@@ -10,49 +10,10 @@
 
 #include "PGCMesh.generated.h"
 
-
-namespace PGCMeshCache
-{
-
-struct CacheKey {
-	FString GeneratorName;
-	uint32 GeneratorConfigChecksum;
-	int NumDivisions;
-	bool Triangularise;
-	PGCDebugMode DM;
-
-	bool operator==(const CacheKey& rhs) const {
-		return GeneratorName == rhs.GeneratorName
-			&& GeneratorConfigChecksum == rhs.GeneratorConfigChecksum
-			&& NumDivisions == rhs.NumDivisions
-			&& Triangularise == rhs.Triangularise
-			&& DM == rhs.DM;
-	}
-};
-
-static uint32 GetTypeHash(const CacheKey& key) {
-	uint32 ret = HashCombine(::GetTypeHash(key.GeneratorName), ::GetTypeHash(key.GeneratorConfigChecksum));
-
-	ret = HashCombine(ret, ::GetTypeHash(key.NumDivisions));
-	ret = HashCombine(ret, ::GetTypeHash(key.Triangularise));
-	ret = HashCombine(ret, ::GetTypeHash(key.DM));
-
-	return ret;
-}
-
-struct CacheVal {
-	TSharedPtr<Mesh> Geom;
-	TSharedPtr<TArray<FPGCNodePosition>> Nodes;
-};
-
-}
-
 UCLASS(BlueprintType)
 class PGC_API UPGCMesh : public UActorComponent
 {
 	GENERATED_BODY()
-
-	static TMap<PGCMeshCache::CacheKey, PGCMeshCache::CacheVal> Cache;
 
 	TScriptInterface<IPGCGenerator> Generator;
 
@@ -60,8 +21,8 @@ class PGC_API UPGCMesh : public UActorComponent
 	TSharedPtr<TArray<FPGCNodePosition>> CurrentNodes;
 
 	void Generate(int NumDivisions, bool Triangularise, PGCDebugMode dm);
-	void RealGenerate(PGCMeshCache::CacheKey key, int NumDivisions, bool Triangularise,
-		PGCDebugMode dm);
+	void RealGenerate(const FString& generator_name, uint32 generator_hash,
+		int NumDivisions, bool Triangularise, PGCDebugMode dm);
 
 public:	
 	// Sets default values for this component's properties

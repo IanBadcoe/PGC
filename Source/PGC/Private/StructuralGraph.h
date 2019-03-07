@@ -162,8 +162,6 @@ namespace StructuralGraph {
 
 		static double OptimizeIGraph(TSharedPtr<IGraph> graph, double precision, bool final);
 
-		static TMap<uint32, TSharedPtr<IGraph>> IGraphCache;
-
 	public:
 		SGraph(TSharedPtr<LayoutGraph::Graph> input,
 			const TSharedPtr<const ProfileSource>& profile_source,

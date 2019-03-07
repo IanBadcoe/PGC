@@ -2,19 +2,17 @@
 
 #include "Util.h"
 #include "SetupOptFunction.h"
-
 #include "IntermediateGraph.h"
+#include "PGCCache.h"
 
 PRAGMA_DISABLE_OPTIMIZATION
 
 namespace StructuralGraph
 {
 
-// static member
-TMap<uint32, TSharedPtr<IGraph>> SGraph::IGraphCache;
-
 using namespace Profile;
 using namespace SetupOpt;
+using namespace Cache;
 
 static SNode::Type TranslateType(INodeType t) {
 	switch (t) {
@@ -705,9 +703,11 @@ TSharedPtr<IGraph> SGraph::IntermediateOptimize(TSharedPtr<LayoutGraph::Graph> i
 
 	auto hash = HashCombine(input->GetTypeHash(), ::GetTypeHash(here_stream.GetCurrentSeed()));
 
-	if (IGraphCache.Contains(hash))
+	auto cached = PGCCache::GetIGraph(hash);
+
+	if (cached.IsValid())
 	{
-		return IGraphCache[hash];
+		return cached;
 	}
 
 	auto i_graph = MakeShared<IGraph>();
@@ -989,7 +989,7 @@ TSharedPtr<IGraph> SGraph::IntermediateOptimize(TSharedPtr<LayoutGraph::Graph> i
 
 	auto energy = OptimizeIGraph(temp[0], 0.00001, true);
 
-	IGraphCache.Add(hash, temp[0]);
+	PGCCache::StoreIGraph(hash, temp[0]);
 
 	return temp[0];
 }
