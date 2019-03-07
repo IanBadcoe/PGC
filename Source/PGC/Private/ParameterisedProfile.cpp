@@ -175,12 +175,34 @@ float ParameterisedProfile::Diff(const TSharedPtr<ParameterisedProfile>& other) 
 {
 	auto ret = 0.0f;
 
+	auto scale_x_ratio = AbsoluteBound.X / other->AbsoluteBound.X;
+	auto scale_y_ratio = AbsoluteBound.Y / other->AbsoluteBound.Y;
+
+	scale_x_ratio = FMath::Max(scale_x_ratio, 1 / scale_x_ratio);
+	scale_y_ratio = FMath::Max(scale_y_ratio, 1 / scale_y_ratio);
+
+	ret += scale_x_ratio;
+	ret += scale_y_ratio;
+
+	auto ord_scale = FMath::Max(AbsoluteBound.GetMax(), other->AbsoluteBound.GetMax());
+
 	for (int i = 0; i < NumVerts; i++)
 	{
-		ret += (this->GetPoint(i) - other->GetPoint(i)).Size();
+		ret += ((this->GetPoint(i) - other->GetPoint(i)).Size()) / ord_scale;
+
+		if (GetOutgoingEdgeType(i) != other->GetOutgoingEdgeType(i))
+		{
+			ret += 0.3f;
+		}
+
+		if (IsDrivable(i) != other->IsDrivable(i))
+		{
+			ret += 1.0f;
+		}
 	}
 
-	return ret;
+	// square it to encourage even distribution of changes
+	return ret * ret;
 }
 
 static inline float interp(float from, float to, float frac)

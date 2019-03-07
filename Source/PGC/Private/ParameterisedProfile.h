@@ -21,7 +21,7 @@ class ParameterisedRoadbedShape {
 	//  0                               11
 	//
 	// Smoothing works as follows:
-	// 0 and 11 are always smooth (between top and bottom, nevcer drivable (when using this class)
+	// 0 and 11 are always smooth (between top and bottom, never drivable (when using this class)
 	// Start/EndSmoothIdx specify a sub-range between 1 and 11 (inclusive of start) to be smoothed
 	// (set to empty range (say 0 -> -1) to disable
 
@@ -49,10 +49,17 @@ public:
 		float leftOverhang, float rightOverhang,
 		int startSmooth, int endSmooth)
 		: StartSmoothIdx(startSmooth), EndSmoothIdx(endSmooth),
-		  StartDriveIdx(startSmooth), EndDriveIdx(endSmooth),
+		  StartDriveIdx(startSmooth - 1), EndDriveIdx(endSmooth),
 		  LeftBarrierHeight(leftBarrier), RightBarrierHeight(rightBarrier),
 		  LeftOverhang(leftOverhang), RightOverhang(rightOverhang)
-	{}
+	{
+		if (IsEmptySmoothRange())
+		{
+			// if we don't have a smoothing range, then just the default edge is drivable
+			StartDriveIdx = 5;
+			EndDriveIdx = 6;
+		}
+	}
 	ParameterisedRoadbedShape(float leftBarrier, float rightBarrier,
 		float leftOverhang, float rightOverhang,
 		int startSmooth, int endSmooth,
@@ -97,8 +104,17 @@ public:
 		(
 			RightBarrierHeight, LeftBarrierHeight,
 			RightOverhang, LeftOverhang,
+			// because these ranges are start <= n < end
+			// we have to go up to 12 to get a (theoretical) whole range of 0 -> 11
+			// this seems wrong, but is right :-)
+			// e.g. the range 3, 4, 5, 6 is s: 3, e: 7
+			// and becomes s: 5, e: 9, which means: 5, 6, 7, 8
+			// (which is the same range numbered the other way...)
 			12 - EndSmoothIdx, 12 - StartSmoothIdx,
-			12 - EndDriveIdx, 12 - StartDriveIdx
+			// these, contrariwise, are edge numbers and only go to 11
+			// (yes, it seems really wrong, to use 12 for one of these and 11 for the other
+			//  it is not :-o)
+			11 - EndDriveIdx, 11 - StartDriveIdx
 		);
 	}
 
@@ -215,7 +231,7 @@ public:
 
 	TSharedPtr<ParameterisedProfile> Interp(TSharedPtr<ParameterisedProfile> other, float frac) const;
 
-	PGCEdgeType GetOutgoingEdgeType(int i) {
+	PGCEdgeType GetOutgoingEdgeType(int i) const {
 		return OutgoingSharp[i] ? PGCEdgeType::Sharp : PGCEdgeType::Rounded;
 	}
 

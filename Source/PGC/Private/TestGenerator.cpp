@@ -62,43 +62,42 @@ void ATestGenerator::MakeMesh(TSharedPtr<Mesh> mesh, TSharedPtr<TArray<FPGCNodeP
 TestProfileSource::TestProfileSource(const FRandomStream& random_stream)
 	: RStream(random_stream)
 {
-	//// tunnels
-	//AddRoadbed("SquareTunnel", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.5f, 0.5f, 0, -1));
-	//AddRoadbed("RoundTunnel", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.5f, 0.5f, 3, 9));
-	//AddRoadbed("RoundTunnel", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.5f, 0.5f, 3, 9));
+	// tunnels
+	AddRoadbed("SquareTunnel", MakeShared<Profile::ParameterisedRoadbedShape>(1, 1, 0.5f, 0.5f, 0, -1));
+	AddRoadbed("RoundTunnel", MakeShared<Profile::ParameterisedRoadbedShape>(1, 1, 0.5f, 0.5f, 3, 9));
 
-	//// canyons
-	//AddRoadbed("SquareCanyon", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.35f, 0.35f, 0, -1));
-	//AddRoadbed("RoundCanyon", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.35f, 0.35f, 3, 9));
-	//AddRoadbed("RoundCanyonB", MakeShared<ParameterisedRoadbedShape>(1, 1, 0.35f, 0.35f, 4, 8));
+	// canyons
+	AddRoadbed("SquareCanyon", MakeShared<Profile::ParameterisedRoadbedShape>(1, 1, 0.35f, 0.35f, 0, -1));
+	AddRoadbed("RoundCanyon", MakeShared<Profile::ParameterisedRoadbedShape>(1, 1, 0.35f, 0.35f, 3, 9));
+	AddRoadbed("RoundCanyonB", MakeShared<Profile::ParameterisedRoadbedShape>(1, 1, 0.35f, 0.35f, 4, 8));
 
-	//AddRoadbed("TallThinSquareCanyon", MakeShared<ParameterisedRoadbedShape>(1.5, 1.5, 0.35f, 0.35f, 0, -1));
-	//AddRoadbed("TallThinRoundCanyon", MakeShared<ParameterisedRoadbedShape>(1.5, 1.5, 0.35f, 0.35f, 3, 9));
-	//AddRoadbed("TallThinRoundCanyonB", MakeShared<ParameterisedRoadbedShape>(1.5, 1.5, 0.35f, 0.35f, 4, 8));
+	AddRoadbed("TallThinSquareCanyon", MakeShared<Profile::ParameterisedRoadbedShape>(1.5, 1.5, 0.35f, 0.35f, 0, -1));
+	AddRoadbed("TallThinRoundCanyon", MakeShared<Profile::ParameterisedRoadbedShape>(1.5, 1.5, 0.35f, 0.35f, 3, 9));
+	AddRoadbed("TallThinRoundCanyonB", MakeShared<Profile::ParameterisedRoadbedShape>(1.5, 1.5, 0.35f, 0.35f, 4, 8));
 
-	//// U-shapes
-	//AddRoadbed("SquareU", MakeShared<ParameterisedRoadbedShape>(1, 1, 0, 0, 0, -1));
-	//AddRoadbed("SquareLowU", MakeShared<ParameterisedRoadbedShape>(0.5f, 0.5f, 0, 0, 0, -1));
-	//AddRoadbed("SquareShallowU", MakeShared<ParameterisedRoadbedShape>(0.1f, 0.1f, 0, 0, 0, -1));
-	//AddRoadbed("RoundU", MakeShared<ParameterisedRoadbedShape>(1, 1, 0, 0, 4, 8));
-	//AddRoadbed("RoundLowU", MakeShared<ParameterisedRoadbedShape>(0.5f, 0.5f, 0, 0, 4, 8));
-	//AddRoadbed("RoundShallowU", MakeShared<ParameterisedRoadbedShape>(0.1f, 0.1f, 0, 0, 4, 8));
+	// U-shapes
+	AddRoadbed("SquareU", MakeShared<Profile::ParameterisedRoadbedShape>(1, 1, 0, 0, 0, -1));
+	AddRoadbed("SquareLowU", MakeShared<Profile::ParameterisedRoadbedShape>(0.5f, 0.5f, 0, 0, 0, -1));
+	AddRoadbed("SquareShallowU", MakeShared<Profile::ParameterisedRoadbedShape>(0.1f, 0.1f, 0, 0, 0, -1));
+	AddRoadbed("RoundU", MakeShared<Profile::ParameterisedRoadbedShape>(1, 1, 0, 0, 4, 8));
+	AddRoadbed("RoundLowU", MakeShared<Profile::ParameterisedRoadbedShape>(0.5f, 0.5f, 0, 0, 4, 8));
+	AddRoadbed("RoundShallowU", MakeShared<Profile::ParameterisedRoadbedShape>(0.1f, 0.1f, 0, 0, 4, 8));
 
-	//// C-shapes
-	//AddRoadbed("SquareC", MakeShared<ParameterisedRoadbedShape>(1, 0, 1, 0, 0, -1));
-	//AddRoadbed("SquareShortTopC", MakeShared<ParameterisedRoadbedShape>(1, 0, 0.5f, 0, 0, -1));
-	//AddRoadbed("RoundC", MakeShared<ParameterisedRoadbedShape>(1, 0, 1, 0, 3, 7));
-	//AddRoadbed("RoundShortTopC", MakeShared<ParameterisedRoadbedShape>(1, 0, 0.5f, 0, 3, 7));
+	// C-shapes
+	AddRoadbed("SquareC", MakeShared<Profile::ParameterisedRoadbedShape>(1, 0, 1, 0, 0, -1));
+	AddRoadbed("SquareShortTopC", MakeShared<Profile::ParameterisedRoadbedShape>(1, 0, 0.5f, 0, 0, -1));
+	AddRoadbed("RoundC", MakeShared<Profile::ParameterisedRoadbedShape>(1, 0, 1, 0, 3, 7));
+	AddRoadbed("RoundShortTopC", MakeShared<Profile::ParameterisedRoadbedShape>(1, 0, 0.5f, 0, 3, 7));
 
-	//// L-shapes
-	//AddRoadbed("SquareL", MakeShared<ParameterisedRoadbedShape>(1, 0, 0, 0, 0, -1));
-	//AddRoadbed("SquareShortL", MakeShared<ParameterisedRoadbedShape>(0.5f, 0, 0, 0, 0, -1));
-	//AddRoadbed("RoundL", MakeShared<ParameterisedRoadbedShape>(1, 0, 0, 0, 5, 6));
-	//AddRoadbed("RoundShortL", MakeShared<ParameterisedRoadbedShape>(0.5f, 0, 0, 0, 5, 6));
+	// L-shapes
+	AddRoadbed("SquareL", MakeShared<Profile::ParameterisedRoadbedShape>(1, 0, 0, 0, 0, -1));
+	AddRoadbed("SquareShortL", MakeShared<Profile::ParameterisedRoadbedShape>(0.5f, 0, 0, 0, 0, -1));
+	AddRoadbed("RoundL", MakeShared<Profile::ParameterisedRoadbedShape>(1, 0, 0, 0, 5, 6));
+	AddRoadbed("RoundShortL", MakeShared<Profile::ParameterisedRoadbedShape>(0.5f, 0, 0, 0, 5, 6));
 
-	// test only!!!
-	AddRoadbed("test1", MakeShared<Profile::ParameterisedRoadbedShape>(1.0f, 1.0f, 0.5f, 0.5f, 6, 11, 5, 7), true, { 3.0f });
-	AddRoadbed("test2", MakeShared<Profile::ParameterisedRoadbedShape>(1.0f, 1.0f, 0, 0, 6, 11, 5, 7), true, { 3.0f });
+	//// test only!!!
+	//AddRoadbed("test1", MakeShared<Profile::ParameterisedRoadbedShape>(1.0f, 1.0f, 0.5f, 0.5f, 6, 11, 5, 7), true, { 3.0f });
+	//AddRoadbed("test2", MakeShared<Profile::ParameterisedRoadbedShape>(1.0f, 1.0f, 0, 0, 6, 11, 5, 7), true, { 3.0f });
 }
 
 TSharedPtr<Profile::ParameterisedProfile> TestProfileSource::GetProfile() const
