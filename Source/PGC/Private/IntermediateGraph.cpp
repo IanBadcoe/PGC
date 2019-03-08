@@ -97,7 +97,7 @@ void IGraph<NM, GM>::Serialize(FArchive& Ar)
 
 	Ar << num;
 
-	for (int i = 0; i < num - Nodes.Num(); i++)
+	while(num > Nodes.Num())
 	{
 		Nodes.Push(MakeShared<INode>());
 	}
@@ -111,7 +111,7 @@ void IGraph<NM, GM>::Serialize(FArchive& Ar)
 
 	Ar << num;
 
-	for (int i = 0; i < num - Edges.Num(); i++)
+	while (num > Edges.Num())
 	{
 		Edges.Push(MakeShared<IEdge>());
 	}

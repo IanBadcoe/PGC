@@ -266,6 +266,13 @@ struct MeshVertMultiUV {
 	}
 };
 
+inline FArchive& operator<<(FArchive& Ar, MeshVertMultiUV& mv) {
+	Ar << mv.Pos;
+	Ar << mv.UVs;
+
+	return Ar;
+}
+
 struct MeshEdge;
 struct MeshFace;
 
@@ -277,6 +284,8 @@ struct MeshVert : public MeshVertMultiUV {
 };
 
 inline FArchive& operator<<(FArchive& Ar, MeshVert& mv) {
+	Ar << static_cast<MeshVertMultiUV&>(mv);
+
 	Ar << mv.EdgeIdxs;
 	Ar << mv.FaceIdxs;
 
@@ -470,8 +479,7 @@ class Mesh : public TSharedFromThis<Mesh>
 	TArray<MeshFaceRaw> BakedFaces;
 
 	int NextUVGroup = 0;
-	float VertexTolerance = 0.001f;	// currently working on meshes that are multiples of 1 in size, so 0.001 should be plenty
-	const float CosAutoSharpAngle;
+	float CosAutoSharpAngle;
 
 	bool Clean = true;				// when we add geometry, we may generate inappropriately shared verts
 									// this signals to clean that up

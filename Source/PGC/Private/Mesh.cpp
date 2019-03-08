@@ -1518,46 +1518,55 @@ void Mesh::BakeChannels(FPGCMeshResult& mesh, bool insideOut, PGCDebugEdgeType d
 
 FArchive& operator<<(FArchive& Ar, Mesh& mesh)
 {
-	int num = mesh.Vertices.Num().AsInt();
+	Ar << mesh.NextUVGroup;
+	Ar << mesh.CosAutoSharpAngle;
 
-	Ar << num;
-
-	for (int i = 0; i < num - mesh.Vertices.Num().AsInt(); i++)
 	{
-		mesh.Vertices.Push(MeshVert{});
+		auto num = mesh.Vertices.Num();
+
+		Ar << num;
+
+		while (num > mesh.Vertices.Num())
+		{
+			mesh.Vertices.Push(MeshVert{});
+		}
+
+		for (auto& v : mesh.Vertices)
+		{
+			Ar << v;
+		}
 	}
 
-	for (auto& v : mesh.Vertices)
 	{
-		Ar << v;
+		auto num = mesh.Edges.Num();
+
+		Ar << num;
+
+		while (num > mesh.Edges.Num())
+		{
+			mesh.Edges.Push(MeshEdge{});
+		}
+
+		for (auto& e : mesh.Edges)
+		{
+			Ar << e;
+		}
 	}
 
-	num = mesh.Edges.Num().AsInt();
-
-	Ar << num;
-
-	for (int i = 0; i < num - mesh.Edges.Num().AsInt(); i++)
 	{
-		mesh.Edges.Push(MeshEdge{});
-	}
+		auto num = mesh.Faces.Num();
 
-	for (auto& e : mesh.Edges)
-	{
-		Ar << e;
-	}
+		Ar << num;
 
-	num = mesh.Faces.Num().AsInt();
+		while (num > mesh.Faces.Num())
+		{
+			mesh.Faces.Push(MeshFace{});
+		}
 
-	Ar << num;
-
-	for (int i = 0; i < num - mesh.Faces.Num().AsInt(); i++)
-	{
-		mesh.Faces.Push(MeshFace{});
-	}
-
-	for (auto& f : mesh.Faces)
-	{
-		Ar << f;
+		for (auto& f : mesh.Faces)
+		{
+			Ar << f;
+		}
 	}
 
 	return Ar;
